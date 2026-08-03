@@ -20,6 +20,8 @@ use PHPUnit\Framework\TestCase;
 
 use function dirname;
 
+use const PHP_VERSION_ID;
+
 final class HttpLogEntryRepositoryTest extends TestCase
 {
     private EntityManager $entityManager;
@@ -31,6 +33,11 @@ final class HttpLogEntryRepositoryTest extends TestCase
             [dirname(__DIR__, 2) . '/src/Entity'],
             true,
         );
+        // On PHP 8.4+, enable native lazy objects: Symfony 8 removed
+        // ProxyHelper::generateLazyGhost, and Doctrine ORM 3 deprecates the old path.
+        if (PHP_VERSION_ID >= 80400) {
+            $configuration->enableNativeLazyObjects(true);
+        }
         $connection = DriverManager::getConnection([
             'driver' => 'pdo_sqlite',
             'memory' => true,
