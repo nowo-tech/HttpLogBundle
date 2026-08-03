@@ -1,0 +1,30 @@
+{% trans_default_domain 'NowoHttpLogBundle' %}
+<!DOCTYPE html>
+<html lang="{{ app.request.locale|default('en') }}" class="nowo-ui-html nowo-ui--{{ nowo_http_log_css_framework|default('bootstrap5') }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ 'admin.title'|trans({}, 'NowoHttpLogBundle') }}{% endblock %}</title>
+    {% block nowo_ui_styles %}
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    {% endblock %}
+</head>
+<body class="nowo-ui-body">
+    <div class="nowo-ui-container container py-4">
+        <header class="nowo-ui-header mb-4">
+            <h1 class="nowo-ui-title">{% block page_title %}{{ 'admin.title'|trans({}, 'NowoHttpLogBundle') }}{% endblock %}</h1>
+        </header>
+        <main class="nowo-ui-main">
+            {% for label, messages in app.flashes %}
+                {% for message in messages %}
+                    <div class="nowo-ui-alert alert alert-{{ label == 'error' ? 'danger' : label }}">{{ message }}</div>
+                {% endfor %}
+            {% endfor %}
+            {% block nowo_ui_content %}{% endblock %}
+        </main>
+    </div>
+    {% block nowo_ui_scripts %}
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
+    {% endblock %}
+</body>
+</html>

@@ -1,0 +1,88 @@
+{% extends nowo_http_log_layout_template|default('@NowoHttpLogBundle/layout.html.twig') %}
+
+{% block title %}{{ 'admin.index.title'|trans({}, 'NowoHttpLogBundle') }} — {{ parent() }}{% endblock %}
+
+{% block nowo_ui_content %}
+    {% include '@NowoHttpLogBundle/admin/_filter.html.twig' %}
+
+    <div class="nowo-ui-toolbar d-flex justify-content-between align-items-center mb-3">
+        <p class="nowo-ui-summary mb-0">{{ 'admin.index.total'|trans({'%count%': total}, 'NowoHttpLogBundle') }}</p>
+        <div class="nowo-ui-actions">
+            <form method="post" action="{{ path('nowo_http_log_admin_export') }}" class="d-inline">
+                <input type="hidden" name="_token" value="{{ csrf_token('http_log_export') }}">
+                <input type="hidden" name="format" value="csv">
+                {% for key, value in criteria %}
+                    <input type="hidden" name="{{ key }}" value="{{ value.timestamp is defined ? value|date('Y-m-d\\TH:i') : value }}">
+                {% endfor %}
+                <button type="submit" class="btn btn-outline-secondary btn-sm nowo-ui-btn-export">{{ 'admin.action.export_csv'|trans({}, 'NowoHttpLogBundle') }}</button>
+            </form>
+            <form method="post" action="{{ path('nowo_http_log_admin_export') }}" class="d-inline ms-1">
+                <input type="hidden" name="_token" value="{{ csrf_token('http_log_export') }}">
+                <input type="hidden" name="format" value="json">
+                {% for key, value in criteria %}
+                    <input type="hidden" name="{{ key }}" value="{{ value.timestamp is defined ? value|date('Y-m-d\\TH:i') : value }}">
+                {% endfor %}
+                <button type="submit" class="btn btn-outline-secondary btn-sm nowo-ui-btn-export">{{ 'admin.action.export_json'|trans({}, 'NowoHttpLogBundle') }}</button>
+            </form>
+            <form method="post" action="{{ path('nowo_http_log_admin_purge') }}" class="d-inline ms-1"
+                  onsubmit="return confirm('{{ 'admin.purge.confirm'|trans({}, 'NowoHttpLogBundle')|e('js') }}');">
+                <input type="hidden" name="_token" value="{{ csrf_token('http_log_purge') }}">
+                <button type="submit" class="btn btn-outline-danger btn-sm nowo-ui-btn-purge">{{ 'admin.action.purge'|trans({}, 'NowoHttpLogBundle') }}</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="nowo-ui-table-wrap table-responsive">
+        <table class="table table-striped table-sm nowo-ui-table">
+            <thead>
+                <tr>
+                    <th>{{ 'admin.column.id'|trans({}, 'NowoHttpLogBundle') }}</th>
+                    <th>{{ 'admin.column.created_at'|trans({}, 'NowoHttpLogBundle') }}</th>
+                    <th>{{ 'admin.column.method'|trans({}, 'NowoHttpLogBundle') }}</th>
+                    <th>{{ 'admin.column.path'|trans({}, 'NowoHttpLogBundle') }}</th>
+                    <th>{{ 'admin.column.status'|trans({}, 'NowoHttpLogBundle') }}</th>
+                    <th>{{ 'admin.column.duration'|trans({}, 'NowoHttpLogBundle') }}</th>
+                    <th>{{ 'admin.column.client_ip'|trans({}, 'NowoHttpLogBundle') }}</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in entries %}
+                    <tr>
+                        <td>{{ entry.id }}</td>
+                        <td>{{ entry.createdAt|date('Y-m-d H:i:s') }}</td>
+                        <td><span class="badge bg-secondary">{{ entry.method }}</span></td>
+                        <td class="text-truncate" style="max-width: 20rem;">{{ entry.path }}</td>
+                        <td>{{ entry.statusCode }}</td>
+                        <td>{{ entry.durationMs|number_format(1) }} ms</td>
+                        <td>{{ entry.clientIp }}</td>
+                        <td>
+                            <a href="{{ path('nowo_http_log_admin_show', {id: entry.id}) }}" class="btn btn-sm btn-primary nowo-ui-btn-view">
+                                {{ 'admin.action.view'|trans({}, 'NowoHttpLogBundle') }}
+                            </a>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="8" class="text-muted">{{ 'admin.index.empty'|trans({}, 'NowoHttpLogBundle') }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if total > pageSize %}
+        {% set totalPages = (total / pageSize)|round(0, 'ceil') %}
+        <nav class="nowo-ui-pagination mt-3">
+            <ul class="pagination">
+                {% if page > 1 %}
+                    <li class="page-item"><a class="page-link" href="{{ path('nowo_http_log_admin_index', criteria|merge({page: page - 1})) }}">&laquo;</a></li>
+                {% endif %}
+                <li class="page-item disabled"><span class="page-link">{{ 'admin.pagination.page'|trans({'%page%': page, '%total%': totalPages}, 'NowoHttpLogBundle') }}</span></li>
+                {% if page < totalPages %}
+                    <li class="page-item"><a class="page-link" href="{{ path('nowo_http_log_admin_index', criteria|merge({page: page + 1})) }}">&raquo;</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
+{% endblock %}

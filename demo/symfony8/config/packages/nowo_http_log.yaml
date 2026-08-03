@@ -1,0 +1,15 @@
+nowo_http_log:
+    enabled: true
+    async: false
+    capture:
+        request_body: true
+        response_body_by_type:
+            html: true
+            json: true
+    web_ui:
+        enabled: true
+        path_prefix: /admin/http-log
+    security:
+        access_roles:
+            - ROLE_ADMIN
+        allow_unauthenticated: false

@@ -1,0 +1,8 @@
+framework:
+    messenger:
+        transports:
+            async: 'sync://'
+        routing:
+            'Nowo\HttpLogBundle\Message\PersistHttpLogMessage': async
+            'Nowo\HttpLogBundle\Message\ExportHttpLogMessage': async
+            'Nowo\HttpLogBundle\Message\PurgeHttpLogMessage': async

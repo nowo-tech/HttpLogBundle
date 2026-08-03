@@ -1,0 +1,3 @@
+nowo_http_log_admin:
+    resource: ../../Controller/
+    type: attribute

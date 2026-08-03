@@ -1,0 +1,28 @@
+# Dependencies
+/vendor
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Test coverage
+/coverage
+/coverage.xml
+/coverage-php.txt
+
+# PHP tool caches
+/.php-cs-fixer.cache
+/.phpunit.cache
+/.phpunit.result.cache
+
+# Archives / compressed
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+# Cursor local sandbox (machine-specific; REQ-IDE-005)
+.cursor/sandbox.json
+

@@ -1,0 +1,10 @@
+controllers:
+    resource:
+        path: ../src/Controller/
+        namespace: App\Controller
+    type: attribute
+
+when@dev:
+    _dev_routes:
+        resource: ../config/routes/dev/
+        type: directory

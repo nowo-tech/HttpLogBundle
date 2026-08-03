@@ -1,0 +1,42 @@
+admin.title: HTTP Log
+admin.index.title: HTTP Log Entries
+admin.show.title: 'HTTP Log Entry #%id%'
+admin.index.total: '%count% entries'
+admin.index.empty: No HTTP log entries found.
+admin.column.id: ID
+admin.column.created_at: Created at
+admin.column.method: Method
+admin.column.path: Path
+admin.column.status: Status
+admin.column.duration: Duration
+admin.column.client_ip: Client IP
+admin.field.request_id: Request ID
+admin.field.url: URL
+admin.field.route: Route
+admin.field.user: User
+admin.field.content_type: Content type
+admin.field.query_params: Query parameters
+admin.field.request_headers: Request headers
+admin.field.response_headers: Response headers
+admin.field.request_body: Request body
+admin.field.response_body: Response body
+admin.field.truncated: truncated
+admin.action.view: View
+admin.action.back: Back to list
+admin.action.filter: Filter
+admin.action.export_csv: Export CSV
+admin.action.export_json: Export JSON
+admin.action.purge: Purge old entries
+admin.action.delete: Delete entry
+admin.purge.confirm: Purge HTTP log entries matching the retention policy?
+admin.delete.confirm: Delete this HTTP log entry?
+admin.pagination.page: 'Page %page% of %total%'
+filter.method: Method
+filter.route_name: Route name
+filter.status_code: Status code
+filter.client_ip: Client IP
+filter.path: Path
+filter.body_content_type: Body type
+filter.created_from: Created from
+filter.created_to: Created to
+filter.q: Search

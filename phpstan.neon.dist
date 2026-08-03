@@ -1,0 +1,15 @@
+includes:
+    - vendor/nowo-tech/phpstan-frankenphp/ruleset-classic.neon
+    - vendor/nowo-tech/phpstan-frankenphp/ruleset-worker.neon
+
+# PHPStan configuration for Http Log Bundle
+# Compatible with PHP 8.2+ and Symfony 7.x / 8.x
+# Paths are limited to src/ (tests use DG\BypassFinals which makes createMock() unresolvable at level 8).
+
+parameters:
+    level: 8
+    paths:
+        - src
+    excludePaths:
+        - demo/*
+    ignoreErrors: []

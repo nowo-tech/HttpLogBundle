@@ -1,0 +1,19 @@
+{% trans_default_domain 'NowoHttpLogBundle' %}
+<div class="nowo-ui-filter card mb-4">
+    <div class="card-body">
+        {{ form_start(filterForm, {attr: {class: 'nowo-ui-filter-form row g-2 align-items-end'}}) }}
+            <div class="col-md-2">{{ form_row(filterForm.method) }}</div>
+            <div class="col-md-2">{{ form_row(filterForm.routeName) }}</div>
+            <div class="col-md-1">{{ form_row(filterForm.statusCode) }}</div>
+            <div class="col-md-2">{{ form_row(filterForm.clientIp) }}</div>
+            <div class="col-md-2">{{ form_row(filterForm.path) }}</div>
+            <div class="col-md-2">{{ form_row(filterForm.bodyContentType) }}</div>
+            <div class="col-md-2">{{ form_row(filterForm.createdFrom) }}</div>
+            <div class="col-md-2">{{ form_row(filterForm.createdTo) }}</div>
+            <div class="col-md-3">{{ form_row(filterForm.q) }}</div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary nowo-ui-btn-filter">{{ 'admin.action.filter'|trans({}, 'NowoHttpLogBundle') }}</button>
+            </div>
+        {{ form_end(filterForm) }}
+    </div>
+</div>

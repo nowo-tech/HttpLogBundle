@@ -1,0 +1,49 @@
+# Dependencies
+/vendor
+
+# Environment (do not commit secrets; use .env.example as template)
+.env
+.env.local
+.env.*.local
+.env.dev
+
+# Symfony / runtime
+/var/cache/*
+/var/log/*
+!/var/cache/.gitkeep
+!/var/log/.gitkeep
+
+# PHPUnit
+.phpunit.cache
+.phpunit.result.cache
+/coverage
+coverage.xml
+
+# IDE / OS
+.idea
+.vscode
+*.swp
+.DS_Store
+
+###> symfony/framework-bundle ###
+/.env.local
+/.env.local.php
+/.env.*.local
+/config/secrets/prod/prod.decrypt.private.php
+/public/bundles/
+/var/
+/vendor/
+###< symfony/framework-bundle ###
+
+# Archives / compressed
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+###> phpunit/phpunit ###
+/phpunit.xml
+/.phpunit.cache/
+###< phpunit/phpunit ###

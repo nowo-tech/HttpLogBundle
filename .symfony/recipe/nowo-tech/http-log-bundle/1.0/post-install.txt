@@ -1,0 +1,3 @@
+  * Run <comment>php bin/console doctrine:schema:update --force</comment> (or generate a migration) to create the <info>nowo_http_log_entry</info> table.
+  * Configure <comment>symfony/messenger</comment> when <info>nowo_http_log.async</info> is <info>true</info> (default).
+  * Protect <info>/admin/http-log</info> with Symfony Security (<info>ROLE_ADMIN</info> by default). See docs/SECURITY.md.

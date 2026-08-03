@@ -1,0 +1,59 @@
+nowo_http_log:
+    enabled: true
+    environments: []
+    async: true
+    sampling_rate: 1.0
+    track_sub_requests: false
+    ignore_routes:
+        - '_wdt'
+        - '_profiler'
+        - 'web_profiler*'
+        - 'nowo_http_log_*'
+    ignore_path_prefixes:
+        - '/admin/http-log'
+    capture:
+        request_headers: true
+        request_body: false
+        response_headers: true
+        client_ip: true
+        user: true
+        max_body_bytes: 65536
+        response_body_by_type:
+            html: false
+            json: true
+            soap: true
+            xml: true
+            text: false
+            binary: false
+            other: false
+    redaction:
+        headers:
+            - Authorization
+            - Cookie
+            - Set-Cookie
+            - X-Api-Key
+        query_params:
+            - password
+            - token
+            - api_key
+        json_paths:
+            - '*.password'
+            - '*.token'
+    retention:
+        days: 30
+    export:
+        formats:
+            - csv
+            - json
+        max_sync_rows: 1000
+    web_ui:
+        enabled: true
+        path_prefix: /admin/http-log
+        layout_template: '@NowoHttpLogBundle/layout.html.twig'
+        css_framework: bootstrap5
+        page_size: 50
+    security:
+        access_roles:
+            - ROLE_ADMIN
+        access_checker: null
+        allow_unauthenticated: false

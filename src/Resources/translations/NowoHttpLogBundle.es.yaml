@@ -1,0 +1,42 @@
+admin.title: Registro HTTP
+admin.index.title: Entradas del registro HTTP
+admin.show.title: 'Entrada de registro HTTP #%id%'
+admin.index.total: '%count% entradas'
+admin.index.empty: No se encontraron entradas de registro HTTP.
+admin.column.id: ID
+admin.column.created_at: Creado el
+admin.column.method: Método
+admin.column.path: Ruta
+admin.column.status: Estado
+admin.column.duration: Duración
+admin.column.client_ip: IP del cliente
+admin.field.request_id: ID de petición
+admin.field.url: URL
+admin.field.route: Ruta
+admin.field.user: Usuario
+admin.field.content_type: Tipo de contenido
+admin.field.query_params: Parámetros de consulta
+admin.field.request_headers: Cabeceras de petición
+admin.field.response_headers: Cabeceras de respuesta
+admin.field.request_body: Cuerpo de petición
+admin.field.response_body: Cuerpo de respuesta
+admin.field.truncated: truncado
+admin.action.view: Ver
+admin.action.back: Volver al listado
+admin.action.filter: Filtrar
+admin.action.export_csv: Exportar CSV
+admin.action.export_json: Exportar JSON
+admin.action.purge: Purgar entradas antiguas
+admin.action.delete: Eliminar entrada
+admin.purge.confirm: ¿Purgar entradas del registro HTTP según la política de retención?
+admin.delete.confirm: ¿Eliminar esta entrada del registro HTTP?
+admin.pagination.page: 'Página %page% de %total%'
+filter.method: Método
+filter.route_name: Nombre de ruta
+filter.status_code: Código de estado
+filter.client_ip: IP del cliente
+filter.path: Ruta
+filter.body_content_type: Tipo de cuerpo
+filter.created_from: Creado desde
+filter.created_to: Creado hasta
+filter.q: Buscar

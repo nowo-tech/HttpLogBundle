@@ -1,0 +1,107 @@
+{
+    "name": "nowo-tech/http-log-bundle",
+    "description": "Symfony bundle that intercepts HTTP requests and responses, stores them with configurable body policies, and provides a secured admin UI with filter, export, and purge.",
+    "type": "symfony-bundle",
+    "license": "MIT",
+    "keywords": [
+        "symfony",
+        "symfony-bundle",
+        "http",
+        "request",
+        "response",
+        "logging",
+        "audit",
+        "admin",
+        "export",
+        "purge"
+    ],
+    "homepage": "https://github.com/nowo-tech/HttpLogBundle",
+    "support": {
+        "issues": "https://github.com/nowo-tech/HttpLogBundle/issues",
+        "source": "https://github.com/nowo-tech/HttpLogBundle"
+    },
+    "authors": [
+        {
+            "name": "H\u00e9ctor Franco Aceituno",
+            "email": "hectorfranco@nowo.tech",
+            "homepage": "https://github.com/HecFranco",
+            "role": "Developer"
+        },
+        {
+            "name": "Nowo.tech",
+            "homepage": "https://nowo.tech"
+        }
+    ],
+    "require": {
+        "php": ">=8.2 <8.6",
+        "doctrine/doctrine-bundle": "^2.10 || ^3.0",
+        "doctrine/orm": "^2.15 || ^3.0",
+        "psr/clock": "^1.0",
+        "psr/log": "^1 || ^2 || ^3",
+        "symfony/clock": "^7.0 || ^8.0",
+        "symfony/config": "^7.0 || ^8.0",
+        "symfony/dependency-injection": "^7.0 || ^8.0",
+        "symfony/form": "^7.0 || ^8.0",
+        "symfony/framework-bundle": "^7.0 || ^8.0",
+        "symfony/http-foundation": "^7.0 || ^8.0",
+        "symfony/http-kernel": "^7.0 || ^8.0",
+        "symfony/messenger": "^7.0 || ^8.0",
+        "symfony/routing": "^7.0 || ^8.0",
+        "symfony/security-bundle": "^7.0 || ^8.0",
+        "symfony/security-core": "^7.0 || ^8.0",
+        "symfony/security-csrf": "^7.0 || ^8.0",
+        "symfony/translation": "^7.0 || ^8.0",
+        "symfony/twig-bundle": "^7.0 || ^8.0",
+        "twig/twig": "^3.8"
+    },
+    "require-dev": {
+        "dg/bypass-finals": "^1.11",
+        "friendsofphp/php-cs-fixer": "^3.0",
+        "nowo-tech/phpstan-frankenphp": "^1.0",
+        "phpstan/extension-installer": "^1.0",
+        "phpstan/phpstan": "^2.0",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpstan/phpstan-symfony": "^2.0",
+        "phpunit/phpunit": "^11.0",
+        "rector/rector": "^2.0",
+        "symfony/yaml": "^7.0 || ^8.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Nowo\\HttpLogBundle\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Nowo\\HttpLogBundle\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "phpstan/extension-installer": true,
+            "rector/rector": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "archive": {
+        "exclude": [
+            "/demo",
+            "/.cursor"
+        ]
+    },
+    "scripts": {
+        "test": "@php vendor/bin/phpunit --color=always",
+        "test-coverage": "@php vendor/bin/phpunit --color=always --coverage-html coverage --coverage-clover coverage.xml --coverage-text",
+        "cs-check": "@php vendor/bin/php-cs-fixer fix --dry-run --diff",
+        "cs-fix": "@php vendor/bin/php-cs-fixer fix",
+        "rector": "@php vendor/bin/rector process",
+        "rector-dry": "@php vendor/bin/rector process --dry-run --no-progress-bar",
+        "phpstan": "@php vendor/bin/phpstan analyse --memory-limit=512M",
+        "qa": [
+            "@cs-check",
+            "@test"
+        ]
+    }
+}

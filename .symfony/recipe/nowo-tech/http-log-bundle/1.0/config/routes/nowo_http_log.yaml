@@ -1,0 +1,2 @@
+nowo_http_log:
+    resource: '@NowoHttpLogBundle/Resources/config/routes.yaml'

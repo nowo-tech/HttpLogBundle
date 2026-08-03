@@ -1,0 +1,210 @@
+# Makefile for Http Log Bundle
+# Simplifies Docker commands for development.
+# All dev targets use the root docker-compose.yml (single file).
+
+COMPOSE_FILE := docker-compose.yml
+# Prefer Compose V2; absolute docker path avoids shadowing by local docker/ when PATH has "." (REQ-MAKE-010).
+DOCKER_BIN := $(shell command -v docker 2>/dev/null)
+ifeq ($(DOCKER_BIN),)
+COMPOSE_BIN := docker-compose
+else
+COMPOSE_BIN := $(shell $(DOCKER_BIN) compose version >/dev/null 2>&1 && echo "$(DOCKER_BIN) compose" || echo "docker-compose")
+endif
+COMPOSE     := $(COMPOSE_BIN) -f $(COMPOSE_FILE)
+SERVICE_PHP := php
+
+.PHONY: help up down down-dev build shell install test test-coverage test-coverage-100 coverage-php-percent cs-check cs-fix rector rector-dry phpstan qa release-check release-check-demos composer-sync clean update validate validate-translations assets setup-hooks check-no-cursor-coauthor check-open-prs strip-cursor-coauthor-from-history demo-smoke
+
+# Default target
+help:
+	@echo "Http Log Bundle - Development Commands"
+	@echo ""
+	@echo "Usage: make <target>"
+	@echo ""
+	@echo "Targets:"
+	@echo "  up            Start Docker container"
+	@echo "  down          Stop Docker container"
+	@echo "  down-dev      Stop root container (alias of down; non-destructive)"
+	@echo "  build         Rebuild Docker image (no cache)"
+	@echo "  shell         Open shell in container"
+	@echo "  install       Install Composer dependencies (starts container if needed)"
+	@echo "  test          Run PHPUnit tests"
+	@echo "  test-coverage Run tests with code coverage"
+	@echo "  test-coverage-100 Run tests and enforce 100% coverage"
+	@echo "  cs-check      Check code style"
+	@echo "  cs-fix        Fix code style"
+	@echo "  rector        Apply Rector refactoring"
+	@echo "  rector-dry    Run Rector in dry-run mode"
+	@echo "  phpstan       Run PHPStan static analysis"
+	@echo "  qa            Run all QA checks (cs-check + test)"
+	@echo "  release-check Pre-release: cs-fix, cs-check, rector-dry, phpstan, test-coverage, demo healthchecks"
+	@echo "  demo-smoke    Boot demo/symfony8 and assert HTTP 200 (REQ-TEST-011)"
+	@echo "  check-open-prs Fail if unresolved open GitHub PRs remain (REQ-REL-003)"
+	@echo "  composer-sync Validate composer.json and align composer.lock (no install)"
+	@echo "  clean         Remove vendor and cache"
+	@echo "  update        Update composer.lock (composer update)"
+	@echo "  update-deps   Update bundle and demo dependencies (REQ-MAKE-008)"
+	@echo "  validate      Run composer validate --strict"
+	@echo "  validate-translations Check translation YAML key parity (REQ-MAKE-004)"
+	@echo "  assets        No-op (no frontend assets in this bundle)"
+	@echo "  setup-hooks   Install git pre-commit hooks"
+	@echo ""
+	@echo "Demos: use make -C demo or make -C demo/<demo-name>"
+	@echo ""
+
+# Rebuild Docker image (no cache)
+build:
+	$(COMPOSE) build --no-cache
+
+# Build and start container
+up:
+	$(COMPOSE) build
+	$(COMPOSE) up -d
+	@echo "Waiting for container to be ready..."
+	@sleep 2
+	@echo "Installing dependencies..."
+	$(COMPOSE) exec -T $(SERVICE_PHP) composer install --no-interaction
+	@echo "✅ Container ready!"
+
+# Stop container
+down:
+	$(COMPOSE) down
+
+# REQ-MAKE-007: alias of down (non-destructive stop for root/dev container)
+down-dev: down
+
+# Open shell in container
+shell: ensure-up
+	$(COMPOSE) exec $(SERVICE_PHP) sh
+
+# Ensure container is running (start if not). Used by install, test, cs-check, cs-fix, qa, rector, phpstan.
+ensure-up:
+	@if ! $(COMPOSE) exec -T $(SERVICE_PHP) true 2>/dev/null; then \
+		echo "Starting container..."; \
+		$(COMPOSE) up -d; \
+		sleep 3; \
+		$(COMPOSE) exec -T $(SERVICE_PHP) composer install --no-interaction; \
+	fi
+
+# Install dependencies
+install: ensure-up
+	$(COMPOSE) exec -T $(SERVICE_PHP) composer install
+
+# Run tests (no -T so PHPUnit shows colors in console)
+test: ensure-up
+	$(COMPOSE) exec $(SERVICE_PHP) composer test
+
+# Run tests with coverage (no -T so coverage is shown in console with colors)
+test-coverage: ensure-up
+	$(COMPOSE) exec $(SERVICE_PHP) composer test-coverage | tee coverage-php.txt
+	./.scripts/php-coverage-percent.sh coverage-php.txt
+
+test-coverage-100: ensure-up
+	$(COMPOSE) exec $(SERVICE_PHP) composer test-coverage
+	$(COMPOSE) exec $(SERVICE_PHP) php .scripts/coverage-check-100.php
+
+# Check code style
+cs-check: ensure-up
+	$(COMPOSE) exec -T $(SERVICE_PHP) composer cs-check
+
+# Fix code style
+cs-fix: ensure-up
+	$(COMPOSE) exec -T $(SERVICE_PHP) composer cs-fix
+
+# Rector
+rector: ensure-up
+	$(COMPOSE) exec -T $(SERVICE_PHP) composer rector
+
+# Rector dry-run
+rector-dry: ensure-up
+	$(COMPOSE) exec -T $(SERVICE_PHP) composer rector-dry
+
+# PHPStan
+phpstan: ensure-up
+	$(COMPOSE) exec -T $(SERVICE_PHP) composer phpstan
+
+# Run all QA
+qa: ensure-up
+	$(COMPOSE) exec -T $(SERVICE_PHP) composer qa
+
+# REQ-MAKE-004 — translation key parity against en catalogue
+validate-translations: ensure-up
+	$(COMPOSE) exec -T $(SERVICE_PHP) php .scripts/validate-translations.php
+
+# Pre-release checks (REQ-MAKE-002 / REQ-REL-003)
+release-check: ensure-up check-no-cursor-coauthor check-open-prs composer-sync cs-fix cs-check rector-dry phpstan validate-translations test-coverage release-check-demos
+
+# REQ-TEST-011 — boot demo stack and assert one HTTP 200
+# classic mode keeps FrankenPHP up before vendor/ is installed on fresh CI checkouts
+demo-smoke:
+	@FRANKENPHP_MODE=classic $(MAKE) -C demo/symfony8 up
+	@PORT=$$(grep "^PORT=" demo/symfony8/.env 2>/dev/null | cut -d= -f2 | tr -d '\r'); \
+	[ -z "$$PORT" ] && PORT=$$(grep "^PORT=" demo/symfony8/.env.example 2>/dev/null | cut -d= -f2 | tr -d '\r'); \
+	[ -z "$$PORT" ] && PORT=8091; \
+	echo "Smoke GET http://localhost:$$PORT/"; \
+	code=000; \
+	for i in 1 2 3 4 5 6 7 8 9 10; do \
+		code=$$(curl -fsS -o /dev/null -w "%{http_code}" "http://localhost:$$PORT/" || true); \
+		[ "$$code" = "200" ] && break; \
+		sleep 3; \
+	done; \
+	if [ "$$code" != "200" ]; then echo "demo-smoke failed: HTTP $$code"; (cd demo/symfony8 && docker compose logs --tail 80 php) || true; exit 1; fi; \
+	echo "demo-smoke OK (HTTP 200)"
+
+release-check-demos:
+	@if [ -f demo/Makefile ]; then $(MAKE) -C demo release-check; fi
+
+# Validate composer and sync lock (no install)
+composer-sync: ensure-up
+	$(COMPOSE) exec -T $(SERVICE_PHP) composer validate --strict
+	$(COMPOSE) exec -T $(SERVICE_PHP) composer update --lock --no-install
+
+# Clean vendor and cache
+clean:
+	rm -rf vendor
+	rm -rf .phpunit.cache
+	rm -rf coverage
+	rm -f coverage.xml
+	rm -f .php-cs-fixer.cache
+
+# Update composer.lock
+update: ensure-up
+	$(COMPOSE) exec -T $(SERVICE_PHP) composer update
+
+# Validate composer.json
+validate: ensure-up
+	$(COMPOSE) exec -T $(SERVICE_PHP) composer validate --strict
+
+# No-op for bundles without frontend assets
+assets:
+	@echo "No frontend assets in this bundle."
+
+# Setup git hooks for pre-commit checks
+check-no-cursor-coauthor:
+	@chmod +x .scripts/check-no-cursor-coauthor.sh
+	@./.scripts/check-no-cursor-coauthor.sh HEAD
+
+# Fail when open GitHub PRs are unresolved (REQ-REL-003)
+check-open-prs:
+	@chmod +x .scripts/check-open-prs.sh
+	@bash .scripts/check-open-prs.sh
+
+setup-hooks:
+	@chmod +x .githooks/pre-commit 2>/dev/null || true
+	@chmod +x .githooks/commit-msg 2>/dev/null || true
+	@git config core.hooksPath .githooks
+	@echo "✅ Git hooks installed (.githooks — includes commit-msg for REQ-GIT-001)."
+
+
+# REQ-MAKE-008: update-deps (bundle root + all demos).
+# Optional include: monorepo path exists locally; absent on GitHub Actions checkout.
+BUNDLE_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+-include $(BUNDLE_ROOT)/../.scripts/Makefile.update-deps.mk
+
+update-deps:
+	@$(MAKE) update
+	@$(MAKE) update-deps-demos
+
+strip-cursor-coauthor-from-history:
+	@chmod +x .scripts/strip-cursor-coauthor-from-history.sh
+	@./.scripts/strip-cursor-coauthor-from-history.sh main

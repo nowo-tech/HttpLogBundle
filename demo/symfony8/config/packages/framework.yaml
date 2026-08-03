@@ -1,0 +1,28 @@
+framework:
+    secret: '%env(APP_SECRET)%'
+    http_method_override: false
+    session: true
+    default_locale: en
+    enabled_locales: ['en', 'es']
+    translator:
+        default_path: '%kernel.project_dir%/translations'
+        fallbacks: ['en']
+    php_errors:
+        log: true
+
+# Enable profiler in dev so the Web Profiler toolbar can collect and display data.
+# In Docker, the app listens on 80 but is exposed as PORT on the host; set router port so toolbar URLs work.
+# Trust proxies in dev so X-Forwarded-Port (set in public/index.php for Docker) is used for URL generation.
+when@dev:
+    framework:
+        profiler: { only_exceptions: false }
+        router:
+            http_port: '%env(int:PORT)%'
+        trusted_proxies: 'private_ranges'
+        trusted_headers: ['x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-forwarded-port', 'x-forwarded-prefix']
+
+when@test:
+    framework:
+        test: true
+        session:
+            storage_factory_id: session.storage.factory.mock_file

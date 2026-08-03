@@ -1,0 +1,56 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    Nowo\HttpLogBundle\:
+        resource: '../../'
+        exclude:
+            - '../../DependencyInjection/'
+            - '../../Entity/'
+            - '../../Enum/'
+            - '../../Message/'
+            - '../../NowoHttpLogBundle.php'
+
+    Nowo\HttpLogBundle\Repository\:
+        resource: '../../Repository/'
+
+    Nowo\HttpLogBundle\Command\:
+        resource: '../../Command/'
+        tags: ['console.command']
+
+    Nowo\HttpLogBundle\Service\HttpLogRedactor:
+        arguments:
+            $headerKeys: '%nowo_http_log.redaction.headers%'
+            $queryParamKeys: '%nowo_http_log.redaction.query_params%'
+            $jsonPaths: '%nowo_http_log.redaction.json_paths%'
+
+    Nowo\HttpLogBundle\Service\CapturePolicy:
+        arguments:
+            $captureConfig: '%nowo_http_log.capture%'
+
+    Nowo\HttpLogBundle\Service\HttpLogRecorder:
+        arguments:
+            $async: '%nowo_http_log.async%'
+            $captureConfig: '%nowo_http_log.capture%'
+
+    Nowo\HttpLogBundle\EventSubscriber\HttpLogSubscriber:
+        arguments:
+            $enabled: '%nowo_http_log.enabled%'
+            $environments: '%nowo_http_log.environments%'
+            $samplingRate: '%nowo_http_log.sampling_rate%'
+            $trackSubRequests: '%nowo_http_log.track_sub_requests%'
+            $ignoreRoutes: '%nowo_http_log.ignore_routes%'
+            $ignorePathPrefixes: '%nowo_http_log.ignore_path_prefixes%'
+            $kernelEnvironment: '%kernel.environment%'
+
+    Nowo\HttpLogBundle\Service\PurgeHttpLogService:
+        arguments:
+            $retentionConfig: '%nowo_http_log.retention%'
+
+    Nowo\HttpLogBundle\Controller\HttpLogAdminController:
+        arguments:
+            $allowUnauthenticated: '%nowo_http_log.security.allow_unauthenticated%'
+            $maxSyncExportRows: '%nowo_http_log.export.max_sync_rows%'
+            $pageSize: '%nowo_http_log.web_ui.page_size%'
+        tags: ['controller.service_arguments']

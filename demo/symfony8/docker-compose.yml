@@ -1,0 +1,60 @@
+name: http-log-bundle-demo-symfony-8
+
+services:
+  php:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: http-log-bundle-demo-symfony-8-php
+    working_dir: /app
+    ports:
+      - "${PORT:-8091}:80"
+    volumes:
+      - .:/app
+      - ../..:/var/http-log-bundle
+      - ./docker/frankenphp/Caddyfile.dev:/etc/frankenphp/Caddyfile.dev
+      - ./docker/php-dev.ini:/usr/local/etc/php/conf.d/99-dev.ini:ro
+      - composer-cache:/root/.composer/cache
+    environment:
+      - COMPOSER_ALLOW_SUPERUSER=1
+      - APP_ENV=dev
+      - APP_DEBUG=1
+      - APP_SECRET=${APP_SECRET:-demo-secret}
+      - FRANKENPHP_MODE=${FRANKENPHP_MODE:-worker}
+    # Public DNS for Composer / Packagist (Docker/WSL resolver failures)
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    networks:
+      - http-log-demo-network
+
+###> doctrine/doctrine-bundle ###
+  database:
+    image: postgres:${POSTGRES_VERSION:-16}-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+      # You should definitely change the password in production
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-!ChangeMe!}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-d", "${POSTGRES_DB:-app}", "-U", "${POSTGRES_USER:-app}"]
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    volumes:
+      - database_data:/var/lib/postgresql/data:rw
+      # You may use a bind-mounted host directory instead, so that it is harder to accidentally remove the volume and lose all your data!
+      # - ./docker/db/data:/var/lib/postgresql/data:rw
+###< doctrine/doctrine-bundle ###
+
+volumes:
+  composer-cache:
+
+###> doctrine/doctrine-bundle ###
+  database_data:
+###< doctrine/doctrine-bundle ###
+    driver: local
+
+networks:
+  http-log-demo-network:
+    driver: bridge
