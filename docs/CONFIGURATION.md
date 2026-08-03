@@ -140,9 +140,18 @@ Use `nowo:http-log:purge` or the admin UI to purge.
 | --- | --- | --- |
 | `enabled` | `true` | Registers admin routes and Twig templates. |
 | `path_prefix` | `/admin/http-log` | Base path for list, detail, export, purge actions. |
-| `layout_template` | bundle layout | Twig layout for admin pages. |
+| `layout_template` | bundle layout | Root Twig layout (global `nowo_http_log_layout_template`) extended by `admin/base.html.twig`. Set to your app layout or a one-file bridge. |
 | `css_framework` | `bootstrap5` | UI macro styling (`CssFramework` enum). |
 | `page_size` | `50` | Pagination size on index. |
+
+Admin pages extend `@NowoHttpLogBundle/admin/base.html.twig`, which extends `web_ui.layout_template` and stacks `stylesheets` / `javascripts` with `{{ parent() }}` (REQ-UI-001). Prefer pointing `layout_template` at your project layout (or a thin bridge that maps `nowo_ui_content` into your `body` block) instead of copying list/detail templates. The default `layout.html.twig` is a full HTML document (CDN Bootstrap; no `parent()`). Host layouts should expose `stylesheets` and `javascripts` blocks so the base shell can call `{{ parent() }}`.
+
+```yaml
+nowo_http_log:
+    web_ui:
+        layout_template: 'base.html.twig'
+        css_framework: bootstrap5
+```
 
 When `enabled: false`, the admin controller is removed from the container.
 

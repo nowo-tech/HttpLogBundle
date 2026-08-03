@@ -120,9 +120,12 @@ Application templates under `templates/bundles/NowoHttpLogBundle/` **always win*
 3. Clear the cache if needed: `php bin/console cache:clear`.
 4. Prefer config (`web_ui.layout_template`, `css_framework`) or surgical partial overrides before forking full pages.
 
+Point `web_ui.layout_template` at your project layout to embed admin pages in host chrome; pages go through `admin/base.html.twig`, which stacks host `stylesheets` / `javascripts` via `{{ parent() }}` (REQ-UI-001). See [CONFIGURATION.md — web_ui](CONFIGURATION.md#web_ui).
+
 | Subpath | Purpose |
 | --- | --- |
-| `layout.html.twig` | Outer admin HTML shell and shared blocks |
+| `layout.html.twig` | Default demo full HTML root (`web_ui.layout_template` default; CDN Bootstrap) |
+| `admin/base.html.twig` | Intermediate shell admin pages extend (points at `web_ui.layout_template`, stacks assets with `parent()`) |
 | `admin/index.html.twig` | Paginated log list, export/purge actions |
 | `admin/show.html.twig` | Single entry detail view |
 | `admin/_filter.html.twig` | Filter form partial on the index page |

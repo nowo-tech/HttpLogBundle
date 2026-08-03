@@ -1,0 +1,15 @@
+{# Page shell (REQ-UI-001): extends configurable layout and stacks admin extras with parent().
+   Host sets web_ui.layout_template; this shell stacks stylesheets/javascripts via parent(). #}
+{% extends nowo_http_log_layout_template|default('@NowoHttpLogBundle/layout.html.twig') %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    {% block nowo_ui_styles %}
+        {# if custom/non-bootstrap frameworks need bundle CSS #}
+    {% endblock %}
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    {% block nowo_ui_scripts %}{% endblock %}
+{% endblock %}

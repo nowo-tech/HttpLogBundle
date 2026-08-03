@@ -1,4 +1,4 @@
-{% extends nowo_http_log_layout_template|default('@NowoHttpLogBundle/layout.html.twig') %}
+{% extends '@NowoHttpLogBundle/admin/base.html.twig' %}
 
 {% block title %}{{ 'admin.show.title'|trans({'%id%': entry.id}, 'NowoHttpLogBundle') }} — {{ parent() }}{% endblock %}
 
