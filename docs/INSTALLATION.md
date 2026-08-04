@@ -13,6 +13,7 @@ Install **Http Log Bundle** in a Symfony 7 or 8 application with Doctrine ORM an
 - [Security (admin UI)](#security-admin-ui)
 - [Verify](#verify)
 - [Demo application](#demo-application)
+- [Twig Extra Bundle (REQ-TWIG-004)](#twig-extra-bundle-req-twig-004)
 
 ## Requirements
 
@@ -21,8 +22,13 @@ Install **Http Log Bundle** in a Symfony 7 or 8 application with Doctrine ORM an
 | PHP | 8.2 – 8.5 |
 | Symfony | 7.0+ or 8.0+ |
 | Doctrine ORM | 2.15+ or 3.x |
+| FormKitBundle | `nowo-tech/form-kit-bundle` ^2.0 (pulled transitively; admin forms / profile `http_log`) |
+| UiKitBundle | `nowo-tech/ui-kit-bundle` ^1.4 (pulled transitively; admin macros + `nowo-ui.css`) |
+| twig/extra-bundle + twig/string-extra | ^3.12 (REQ-TWIG-004; pulled transitively) |
 | symfony/messenger | Recommended when `async: true` (default) |
 | symfony/security-bundle | Required when admin UI is enabled and `allow_unauthenticated: false` |
+
+After install, run `php bin/console assets:install` so UiKit CSS is published. Optional host YAML: `config/packages/nowo_form_kit.yaml`, `config/packages/nowo_ui_kit.yaml`.
 
 ## Composer
 
@@ -38,13 +44,16 @@ When the Flex recipe is published, it copies default configuration to `config/pa
 
 ## Manual registration
 
-If Flex is unavailable, register the bundle in `config/bundles.php`:
+If Flex is unavailable, register the bundles in `config/bundles.php`:
 
 ```php
+Twig\Extra\TwigExtraBundle\TwigExtraBundle::class => ['all' => true],
+Nowo\FormKitBundle\NowoFormKitBundle::class => ['all' => true],
+Nowo\UiKitBundle\NowoUiKitBundle::class => ['all' => true],
 Nowo\HttpLogBundle\NowoHttpLogBundle::class => ['all' => true],
 ```
 
-Copy the default YAML from the recipe or from `src/Resources/config/packages/nowo_http_log.yaml` in the package source.
+Copy the default YAML from the recipe or from `src/Resources/config/packages/nowo_http_log.yaml` in the package source. Then run `php bin/console assets:install`.
 
 ## Database schema
 
@@ -113,3 +122,13 @@ make -C demo/symfony8 up
 ```
 
 See [DEMO-FRANKENPHP.md](DEMO-FRANKENPHP.md).
+
+## Twig Extra Bundle (REQ-TWIG-004)
+
+This package ships Twig templates. Host applications **must** install and enable Twig Extra:
+
+```bash
+composer require twig/extra-bundle twig/string-extra
+```
+
+Register `Twig\Extra\TwigExtraBundle\TwigExtraBundle` in `config/bundles.php` (Flex usually does this). Demos already include the same stack. The package `release-check` runs `make check-twig-extra` to guard this contract.

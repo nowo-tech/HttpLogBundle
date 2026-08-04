@@ -1,4 +1,6 @@
 {% extends '@NowoHttpLogBundle/admin/base.html.twig' %}
+{% import '@NowoUiKitBundle/macros/ui.html.twig' as ui %}
+{% set _css_fw = nowo_http_log_css_framework|default('bootstrap5') %}
 
 {% block title %}{{ 'admin.index.title'|trans({}, 'NowoHttpLogBundle') }} — {{ parent() }}{% endblock %}
 
@@ -14,7 +16,7 @@
                 {% for key, value in criteria %}
                     <input type="hidden" name="{{ key }}" value="{{ value.timestamp is defined ? value|date('Y-m-d\\TH:i') : value }}">
                 {% endfor %}
-                <button type="submit" class="btn btn-outline-secondary btn-sm nowo-ui-btn-export">{{ 'admin.action.export_csv'|trans({}, 'NowoHttpLogBundle') }}</button>
+                <button type="submit" class="{{ ui.btn('secondary', 'sm', _css_fw) }} nowo-ui-btn-export">{{ 'admin.action.export_csv'|trans({}, 'NowoHttpLogBundle') }}</button>
             </form>
             <form method="post" action="{{ path('nowo_http_log_admin_export') }}" class="d-inline ms-1">
                 <input type="hidden" name="_token" value="{{ csrf_token('http_log_export') }}">
@@ -22,12 +24,12 @@
                 {% for key, value in criteria %}
                     <input type="hidden" name="{{ key }}" value="{{ value.timestamp is defined ? value|date('Y-m-d\\TH:i') : value }}">
                 {% endfor %}
-                <button type="submit" class="btn btn-outline-secondary btn-sm nowo-ui-btn-export">{{ 'admin.action.export_json'|trans({}, 'NowoHttpLogBundle') }}</button>
+                <button type="submit" class="{{ ui.btn('secondary', 'sm', _css_fw) }} nowo-ui-btn-export">{{ 'admin.action.export_json'|trans({}, 'NowoHttpLogBundle') }}</button>
             </form>
             <form method="post" action="{{ path('nowo_http_log_admin_purge') }}" class="d-inline ms-1"
                   onsubmit="return confirm('{{ 'admin.purge.confirm'|trans({}, 'NowoHttpLogBundle')|e('js') }}');">
                 <input type="hidden" name="_token" value="{{ csrf_token('http_log_purge') }}">
-                <button type="submit" class="btn btn-outline-danger btn-sm nowo-ui-btn-purge">{{ 'admin.action.purge'|trans({}, 'NowoHttpLogBundle') }}</button>
+                <button type="submit" class="{{ ui.btn('danger', 'sm', _css_fw) }} nowo-ui-btn-purge">{{ 'admin.action.purge'|trans({}, 'NowoHttpLogBundle') }}</button>
             </form>
         </div>
     </div>
@@ -57,9 +59,11 @@
                         <td>{{ entry.durationMs|number_format(1) }} ms</td>
                         <td>{{ entry.clientIp }}</td>
                         <td>
-                            <a href="{{ path('nowo_http_log_admin_show', {id: entry.id}) }}" class="btn btn-sm btn-primary nowo-ui-btn-view">
-                                {{ 'admin.action.view'|trans({}, 'NowoHttpLogBundle') }}
-                            </a>
+                            <div class="{{ ui.row_actions(_css_fw) }}">
+                                <a href="{{ path('nowo_http_log_admin_show', {id: entry.id}) }}" class="{{ ui.btn('secondary', 'sm', _css_fw) }} nowo-ui-btn-view">
+                                    {{ 'admin.action.view'|trans({}, 'NowoHttpLogBundle') }}
+                                </a>
+                            </div>
                         </td>
                     </tr>
                 {% else %}

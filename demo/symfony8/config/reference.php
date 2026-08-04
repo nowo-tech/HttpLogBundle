@@ -267,7 +267,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         formats?: array<string, Param|string|list<scalar|Param|null>>,
  *     },
  *     assets?: bool|array{ // Assets configuration
- *         enabled?: bool|Param, // Default: false
+ *         enabled?: bool|Param, // Default: true
  *         strict_mode?: bool|Param, // Throw an exception if an entry is missing from the manifest.json. // Default: false
  *         version_strategy?: scalar|Param|null, // Default: null
  *         version?: scalar|Param|null, // Default: null
@@ -333,7 +333,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         }>,
  *     },
  *     validation?: bool|array{ // Validation configuration
- *         enabled?: bool|Param, // Default: false
+ *         enabled?: bool|Param, // Default: true
  *         enable_attributes?: bool|Param, // Default: true
  *         static_method?: Param|string|list<scalar|Param|null>,
  *         translation_domain?: scalar|Param|null, // Default: "validators"
@@ -731,6 +731,53 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     },
  *     mailer?: array{
  *         html_to_text_converter?: scalar|Param|null, // A service implementing the "Symfony\Component\Mime\HtmlToTextConverter\HtmlToTextConverterInterface". // Default: null
+ *     },
+ * }
+ * @psalm-type TwigExtraConfig = array{
+ *     cache?: bool|array{
+ *         enabled?: bool|Param, // Default: false
+ *     },
+ *     html?: bool|array{
+ *         enabled?: bool|Param, // Default: false
+ *     },
+ *     markdown?: bool|array{
+ *         enabled?: bool|Param, // Default: false
+ *     },
+ *     intl?: bool|array{
+ *         enabled?: bool|Param, // Default: false
+ *     },
+ *     cssinliner?: bool|array{
+ *         enabled?: bool|Param, // Default: false
+ *     },
+ *     inky?: bool|array{
+ *         enabled?: bool|Param, // Default: false
+ *     },
+ *     string?: bool|array{
+ *         enabled?: bool|Param, // Default: true
+ *     },
+ *     commonmark?: array{
+ *         renderer?: array{ // Array of options for rendering HTML.
+ *             block_separator?: scalar|Param|null,
+ *             inner_separator?: scalar|Param|null,
+ *             soft_break?: scalar|Param|null,
+ *         },
+ *         html_input?: "strip"|"allow"|"escape"|Param, // How to handle HTML input.
+ *         allow_unsafe_links?: bool|Param, // Remove risky link and image URLs by setting this to false. // Default: true
+ *         max_nesting_level?: int|Param, // The maximum nesting level for blocks. // Default: 9223372036854775807
+ *         max_delimiters_per_line?: int|Param, // The maximum number of strong/emphasis delimiters per line. // Default: 9223372036854775807
+ *         slug_normalizer?: array{ // Array of options for configuring how URL-safe slugs are created.
+ *             instance?: mixed,
+ *             max_length?: int|Param, // Default: 255
+ *             unique?: mixed,
+ *         },
+ *         commonmark?: array{ // Array of options for configuring the CommonMark core extension.
+ *             enable_em?: bool|Param, // Default: true
+ *             enable_strong?: bool|Param, // Default: true
+ *             use_asterisk?: bool|Param, // Default: true
+ *             use_underscore?: bool|Param, // Default: true
+ *             unordered_list_markers?: list<scalar|Param|null>,
+ *         },
+ *         ...<string, mixed>
  *     },
  * }
  * @psalm-type SecurityConfig = array{
@@ -1291,6 +1338,94 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         allow_unauthenticated?: bool|Param, // Default: false
  *     },
  * }
+ * @psalm-type NowoUiKitConfig = array{
+ *     css_framework?: "bootstrap"|"bootstrap5"|"bootstrap4"|"tailwind"|"foundation"|"custom"|"tabler"|"none"|Param, // Host CSS stack: bootstrap5|bootstrap4|tailwind|foundation|custom|none|tabler (bootstrap alias → bootstrap5). // Default: "bootstrap5"
+ *     icon_set?: "bootstrap-icons"|"tabler-icons"|"ux_icon"|"svg_inline"|"none"|Param, // Icon rendering: bootstrap-icons|tabler-icons|ux_icon|svg_inline|none. // Default: "bootstrap-icons"
+ * }
+ * @psalm-type NowoFormKitConfig = array{
+ *     type_map?: array<string, scalar|Param|null>,
+ *     default_profile?: scalar|Param|null, // Name of the profile to use when no profile is specified (key in profiles) // Default: "default"
+ *     css_framework?: scalar|Param|null, // CSS framework for CssClassUtilities (column merge + class ordering): bootstrap, tailwind, foundation, none. // Default: "bootstrap"
+ *     profiles?: array<string, array{ // Default: []
+ *         alias?: scalar|Param|null, // Alias for this profile (e.g. for reference in form types)
+ *         translation_domain?: scalar|Param|null, // Default: "messages"
+ *         required_label_suffix?: scalar|Param|null, // Appended to the label when the field is required (e.g. " *"). Empty or null to disable. // Default: null
+ *         help_modal?: array{ // Default help modal configuration (used when the field option "help_modal" is enabled).
+ *             framework?: scalar|Param|null, // Modal framework to use when opening from frontend. // Default: "bootstrap5"
+ *             icon_html?: scalar|Param|null, // HTML snippet inserted next to the label to trigger the help modal (fallback when ux_icon is not used or UX Icons is unavailable). // Default: "<span class=\"nowo-help-modal-icon\" aria-hidden=\"true\">?</span>"
+ *             ux_icon?: scalar|Param|null, // Optional. Symfony UX Icons name (e.g. lucide:circle-help). Requires symfony/ux-icons; when set and IconRendererInterface is available, overrides icon_html. // Default: null
+ *             ux_icon_attributes?: array<string, scalar|Param|null>,
+ *             trigger_class?: scalar|Param|null, // CSS classes for the clickable trigger wrapper (after label text and required suffix). Default: circle button style. // Default: "nowo-help-modal-trigger nowo-help-modal-trigger--circle"
+ *         },
+ *         defaults?: array{
+ *             attr?: array<string, scalar|Param|null>,
+ *             row_attr?: array<string, scalar|Param|null>,
+ *         },
+ *         field_types?: array<string, array{ // Default: []
+ *             attr?: array<string, scalar|Param|null>,
+ *             row_attr?: array<string, scalar|Param|null>,
+ *             label?: scalar|Param|null,
+ *             placeholder?: scalar|Param|null,
+ *             help?: scalar|Param|null,
+ *             translation_domain?: scalar|Param|null,
+ *             constraints?: list<mixed>,
+ *         }>,
+ *         constraint_message_convention?: bool|Param, // When true, constraints without an explicit "message" get key {form_snake}.{field_snake}.constraints.{ConstraintName} (put translations in the validators catalog). Default: false. // Default: false
+ *         by_form?: array<string, array{ // Default: []
+ *             defaults?: array{
+ *                 attr?: array<string, scalar|Param|null>,
+ *                 row_attr?: array<string, scalar|Param|null>,
+ *             },
+ *             fields?: array<string, array{ // Default: []
+ *                 attr?: array<string, scalar|Param|null>,
+ *                 row_attr?: array<string, scalar|Param|null>,
+ *                 label?: scalar|Param|null,
+ *                 placeholder?: scalar|Param|null,
+ *                 help?: scalar|Param|null,
+ *                 translation_domain?: scalar|Param|null,
+ *                 constraints?: list<mixed>,
+ *             }>,
+ *         }>,
+ *     }>,
+ *     translation_domain?: scalar|Param|null, // (Legacy) Used when profiles is not set // Default: "messages"
+ *     required_label_suffix?: scalar|Param|null, // (Legacy) Suffix for required field labels when profiles is not set // Default: null
+ *     help_modal?: array{ // (Legacy) Default help modal configuration when profiles is not used.
+ *         framework?: scalar|Param|null, // Default: "bootstrap5"
+ *         icon_html?: scalar|Param|null, // Default: "<span class=\"nowo-help-modal-icon\" aria-hidden=\"true\">?</span>"
+ *         ux_icon?: scalar|Param|null, // Default: null
+ *         ux_icon_attributes?: array<string, scalar|Param|null>,
+ *         trigger_class?: scalar|Param|null, // Default: "nowo-help-modal-trigger nowo-help-modal-trigger--circle"
+ *     },
+ *     defaults?: array{
+ *         attr?: array<string, scalar|Param|null>,
+ *         row_attr?: array<string, scalar|Param|null>,
+ *     },
+ *     field_types?: array<string, array{ // Default: []
+ *         attr?: array<string, scalar|Param|null>,
+ *         row_attr?: array<string, scalar|Param|null>,
+ *         label?: scalar|Param|null,
+ *         placeholder?: scalar|Param|null,
+ *         help?: scalar|Param|null,
+ *         translation_domain?: scalar|Param|null,
+ *         constraints?: list<mixed>,
+ *     }>,
+ *     constraint_message_convention?: bool|Param, // (Legacy) Used when profiles is not set // Default: false
+ *     by_form?: array<string, array{ // Default: []
+ *         defaults?: array{
+ *             attr?: array<string, scalar|Param|null>,
+ *             row_attr?: array<string, scalar|Param|null>,
+ *         },
+ *         fields?: array<string, array{ // Default: []
+ *             attr?: array<string, scalar|Param|null>,
+ *             row_attr?: array<string, scalar|Param|null>,
+ *             label?: scalar|Param|null,
+ *             placeholder?: scalar|Param|null,
+ *             help?: scalar|Param|null,
+ *             translation_domain?: scalar|Param|null,
+ *             constraints?: list<mixed>,
+ *         }>,
+ *     }>,
+ * }
  * @psalm-type NowoTwigInspectorConfig = array{
  *     enabled_extensions?: list<scalar|Param|null>,
  *     excluded_templates?: list<scalar|Param|null>,
@@ -1313,20 +1448,26 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     services?: ServicesConfig,
  *     framework?: FrameworkConfig,
  *     twig?: TwigConfig,
+ *     twig_extra?: TwigExtraConfig,
  *     security?: SecurityConfig,
  *     doctrine?: DoctrineConfig,
  *     nowo_http_log?: NowoHttpLogConfig,
+ *     nowo_ui_kit?: NowoUiKitConfig,
+ *     nowo_form_kit?: NowoFormKitConfig,
  *     "when@dev"?: array{
  *         imports?: ImportsConfig,
  *         parameters?: ParametersConfig,
  *         services?: ServicesConfig,
  *         framework?: FrameworkConfig,
  *         twig?: TwigConfig,
+ *         twig_extra?: TwigExtraConfig,
  *         security?: SecurityConfig,
  *         debug?: DebugConfig,
  *         web_profiler?: WebProfilerConfig,
  *         doctrine?: DoctrineConfig,
  *         nowo_http_log?: NowoHttpLogConfig,
+ *         nowo_ui_kit?: NowoUiKitConfig,
+ *         nowo_form_kit?: NowoFormKitConfig,
  *         nowo_twig_inspector?: NowoTwigInspectorConfig,
  *     },
  *     "when@prod"?: array{
@@ -1335,9 +1476,12 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         services?: ServicesConfig,
  *         framework?: FrameworkConfig,
  *         twig?: TwigConfig,
+ *         twig_extra?: TwigExtraConfig,
  *         security?: SecurityConfig,
  *         doctrine?: DoctrineConfig,
  *         nowo_http_log?: NowoHttpLogConfig,
+ *         nowo_ui_kit?: NowoUiKitConfig,
+ *         nowo_form_kit?: NowoFormKitConfig,
  *     },
  *     "when@test"?: array{
  *         imports?: ImportsConfig,
@@ -1345,10 +1489,13 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         services?: ServicesConfig,
  *         framework?: FrameworkConfig,
  *         twig?: TwigConfig,
+ *         twig_extra?: TwigExtraConfig,
  *         security?: SecurityConfig,
  *         web_profiler?: WebProfilerConfig,
  *         doctrine?: DoctrineConfig,
  *         nowo_http_log?: NowoHttpLogConfig,
+ *         nowo_ui_kit?: NowoUiKitConfig,
+ *         nowo_form_kit?: NowoFormKitConfig,
  *         nowo_twig_inspector?: NowoTwigInspectorConfig,
  *     },
  *     ...<string, ExtensionType|array{ // extra keys must follow the when@%env% pattern or match an extension alias

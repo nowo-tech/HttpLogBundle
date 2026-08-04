@@ -33,9 +33,11 @@
         }
     ],
     "require": {
-        "php": ">=8.2 <8.6",
         "doctrine/doctrine-bundle": "^2.10 || ^3.0",
         "doctrine/orm": "^2.15 || ^3.0",
+        "nowo-tech/form-kit-bundle": "^2.0",
+        "nowo-tech/ui-kit-bundle": "^1.4",
+        "php": ">=8.2 <8.6",
         "psr/clock": "^1.0",
         "psr/log": "^1 || ^2 || ^3",
         "symfony/clock": "^7.0 || ^8.0",
@@ -52,6 +54,8 @@
         "symfony/security-csrf": "^7.0 || ^8.0",
         "symfony/translation": "^7.0 || ^8.0",
         "symfony/twig-bundle": "^7.0 || ^8.0",
+        "twig/extra-bundle": "^3.12",
+        "twig/string-extra": "^3.12",
         "twig/twig": "^3.8"
     },
     "require-dev": {
@@ -64,7 +68,8 @@
         "phpstan/phpstan-symfony": "^2.0",
         "phpunit/phpunit": "^11.0",
         "rector/rector": "^2.0",
-        "symfony/yaml": "^7.0 || ^8.0"
+        "symfony/yaml": "^7.0 || ^8.0",
+        "vincentlanglet/twig-cs-fixer": "^3.0"
     },
     "autoload": {
         "psr-4": {
@@ -102,6 +107,9 @@
         "qa": [
             "@cs-check",
             "@test"
-        ]
+        ],
+        "twig:lint": "twig-cs-fixer lint --config=.twig-cs-fixer.php",
+        "twig:fix": "twig-cs-fixer fix --config=.twig-cs-fixer.php",
+        "twig:fix:check": "twig-cs-fixer lint --config=.twig-cs-fixer.php --fix"
     }
 }

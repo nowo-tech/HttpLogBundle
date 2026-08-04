@@ -54,3 +54,9 @@ services:
             $maxSyncExportRows: '%nowo_http_log.export.max_sync_rows%'
             $pageSize: '%nowo_http_log.web_ui.page_size%'
         tags: ['controller.service_arguments']
+
+    # Form Kit injects FormOptionsMerger into tagged form types (FormOptionsMergerInjectorCompilerPass).
+    Nowo\HttpLogBundle\Form\:
+        resource: '../../Form/'
+        exclude: '../../Form/DataTransformer/'
+        tags: ['form.type']

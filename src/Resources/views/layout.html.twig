@@ -1,6 +1,8 @@
 {% trans_default_domain 'NowoHttpLogBundle' %}
+{% import '@NowoUiKitBundle/macros/ui.html.twig' as ui %}
+{% set _css_fw = nowo_http_log_css_framework|default('bootstrap5') %}
 <!DOCTYPE html>
-<html lang="{{ app.request.locale|default('en') }}" class="nowo-ui-html nowo-ui--{{ nowo_http_log_css_framework|default('bootstrap5') }}">
+<html lang="{{ app.request.locale|default('en') }}" class="nowo-ui-html nowo-ui--{{ _css_fw }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,11 +18,13 @@
             <h1 class="nowo-ui-title">{% block page_title %}{{ 'admin.title'|trans({}, 'NowoHttpLogBundle') }}{% endblock %}</h1>
         </header>
         <main class="nowo-ui-main">
-            {% for label, messages in app.flashes %}
-                {% for message in messages %}
-                    <div class="nowo-ui-alert alert alert-{{ label == 'error' ? 'danger' : label }}">{{ message }}</div>
+            {% block nowo_ui_flashes %}
+                {% for label, messages in app.flashes %}
+                    {% for message in messages %}
+                        <div class="{{ ui.flash(label == 'error' ? 'error' : label, _css_fw) }}" role="alert">{{ message }}</div>
+                    {% endfor %}
                 {% endfor %}
-            {% endfor %}
+            {% endblock %}
             {% block nowo_ui_content %}{% endblock %}
         </main>
     </div>

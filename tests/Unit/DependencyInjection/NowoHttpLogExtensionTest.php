@@ -211,6 +211,130 @@ final class NowoHttpLogExtensionTest extends TestCase
         self::assertFalse($container->hasDefinition(HttpLogAdminController::class));
     }
 
+    #[Test]
+    public function prependSeedsFormKitHttpLogProfileWhenMissing(): void
+    {
+        $container = new ContainerBuilder();
+        $container->registerExtension($this->createExtension('nowo_form_kit'));
+
+        (new NowoHttpLogExtension())->prepend($container);
+
+        $configs = $container->getExtensionConfig('nowo_form_kit');
+        self::assertNotEmpty($configs);
+        $merged = array_replace_recursive(...array_reverse($configs));
+        self::assertSame('bootstrap', $merged['css_framework']);
+        self::assertArrayHasKey('http_log', $merged['profiles']);
+        self::assertSame('NowoHttpLogBundle', $merged['profiles']['http_log']['translation_domain']);
+    }
+
+    #[Test]
+    public function prependDoesNotOverrideHostFormKitProfileOrCssFramework(): void
+    {
+        $container = new ContainerBuilder();
+        $container->registerExtension($this->createExtension('nowo_form_kit'));
+        $container->prependExtensionConfig('nowo_form_kit', [
+            'css_framework' => 'tailwind',
+            'profiles'      => [
+                'http_log' => [
+                    'alias' => 'custom',
+                ],
+            ],
+        ]);
+
+        (new NowoHttpLogExtension())->prepend($container);
+
+        $configs = $container->getExtensionConfig('nowo_form_kit');
+        // Host config is first; no seed prepended when both keys already present.
+        self::assertCount(1, $configs);
+        self::assertSame('tailwind', $configs[0]['css_framework']);
+        self::assertSame('custom', $configs[0]['profiles']['http_log']['alias']);
+    }
+
+    #[Test]
+    public function prependSeedsUiKitDefaultsFromWebUiCssFramework(): void
+    {
+        $container = new ContainerBuilder();
+        $container->registerExtension($this->createExtension('nowo_ui_kit'));
+        $container->registerExtension(new NowoHttpLogExtension());
+        $container->loadFromExtension('nowo_http_log', [
+            'security' => ['allow_unauthenticated' => true],
+            'web_ui'   => [
+                'css_framework' => 'tailwind',
+            ],
+        ]);
+
+        (new NowoHttpLogExtension())->prepend($container);
+
+        $configs = $container->getExtensionConfig('nowo_ui_kit');
+        self::assertNotEmpty($configs);
+        $merged = array_replace_recursive(...array_reverse($configs));
+        self::assertSame('tailwind', $merged['css_framework']);
+        self::assertSame('bootstrap-icons', $merged['icon_set']);
+    }
+
+    #[Test]
+    public function prependSeedsOnlyMissingUiKitCssFramework(): void
+    {
+        $container = new ContainerBuilder();
+        $container->registerExtension($this->createExtension('nowo_ui_kit'));
+        $container->registerExtension(new NowoHttpLogExtension());
+        $container->prependExtensionConfig('nowo_ui_kit', [
+            'icon_set' => 'fontawesome',
+        ]);
+        $container->loadFromExtension('nowo_http_log', [
+            'security' => ['allow_unauthenticated' => true],
+            'web_ui'   => [
+                'css_framework' => 'foundation',
+            ],
+        ]);
+
+        (new NowoHttpLogExtension())->prepend($container);
+
+        $configs = $container->getExtensionConfig('nowo_ui_kit');
+        $merged  = array_replace_recursive(...array_reverse($configs));
+        self::assertSame('foundation', $merged['css_framework']);
+        self::assertSame('fontawesome', $merged['icon_set']);
+    }
+
+    #[Test]
+    public function prependDoesNotOverrideHostUiKitKeys(): void
+    {
+        $container = new ContainerBuilder();
+        $container->registerExtension($this->createExtension('nowo_ui_kit'));
+        $container->prependExtensionConfig('nowo_ui_kit', [
+            'css_framework' => 'bootstrap4',
+            'icon_set'      => 'fontawesome',
+        ]);
+
+        (new NowoHttpLogExtension())->prepend($container);
+
+        $configs = $container->getExtensionConfig('nowo_ui_kit');
+        self::assertCount(1, $configs);
+        self::assertSame('bootstrap4', $configs[0]['css_framework']);
+        self::assertSame('fontawesome', $configs[0]['icon_set']);
+    }
+
+    #[Test]
+    public function prependSeedsOnlyMissingUiKitIconSet(): void
+    {
+        $container = new ContainerBuilder();
+        $container->registerExtension($this->createExtension('nowo_ui_kit'));
+        $container->registerExtension(new NowoHttpLogExtension());
+        $container->prependExtensionConfig('nowo_ui_kit', [
+            'css_framework' => 'bootstrap5',
+        ]);
+        $container->loadFromExtension('nowo_http_log', [
+            'security' => ['allow_unauthenticated' => true],
+        ]);
+
+        (new NowoHttpLogExtension())->prepend($container);
+
+        $configs = $container->getExtensionConfig('nowo_ui_kit');
+        $merged  = array_replace_recursive(...array_reverse($configs));
+        self::assertSame('bootstrap5', $merged['css_framework']);
+        self::assertSame('bootstrap-icons', $merged['icon_set']);
+    }
+
     private function createExtension(string $alias): Extension
     {
         return new class($alias) extends Extension {

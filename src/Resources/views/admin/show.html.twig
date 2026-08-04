@@ -1,4 +1,6 @@
 {% extends '@NowoHttpLogBundle/admin/base.html.twig' %}
+{% import '@NowoUiKitBundle/macros/ui.html.twig' as ui %}
+{% set _css_fw = nowo_http_log_css_framework|default('bootstrap5') %}
 
 {% block title %}{{ 'admin.show.title'|trans({'%id%': entry.id}, 'NowoHttpLogBundle') }} — {{ parent() }}{% endblock %}
 
@@ -70,6 +72,6 @@
     <form method="post" action="{{ path('nowo_http_log_admin_delete', {id: entry.id}) }}" class="mt-4"
           onsubmit="return confirm('{{ 'admin.delete.confirm'|trans({}, 'NowoHttpLogBundle')|e('js') }}');">
         <input type="hidden" name="_token" value="{{ csrf_token('http_log_delete') }}">
-        <button type="submit" class="btn btn-danger nowo-ui-btn-delete">{{ 'admin.action.delete'|trans({}, 'NowoHttpLogBundle') }}</button>
+        <button type="submit" class="{{ ui.btn('danger', null, _css_fw) }} nowo-ui-btn-delete">{{ 'admin.action.delete'|trans({}, 'NowoHttpLogBundle') }}</button>
     </form>
 {% endblock %}

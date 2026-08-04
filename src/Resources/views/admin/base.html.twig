@@ -1,11 +1,21 @@
 {# Page shell (REQ-UI-001): extends configurable layout and stacks admin extras with parent().
    Host sets web_ui.layout_template; this shell stacks stylesheets/javascripts via parent(). #}
 {% extends nowo_http_log_layout_template|default('@NowoHttpLogBundle/layout.html.twig') %}
+{% import '@NowoUiKitBundle/macros/ui.html.twig' as ui %}
+{% set _css_fw = nowo_http_log_css_framework|default('bootstrap5') %}
+
+{% block nowo_ui_flashes %}
+    {% for label, messages in app.flashes %}
+        {% for message in messages %}
+            <div class="{{ ui.flash(label == 'error' ? 'error' : label, _css_fw) }}" role="alert">{{ message }}</div>
+        {% endfor %}
+    {% endfor %}
+{% endblock %}
 
 {% block stylesheets %}
     {{ parent() }}
     {% block nowo_ui_styles %}
-        {# if custom/non-bootstrap frameworks need bundle CSS #}
+        <link rel="stylesheet" href="{{ asset('css/nowo-ui.css', 'nowo_ui_kit') }}">
     {% endblock %}
 {% endblock %}
 

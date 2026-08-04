@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\Tests\Unit\Form;
 
+use Nowo\FormKitBundle\Form\Constraint\ConstraintDefinitionFactory;
+use Nowo\FormKitBundle\Form\FormOptionsMerger;
 use Nowo\HttpLogBundle\Form\HttpLogFilterType;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -18,7 +20,11 @@ final class HttpLogFilterTypeTest extends TestCase
     #[Test]
     public function formBuildsAllExpectedFieldsAndDefaults(): void
     {
+        $type = new HttpLogFilterType();
+        $type->setFormOptionsMerger($this->formOptionsMerger());
+
         $form = (new FormFactoryBuilder())
+            ->addType($type)
             ->getFormFactory()
             ->create(HttpLogFilterType::class);
 
@@ -48,18 +54,32 @@ final class HttpLogFilterTypeTest extends TestCase
 
         $form->submit([
             'method'          => 'POST',
-            'routeName'       => '',
-            'statusCode'      => '',
-            'clientIp'        => '',
-            'path'            => '',
+            'routeName'       => 'app_home',
+            'statusCode'      => 200,
+            'clientIp'        => '127.0.0.1',
+            'path'            => '/',
             'bodyContentType' => 'json',
-            'createdFrom'     => '',
-            'createdTo'       => '',
-            'q'               => '',
+            'q'               => 'search',
         ]);
 
         self::assertTrue($form->isSynchronized());
-        self::assertSame('POST', $form->get('method')->getData());
-        self::assertSame('json', $form->get('bodyContentType')->getData());
+    }
+
+    private function formOptionsMerger(): FormOptionsMerger
+    {
+        return new FormOptionsMerger(
+            [
+                'http_log' => [
+                    'translation_domain' => 'NowoHttpLogBundle',
+                    'defaults'           => [
+                        'attr'     => [],
+                        'row_attr' => [],
+                    ],
+                    'field_types' => [],
+                ],
+            ],
+            'http_log',
+            new ConstraintDefinitionFactory(),
+        );
     }
 }

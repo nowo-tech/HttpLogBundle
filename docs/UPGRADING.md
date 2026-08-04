@@ -4,9 +4,50 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Table of contents
 
+- [Unreleased](#unreleased)
+- [1.1.0](#110)
 - [1.0.2](#102)
 - [1.0.1](#101)
 - [1.0.0](#100)
+
+## Unreleased
+
+## 1.1.0
+
+From **1.0.2** — Adds FormKit, UiKit, Twig Extra (REQ-TWIG-004), and Twig-CS-Fixer. Register `TwigExtraBundle`, `NowoFormKitBundle`, and `NowoUiKitBundle` if Flex did not. See [CHANGELOG](CHANGELOG.md).
+
+```bash
+composer update nowo-tech/http-log-bundle
+php bin/console assets:install
+php bin/console cache:clear
+```
+
+### UiKitBundle (REQ-UI-001-kit)
+
+Admin UI depends on **[UiKitBundle](https://github.com/nowo-tech/UiKitBundle)** (`nowo-tech/ui-kit-bundle` `^1.4`).
+
+1. The package is pulled transitively; run `assets:install` so `css/nowo-ui.css` is available under the `nowo_ui_kit` package.
+2. Stylesheet: `asset('css/nowo-ui.css', 'nowo_ui_kit')` via `admin/base.html.twig`.
+3. Optional: set `nowo_ui_kit.css_framework` / `icon_set` in the host. If unset, HttpLog seeds those keys from `web_ui.css_framework` and defaults `icon_set` to `bootstrap-icons`.
+4. Template overrides: extend `@NowoHttpLogBundle/admin/base.html.twig` and prefer `ui.flash()` / `ui.btn()` over hard-coded Bootstrap alert/button classes.
+
+### FormKitBundle (admin forms)
+
+Ensure `nowo-tech/form-kit-bundle` ^2.0 is installed (pulled transitively) and `Nowo\FormKitBundle\NowoFormKitBundle` is registered. Form types use profile `http_log` via `#[FormKitConfig]`; the bundle prepends that profile when the host has not defined it.
+
+### Twig Extra Bundle (REQ-TWIG-004)
+
+Hosts that render this bundle's Twig templates must install:
+
+```bash
+composer require twig/extra-bundle twig/string-extra
+```
+
+and enable `Twig\Extra\TwigExtraBundle\TwigExtraBundle`. Flex recipes usually register it automatically.
+
+### Twig-CS-Fixer (maintainers)
+
+Package maintainers: `composer twig:lint` / `composer twig:fix` use `.twig-cs-fixer.php` over `src/` (and `templates/` when present).
 
 ## 1.0.2
 

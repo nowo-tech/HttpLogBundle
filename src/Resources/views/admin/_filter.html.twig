@@ -1,4 +1,6 @@
 {% trans_default_domain 'NowoHttpLogBundle' %}
+{% import '@NowoUiKitBundle/macros/ui.html.twig' as ui %}
+{% set _css_fw = nowo_http_log_css_framework|default('bootstrap5') %}
 <div class="nowo-ui-filter card mb-4">
     <div class="card-body">
         {{ form_start(filterForm, {attr: {class: 'nowo-ui-filter-form row g-2 align-items-end'}}) }}
@@ -12,7 +14,7 @@
             <div class="col-md-2">{{ form_row(filterForm.createdTo) }}</div>
             <div class="col-md-3">{{ form_row(filterForm.q) }}</div>
             <div class="col-md-2">
-                <button type="submit" class="btn btn-primary nowo-ui-btn-filter">{{ 'admin.action.filter'|trans({}, 'NowoHttpLogBundle') }}</button>
+                <button type="submit" class="{{ ui.btn('primary', null, _css_fw) }} nowo-ui-btn-filter">{{ 'admin.action.filter'|trans({}, 'NowoHttpLogBundle') }}</button>
             </div>
         {{ form_end(filterForm) }}
     </div>
