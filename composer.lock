@@ -937,16 +937,16 @@
         },
         {
             "name": "nowo-tech/form-kit-bundle",
-            "version": "v2.1.0",
+            "version": "v2.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/FormKitBundle.git",
-                "reference": "93cb4fff4668bddf05de7fddfa05d84077dd216e"
+                "reference": "930963dd04e2bdb4936ef9ddc287413ffb4c2b9f"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/FormKitBundle/zipball/93cb4fff4668bddf05de7fddfa05d84077dd216e",
-                "reference": "93cb4fff4668bddf05de7fddfa05d84077dd216e",
+                "url": "https://api.github.com/repos/nowo-tech/FormKitBundle/zipball/930963dd04e2bdb4936ef9ddc287413ffb4c2b9f",
+                "reference": "930963dd04e2bdb4936ef9ddc287413ffb4c2b9f",
                 "shasum": ""
             },
             "require": {
@@ -1030,20 +1030,20 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-08-04T12:02:32+00:00"
+            "time": "2026-08-04T23:04:44+00:00"
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v1.5.1",
+            "version": "v1.7.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "299194eab2c4d682d2a05a1b2c580082023064be"
+                "reference": "60935db1e13b438c79248350115e03aef30fe070"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/299194eab2c4d682d2a05a1b2c580082023064be",
-                "reference": "299194eab2c4d682d2a05a1b2c580082023064be",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/60935db1e13b438c79248350115e03aef30fe070",
+                "reference": "60935db1e13b438c79248350115e03aef30fe070",
                 "shasum": ""
             },
             "require": {
@@ -1113,7 +1113,7 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-08-04T21:44:49+00:00"
+            "time": "2026-08-04T23:04:44+00:00"
         },
         {
             "name": "psr/cache",
@@ -6731,11 +6731,11 @@
         },
         {
             "name": "phpstan/phpstan",
-            "version": "2.2.7",
+            "version": "2.2.8",
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/692db47b9dddb0487934e5236e77d48594aef921",
-                "reference": "692db47b9dddb0487934e5236e77d48594aef921",
+                "url": "https://api.github.com/repos/phpstan/phpstan/zipball/e285254e60f33c21902efef4a926ca0987c06804",
+                "reference": "e285254e60f33c21902efef4a926ca0987c06804",
                 "shasum": ""
             },
             "require": {
@@ -6791,7 +6791,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-07-29T17:39:32+00:00"
+            "time": "2026-08-04T22:21:45+00:00"
         },
         {
             "name": "phpstan/phpstan-phpunit",
