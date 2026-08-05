@@ -63,8 +63,19 @@ nowo_http_log:
 Requirements:
 
 1. Install `symfony/security-bundle`.
-2. Configure firewalls and `access_control` for the admin path.
+2. Configure firewalls and `access_control` for the admin path (see snippet below).
 3. Optionally provide a custom `access_checker` service implementing `HttpLogAccessCheckerInterface` for separate export/purge permissions.
+
+**Symfony `access_control` (host app):**
+
+```yaml
+# config/packages/security.yaml
+security:
+    access_control:
+        - { path: ^/admin/http-log, roles: ROLE_ADMIN }
+```
+
+Adjust the path if you change `web_ui.path_prefix`. Combine with your existing firewall so only authenticated admins reach the UI.
 
 Setting `allow_unauthenticated: true` is supported for local demos only.
 
@@ -77,7 +88,7 @@ Setting `allow_unauthenticated: true` is supported for local demos only.
 
 ## Operational guidance
 
-- Run retention purge on a schedule (cron + `nowo:http-log:purge` or Messenger handler).
+- Run retention purge on a schedule (**cron** + `nowo:http-log:purge`, or the Messenger `PurgeHttpLogMessage` handler) so stored request/response data does not grow without bound.
 - Use `sampling_rate` on high-traffic endpoints.
 - Prefer async persistence so logging never blocks the response path (failures are logged, not thrown to the client).
 - Audit who has `ROLE_ADMIN` (or custom checker roles) with the same rigor as production database access.
@@ -92,7 +103,7 @@ Before tagging a release, confirm:
 | **`.gitignore` and `.env`** | `.env`, `.env.dev`, and local env files are ignored; no committed secrets. |
 | **No secrets in repo** | No API keys, passwords, or tokens in tracked files or exported log samples. |
 | **Redaction defaults** | Default header/query/JSON redaction lists remain enabled; request body capture stays off by default. |
-| **Admin UI exposure** | `security.allow_unauthenticated` is `false` in recipe defaults; firewalls documented for `web_ui.path_prefix`. |
+| **Admin UI exposure** | `security.allow_unauthenticated` is `false` in recipe defaults; document `access_control` for `^/admin/http-log` (`ROLE_ADMIN`) and schedule purge cron. |
 | **Input / output** | Stored bodies treated as untrusted in Twig (auto-escaping); export files may contain PII — protect filesystem access. |
 | **Dependencies** | `composer audit` run; issues triaged. |
 | **Logging** | Messenger/async failures log message type and ids only — no raw Authorization, Cookie, or body payloads. |
