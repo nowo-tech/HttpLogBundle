@@ -69,9 +69,13 @@
         <pre class="nowo-ui-code bg-light p-3">{{ entry.responseBody }}</pre>
     {% endif %}
 
-    <form method="post" action="{{ path('nowo_http_log_admin_delete', {id: entry.id}) }}" class="mt-4"
-          onsubmit="return confirm('{{ 'admin.delete.confirm'|trans({}, 'NowoHttpLogBundle')|e('js') }}');">
-        <input type="hidden" name="_token" value="{{ csrf_token('http_log_delete') }}">
+    {{ form_start(deleteForm, {
+        attr: {
+            class: 'mt-4',
+            onsubmit: "return confirm('#{'admin.delete.confirm'|trans({}, 'NowoHttpLogBundle')|e('js')}');",
+        },
+    }) }}
+        {{ form_rest(deleteForm) }}
         <button type="submit" class="{{ ui.btn('danger', null, _css_fw) }} nowo-ui-btn-delete">{{ 'admin.action.delete'|trans({}, 'NowoHttpLogBundle') }}</button>
-    </form>
+    {{ form_end(deleteForm, {render_rest: false}) }}
 {% endblock %}

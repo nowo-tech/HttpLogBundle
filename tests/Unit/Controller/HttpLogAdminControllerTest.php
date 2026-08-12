@@ -7,6 +7,7 @@ namespace Nowo\HttpLogBundle\Tests\Unit\Controller;
 use DateTimeImmutable;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
+use Nowo\HttpLogBundle\Form\HttpLogFilterType;
 use Nowo\HttpLogBundle\Message\ExportHttpLogMessage;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
@@ -17,8 +18,11 @@ use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 use stdClass;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\Form\Extension\Csrf\CsrfExtension;
+use Symfony\Component\Form\Extension\HttpFoundation\HttpFoundationExtension;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\Form\FormInterface;
+use Symfony\Component\Form\Forms;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -47,8 +51,7 @@ final class HttpLogAdminControllerTest extends TestCase
         $form->expects(self::once())->method('isSubmitted')->willReturn(false);
         $form->expects(self::once())->method('createView')->willReturn(new FormView());
 
-        $formFactory = $this->createMock(FormFactoryInterface::class);
-        $formFactory->expects(self::once())->method('create')->willReturn($form);
+        $formFactory = $this->createIndexFormFactory($form);
 
         $repository = $this->createMock(HttpLogEntryRepository::class);
         $repository->expects(self::once())
@@ -94,8 +97,7 @@ final class HttpLogAdminControllerTest extends TestCase
         $form->expects(self::once())->method('getData')->willReturn('invalid');
         $form->expects(self::once())->method('createView')->willReturn(new FormView());
 
-        $formFactory = $this->createMock(FormFactoryInterface::class);
-        $formFactory->method('create')->willReturn($form);
+        $formFactory = $this->createIndexFormFactory($form);
 
         $repository = $this->createMock(HttpLogEntryRepository::class);
         $repository->expects(self::once())
@@ -135,8 +137,7 @@ final class HttpLogAdminControllerTest extends TestCase
         ]);
         $form->expects(self::once())->method('createView')->willReturn(new FormView());
 
-        $formFactory = $this->createMock(FormFactoryInterface::class);
-        $formFactory->method('create')->willReturn($form);
+        $formFactory = $this->createIndexFormFactory($form);
 
         $repository = $this->createMock(HttpLogEntryRepository::class);
         $repository->expects(self::once())
@@ -170,7 +171,11 @@ final class HttpLogAdminControllerTest extends TestCase
         $twig = $this->createMock(Environment::class);
         $twig->expects(self::once())
             ->method('render')
-            ->with('@NowoHttpLogBundle/admin/show.html.twig', ['entry' => $entry])
+            ->with(
+                '@NowoHttpLogBundle/admin/show.html.twig',
+                self::callback(static fn (array $parameters): bool => $parameters['entry'] === $entry
+                    && $parameters['deleteForm'] instanceof FormView),
+            )
             ->willReturn('show');
 
         $controller = $this->createController(
@@ -494,6 +499,29 @@ final class HttpLogAdminControllerTest extends TestCase
         $controller->delete(8, $request);
     }
 
+    private function createIndexFormFactory(FormInterface $filterForm): FormFactoryInterface
+    {
+        $csrfTokenManager = $this->createMock(CsrfTokenManagerInterface::class);
+
+        $realFactory = Forms::createFormFactoryBuilder()
+            ->addExtension(new HttpFoundationExtension())
+            ->addExtension(new CsrfExtension($csrfTokenManager))
+            ->getFormFactory();
+
+        $formFactory = $this->createMock(FormFactoryInterface::class);
+        $formFactory->method('create')->willReturnCallback(
+            static function (string $type, mixed $data = null, array $options = []) use ($filterForm, $realFactory): FormInterface {
+                if ($type === HttpLogFilterType::class) {
+                    return $filterForm;
+                }
+
+                return $realFactory->create($type, $data, $options);
+            },
+        );
+
+        return $formFactory;
+    }
+
     private function createController(
         ?Request $request = null,
         ?HttpLogEntryRepository $repository = null,
@@ -526,7 +554,10 @@ final class HttpLogAdminControllerTest extends TestCase
         $container->set('request_stack', $requestStack);
         $container->set('security.token_storage', $tokenStorage);
         $container->set('security.csrf.token_manager', $csrfTokenManager);
-        $container->set('form.factory', $formFactory ?? $this->createMock(FormFactoryInterface::class));
+        $container->set('form.factory', $formFactory ?? Forms::createFormFactoryBuilder()
+            ->addExtension(new HttpFoundationExtension())
+            ->addExtension(new CsrfExtension($csrfTokenManager))
+            ->getFormFactory());
         $container->set('twig', $twig ?? $this->createMock(Environment::class));
         $container->set('router', $router ?? $this->createConfiguredMock(RouterInterface::class, [
             'generate' => '/admin/http-log',
