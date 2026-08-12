@@ -5,32 +5,30 @@
 {% block title %}{{ 'admin.index.title'|trans({}, 'NowoHttpLogBundle') }} — {{ parent() }}{% endblock %}
 
 {% block nowo_ui_content %}
-    {% include '@NowoHttpLogBundle/admin/_filter.html.twig' %}
+    {{ include('@NowoHttpLogBundle/admin/_filter.html.twig') }}
 
     <div class="nowo-ui-toolbar d-flex justify-content-between align-items-center mb-3">
         <p class="nowo-ui-summary mb-0">{{ 'admin.index.total'|trans({'%count%': total}, 'NowoHttpLogBundle') }}</p>
         <div class="nowo-ui-actions">
-            <form method="post" action="{{ path('nowo_http_log_admin_export') }}" class="d-inline">
-                <input type="hidden" name="_token" value="{{ csrf_token('http_log_export') }}">
-                <input type="hidden" name="format" value="csv">
-                {% for key, value in criteria %}
-                    <input type="hidden" name="{{ key }}" value="{{ value.timestamp is defined ? value|date('Y-m-d\\TH:i') : value }}">
-                {% endfor %}
+            {{ form_start(exportCsvForm, {attr: {class: 'd-inline'}}) }}
+                {{ form_rest(exportCsvForm) }}
                 <button type="submit" class="{{ ui.btn('secondary', 'sm', _css_fw) }} nowo-ui-btn-export">{{ 'admin.action.export_csv'|trans({}, 'NowoHttpLogBundle') }}</button>
-            </form>
-            <form method="post" action="{{ path('nowo_http_log_admin_export') }}" class="d-inline ms-1">
-                <input type="hidden" name="_token" value="{{ csrf_token('http_log_export') }}">
-                <input type="hidden" name="format" value="json">
-                {% for key, value in criteria %}
-                    <input type="hidden" name="{{ key }}" value="{{ value.timestamp is defined ? value|date('Y-m-d\\TH:i') : value }}">
-                {% endfor %}
+            {{ form_end(exportCsvForm, {render_rest: false}) }}
+
+            {{ form_start(exportJsonForm, {attr: {class: 'd-inline ms-1'}}) }}
+                {{ form_rest(exportJsonForm) }}
                 <button type="submit" class="{{ ui.btn('secondary', 'sm', _css_fw) }} nowo-ui-btn-export">{{ 'admin.action.export_json'|trans({}, 'NowoHttpLogBundle') }}</button>
-            </form>
-            <form method="post" action="{{ path('nowo_http_log_admin_purge') }}" class="d-inline ms-1"
-                  onsubmit="return confirm('{{ 'admin.purge.confirm'|trans({}, 'NowoHttpLogBundle')|e('js') }}');">
-                <input type="hidden" name="_token" value="{{ csrf_token('http_log_purge') }}">
+            {{ form_end(exportJsonForm, {render_rest: false}) }}
+
+            {{ form_start(purgeForm, {
+                attr: {
+                    class: 'd-inline ms-1',
+                    onsubmit: "return confirm('#{'admin.purge.confirm'|trans({}, 'NowoHttpLogBundle')|e('js')}');",
+                },
+            }) }}
+                {{ form_rest(purgeForm) }}
                 <button type="submit" class="{{ ui.btn('danger', 'sm', _css_fw) }} nowo-ui-btn-purge">{{ 'admin.action.purge'|trans({}, 'NowoHttpLogBundle') }}</button>
-            </form>
+            {{ form_end(purgeForm, {render_rest: false}) }}
         </div>
     </div>
 

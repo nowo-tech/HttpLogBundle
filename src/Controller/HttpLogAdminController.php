@@ -9,7 +9,10 @@ use DateTimeInterface;
 use Exception;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Enum\ExportFormat;
+use Nowo\HttpLogBundle\Form\HttpLogDeleteType;
+use Nowo\HttpLogBundle\Form\HttpLogExportType;
 use Nowo\HttpLogBundle\Form\HttpLogFilterType;
+use Nowo\HttpLogBundle\Form\HttpLogPurgeType;
 use Nowo\HttpLogBundle\Message\ExportHttpLogMessage;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
@@ -27,12 +30,27 @@ use function in_array;
 use function is_array;
 use function is_scalar;
 use function is_string;
+use function max;
 use function sprintf;
 use function sys_get_temp_dir;
+use function uniqid;
 
 #[Route('/admin/http-log')]
 final class HttpLogAdminController extends AbstractController
 {
+    /** @var list<string> */
+    private const CRITERIA_FIELDS = [
+        'method',
+        'routeName',
+        'statusCode',
+        'clientIp',
+        'path',
+        'bodyContentType',
+        'q',
+        'createdFrom',
+        'createdTo',
+    ];
+
     public function __construct(
         private readonly HttpLogEntryRepository $repository,
         private readonly HttpLogAccessCheckerInterface $accessChecker,
@@ -50,27 +68,41 @@ final class HttpLogAdminController extends AbstractController
     {
         $this->denyUnlessGrantedAdmin();
 
-        $form = $this->createForm(HttpLogFilterType::class);
-        $form->handleRequest($request);
+        $filterForm = $this->createForm(HttpLogFilterType::class);
+        $filterForm->handleRequest($request);
 
-        $criteria = $form->isSubmitted() && $form->isValid()
-            ? $this->normalizeCriteria($form->getData())
+        $criteria = $filterForm->isSubmitted() && $filterForm->isValid()
+            ? $this->normalizeCriteria($filterForm->getData())
             : [];
 
-        $page   = max(1, $request->query->getInt('page', 1));
-        $result = $this->repository->findFiltered($criteria, $page, $this->pageSize);
+        $criteriaParams = $this->queryParamsFromCriteria($criteria);
+        $page           = max(1, $request->query->getInt('page', 1));
+        $result         = $this->repository->findFiltered($criteria, $page, $this->pageSize);
 
         return $this->render('@NowoHttpLogBundle/admin/index.html.twig', [
-            'filterForm' => $form->createView(),
-            'entries'    => $result['items'],
-            'total'      => $result['total'],
-            'page'       => $page,
-            'pageSize'   => $this->pageSize,
-            'criteria'   => $criteria,
+            'filterForm'    => $filterForm->createView(),
+            'exportCsvForm' => $this->createForm(HttpLogExportType::class, null, [
+                'action'   => $this->generateUrl('nowo_http_log_admin_export'),
+                'criteria' => $criteriaParams,
+                'format'   => ExportFormat::Csv->value,
+            ])->createView(),
+            'exportJsonForm' => $this->createForm(HttpLogExportType::class, null, [
+                'action'   => $this->generateUrl('nowo_http_log_admin_export'),
+                'criteria' => $criteriaParams,
+                'format'   => ExportFormat::Json->value,
+            ])->createView(),
+            'purgeForm' => $this->createForm(HttpLogPurgeType::class, null, [
+                'action' => $this->generateUrl('nowo_http_log_admin_purge'),
+            ])->createView(),
+            'entries'  => $result['items'],
+            'total'    => $result['total'],
+            'page'     => $page,
+            'pageSize' => $this->pageSize,
+            'criteria' => $criteria,
         ]);
     }
 
-    #[Route('/{id}', name: 'nowo_http_log_admin_show', requirements: ['id' => '\d+'], methods: ['GET'])]
+    #[Route('/{id}', name: 'nowo_http_log_admin_show', requirements: ['id' => '\\d+'], methods: ['GET'])]
     public function show(int $id): Response
     {
         $this->denyUnlessGrantedAdmin();
@@ -81,7 +113,10 @@ final class HttpLogAdminController extends AbstractController
         }
 
         return $this->render('@NowoHttpLogBundle/admin/show.html.twig', [
-            'entry' => $entry,
+            'entry'      => $entry,
+            'deleteForm' => $this->createForm(HttpLogDeleteType::class, null, [
+                'action' => $this->generateUrl('nowo_http_log_admin_delete', ['id' => $entry->getId()]),
+            ])->createView(),
         ]);
     }
 
@@ -89,9 +124,12 @@ final class HttpLogAdminController extends AbstractController
     public function export(Request $request): Response
     {
         $this->denyUnlessGrantedExport();
-        $this->validateCsrf($request, 'http_log_export');
 
-        $formatValue = (string) $request->request->get('format', ExportFormat::Csv->value);
+        $data = $this->validateActionForm($request, HttpLogExportType::class, [
+            'criteria' => $this->rawCriteriaFromRequest($request),
+            'format'   => (string) $request->request->get('format', ExportFormat::Csv->value),
+        ]);
+        $formatValue = (string) ($data['format'] ?? ExportFormat::Csv->value);
         $format      = ExportFormat::tryFrom($formatValue) ?? ExportFormat::Csv;
         $criteria    = $this->criteriaFromRequest($request);
 
@@ -118,7 +156,7 @@ final class HttpLogAdminController extends AbstractController
     public function purge(Request $request): RedirectResponse
     {
         $this->denyUnlessGrantedPurge();
-        $this->validateCsrf($request, 'http_log_purge');
+        $this->validateActionForm($request, HttpLogPurgeType::class);
 
         $purgeAll = $request->request->getBoolean('purge_all');
         $days     = $request->request->get('older_than_days');
@@ -137,11 +175,11 @@ final class HttpLogAdminController extends AbstractController
         return $this->redirectToRoute('nowo_http_log_admin_index');
     }
 
-    #[Route('/{id}/delete', name: 'nowo_http_log_admin_delete', requirements: ['id' => '\d+'], methods: ['POST'])]
+    #[Route('/{id}/delete', name: 'nowo_http_log_admin_delete', requirements: ['id' => '\\d+'], methods: ['POST'])]
     public function delete(int $id, Request $request): RedirectResponse
     {
         $this->denyUnlessGrantedPurge();
-        $this->validateCsrf($request, 'http_log_delete');
+        $this->validateActionForm($request, HttpLogDeleteType::class);
 
         $this->repository->deleteByIds([$id]);
         $this->addFlash('success', 'HTTP log entry deleted.');
@@ -182,19 +220,32 @@ final class HttpLogAdminController extends AbstractController
         }
     }
 
-    private function validateCsrf(Request $request, string $tokenId): void
+    /**
+     * @param array<string, mixed> $options
+     *
+     * @return array<string, mixed>
+     */
+    private function validateActionForm(Request $request, string $type, array $options = []): array
     {
-        $token = (string) $request->request->get('_token', '');
-        if (!$this->isCsrfTokenValid($tokenId, $token)) {
+        $form = $this->createForm($type, null, $options);
+        $form->handleRequest($request);
+
+        if (!$form->isSubmitted() && $request->isMethod('POST')) {
+            $form->submit($request->request->all());
+        }
+
+        if (!$form->isSubmitted() || !$form->isValid()) {
             throw new AccessDeniedException('Invalid CSRF token.');
         }
+
+        return $this->normalizeCriteria($form->getData());
     }
 
     /** @return array<string, mixed> */
     private function criteriaFromRequest(Request $request): array
     {
         $criteria = [];
-        foreach (['method', 'routeName', 'statusCode', 'clientIp', 'path', 'bodyContentType', 'q', 'createdFrom', 'createdTo'] as $key) {
+        foreach (self::CRITERIA_FIELDS as $key) {
             $value = $request->request->get($key);
             if ($value !== null && $value !== '') {
                 if (in_array($key, ['createdFrom', 'createdTo'], true)) {
@@ -206,6 +257,20 @@ final class HttpLogAdminController extends AbstractController
         }
 
         return $this->normalizeCriteria($criteria);
+    }
+
+    /** @return array<string, mixed> */
+    private function rawCriteriaFromRequest(Request $request): array
+    {
+        $criteria = [];
+        foreach (self::CRITERIA_FIELDS as $key) {
+            $value = $request->request->get($key);
+            if ($value !== null && $value !== '') {
+                $criteria[$key] = $value;
+            }
+        }
+
+        return $criteria;
     }
 
     /**
@@ -240,7 +305,7 @@ final class HttpLogAdminController extends AbstractController
         $params = [];
         foreach ($criteria as $key => $value) {
             if ($value instanceof DateTimeInterface) {
-                $params[$key] = $value->format('Y-m-d\TH:i');
+                $params[$key] = $value->format('Y-m-d\\TH:i');
             } elseif (is_scalar($value)) {
                 $params[$key] = $value;
             }

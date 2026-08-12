@@ -130,6 +130,8 @@ Point `web_ui.layout_template` at your project layout to embed admin pages in ho
 | `admin/show.html.twig` | Single entry detail view |
 | `admin/_filter.html.twig` | Filter form partial on the index page |
 
+`admin/index.html.twig` and `admin/show.html.twig` submit actions with Symfony forms (`form_start()` / `form_end()`). If you override those templates, keep the flat `_token` field and the CSRF token ids `http_log_export`, `http_log_purge`, and `http_log_delete` intact.
+
 To recover upstream UI after a full-file override, remove the app copy, clear cache, and re-apply only the customisations you still need.
 
 ## Translation overrides
