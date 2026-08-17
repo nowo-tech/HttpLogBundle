@@ -938,16 +938,16 @@
         },
         {
             "name": "nowo-tech/form-kit-bundle",
-            "version": "v2.2.0",
+            "version": "v2.4.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/FormKitBundle.git",
-                "reference": "930963dd04e2bdb4936ef9ddc287413ffb4c2b9f"
+                "reference": "d0021611a2c89983df24ad69a5fb4b10e4bbfed4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/FormKitBundle/zipball/930963dd04e2bdb4936ef9ddc287413ffb4c2b9f",
-                "reference": "930963dd04e2bdb4936ef9ddc287413ffb4c2b9f",
+                "url": "https://api.github.com/repos/nowo-tech/FormKitBundle/zipball/d0021611a2c89983df24ad69a5fb4b10e4bbfed4",
+                "reference": "d0021611a2c89983df24ad69a5fb4b10e4bbfed4",
                 "shasum": ""
             },
             "require": {
@@ -973,7 +973,7 @@
                 "phpunit/phpunit": "^10.0",
                 "rector/rector": "^2.0",
                 "symfony/framework-bundle": "^7.4 || ^8.0",
-                "vincentlanglet/twig-cs-fixer": "^3.0"
+                "vincentlanglet/twig-cs-fixer": "^4.0"
             },
             "suggest": {
                 "a2lix/translation-form-bundle": "For the optional \"translations\" type in FormTypeMap (^3.2 on PHP 8.2/Symfony 7.4, ^4.0 on PHP 8.4+/Symfony 7.4|8)",
@@ -1031,20 +1031,20 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-08-04T23:04:44+00:00"
+            "time": "2026-08-17T09:38:42+00:00"
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v1.7.0",
+            "version": "v1.8.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "60935db1e13b438c79248350115e03aef30fe070"
+                "reference": "fb65e3a8db53c734dc530288a15f3aa2dc03c28a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/60935db1e13b438c79248350115e03aef30fe070",
-                "reference": "60935db1e13b438c79248350115e03aef30fe070",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/fb65e3a8db53c734dc530288a15f3aa2dc03c28a",
+                "reference": "fb65e3a8db53c734dc530288a15f3aa2dc03c28a",
                 "shasum": ""
             },
             "require": {
@@ -1114,7 +1114,7 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-08-04T23:04:44+00:00"
+            "time": "2026-08-15T17:05:25+00:00"
         },
         {
             "name": "psr/cache",
