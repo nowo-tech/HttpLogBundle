@@ -42,6 +42,7 @@ Demo: **Symfony 8.x** (`demo/symfony8`). From the bundle root: `make -C demo/sym
 ## What the demo includes
 
 - **Symfony Web Profiler** — enabled in `dev` and `test`.
+- **Nowo Twig Inspector** (`nowo-tech/twig-inspector-bundle`) and **Nowo Hot Reload** (`nowo-tech/hot-reload-bundle`) — required together on FrankenPHP demos (dev/test only; Caddyfile Mercure + `hot_reload`, plus `worker { watch }` in worker mode). Do not enable Hot Reload in production.
 - **Http Log Bundle** (`Nowo\HttpLogBundle\NowoHttpLogBundle`) — path-mounted from the repository root.
 - **SQLite** — no external database container (REQ-DEMO-006).
 - **Security** — HTTP Basic `admin` / `admin` for `/admin/http-log`.
