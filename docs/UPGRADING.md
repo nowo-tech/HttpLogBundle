@@ -12,6 +12,10 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+## 1.1.1 (Symfony 8 demos / Hot Reload 1.4)
+
+- No application upgrade steps. **Demos only:** Hot Reload Bundle `^1.4` (FrankenPHP Mercure/`hot_reload`, `dev`/`test`).
+
 ## 1.1.0
 
 From **1.0.2** — Adds FormKit, UiKit, Twig Extra (REQ-TWIG-004), and Twig-CS-Fixer. Register `TwigExtraBundle`, `NowoFormKitBundle`, and `NowoUiKitBundle` if Flex did not. See [CHANGELOG](CHANGELOG.md).
