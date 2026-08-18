@@ -938,16 +938,16 @@
         },
         {
             "name": "nowo-tech/form-kit-bundle",
-            "version": "v2.4.1",
+            "version": "v2.4.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/FormKitBundle.git",
-                "reference": "d0021611a2c89983df24ad69a5fb4b10e4bbfed4"
+                "reference": "b54ec2e884be01f71f8f92ca4085480cfc2c22c8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/FormKitBundle/zipball/d0021611a2c89983df24ad69a5fb4b10e4bbfed4",
-                "reference": "d0021611a2c89983df24ad69a5fb4b10e4bbfed4",
+                "url": "https://api.github.com/repos/nowo-tech/FormKitBundle/zipball/b54ec2e884be01f71f8f92ca4085480cfc2c22c8",
+                "reference": "b54ec2e884be01f71f8f92ca4085480cfc2c22c8",
                 "shasum": ""
             },
             "require": {
@@ -1031,20 +1031,20 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-08-17T09:38:42+00:00"
+            "time": "2026-08-18T09:34:49+00:00"
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v1.8.0",
+            "version": "v1.8.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "fb65e3a8db53c734dc530288a15f3aa2dc03c28a"
+                "reference": "1e6807eabfcbca4fc9b88a5748e2bfc9da895a24"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/fb65e3a8db53c734dc530288a15f3aa2dc03c28a",
-                "reference": "fb65e3a8db53c734dc530288a15f3aa2dc03c28a",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/1e6807eabfcbca4fc9b88a5748e2bfc9da895a24",
+                "reference": "1e6807eabfcbca4fc9b88a5748e2bfc9da895a24",
                 "shasum": ""
             },
             "require": {
@@ -1114,7 +1114,7 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-08-15T17:05:25+00:00"
+            "time": "2026-08-18T09:35:01+00:00"
         },
         {
             "name": "psr/cache",
@@ -6257,16 +6257,16 @@
         },
         {
             "name": "friendsofphp/php-cs-fixer",
-            "version": "v3.95.18",
+            "version": "v3.95.19",
             "source": {
                 "type": "git",
                 "url": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer.git",
-                "reference": "a8b4e4216faabf67f4e96110ee99a48c96e4e683"
+                "reference": "8a06c4ad6bd580b7920bd5ff81b271ca1158507e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/PHP-CS-Fixer/PHP-CS-Fixer/zipball/a8b4e4216faabf67f4e96110ee99a48c96e4e683",
-                "reference": "a8b4e4216faabf67f4e96110ee99a48c96e4e683",
+                "url": "https://api.github.com/repos/PHP-CS-Fixer/PHP-CS-Fixer/zipball/8a06c4ad6bd580b7920bd5ff81b271ca1158507e",
+                "reference": "8a06c4ad6bd580b7920bd5ff81b271ca1158507e",
                 "shasum": ""
             },
             "require": {
@@ -6350,7 +6350,7 @@
             ],
             "support": {
                 "issues": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/issues",
-                "source": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/tree/v3.95.18"
+                "source": "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer/tree/v3.95.19"
             },
             "funding": [
                 {
@@ -6358,7 +6358,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-07-30T15:46:02+00:00"
+            "time": "2026-08-17T16:24:07+00:00"
         },
         {
             "name": "myclabs/deep-copy",
@@ -6479,16 +6479,16 @@
         },
         {
             "name": "nowo-tech/phpstan-frankenphp",
-            "version": "v1.1.0",
+            "version": "v1.1.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/PhpStanFrankenPhp.git",
-                "reference": "37c1e7573a31b84225b24af7c795c3ec2d8b1083"
+                "reference": "4412284fb1f8347a8f4db2e97c0366f1b1880725"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/PhpStanFrankenPhp/zipball/37c1e7573a31b84225b24af7c795c3ec2d8b1083",
-                "reference": "37c1e7573a31b84225b24af7c795c3ec2d8b1083",
+                "url": "https://api.github.com/repos/nowo-tech/PhpStanFrankenPhp/zipball/4412284fb1f8347a8f4db2e97c0366f1b1880725",
+                "reference": "4412284fb1f8347a8f4db2e97c0366f1b1880725",
                 "shasum": ""
             },
             "require": {
@@ -6561,7 +6561,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-08-11T07:36:15+00:00"
+            "time": "2026-08-18T09:32:18+00:00"
         },
         {
             "name": "phar-io/manifest",
