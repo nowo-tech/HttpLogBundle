@@ -91,6 +91,9 @@ jobs:
             --no-interaction --no-update
           composer require symfony/yaml:^${{ matrix.symfony }} --dev --no-interaction --no-update
           composer update --with-all-dependencies --no-interaction --prefer-dist --no-progress
+      - name: Composer audit (Critical/High)
+        run: composer audit --locked
+
 
       - name: Run tests
         run: |
