@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-08-19
+
+### Changed
+
+- **Maintainer:** refresh `composer.lock` after PHP CS Fixer CI run.
+
 ## [1.1.2] - 2026-08-19
 
 ### Security

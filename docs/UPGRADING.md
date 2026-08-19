@@ -12,6 +12,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+## 1.1.3 (maintainer lock refresh)
+
+No application upgrade steps.
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
+
 ## 1.1.2 (composer audit CI)
 
 No application upgrade steps.
