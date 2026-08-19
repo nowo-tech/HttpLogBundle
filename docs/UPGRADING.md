@@ -12,6 +12,15 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+## 1.1.2 (composer audit CI)
+
+No application upgrade steps.
+
+```bash
+composer update nowo-tech/http-log-bundle
+php bin/console cache:clear
+```
+
 ## 1.1.1 (Symfony 8 demos / Hot Reload 1.4)
 
 - No application upgrade steps. **Demos only:** Hot Reload Bundle `^1.4` (FrankenPHP Mercure/`hot_reload`, `dev`/`test`).
