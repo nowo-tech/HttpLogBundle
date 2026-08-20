@@ -1,0 +1,4 @@
+# Merged into security.access_control by Symfony (REQ-SEC-004).
+security:
+    access_control:
+        - { path: ^/admin/http-log, roles: ROLE_ADMIN }
