@@ -117,10 +117,10 @@ Record confirmation in the release PR or tag notes.
 
 | Field | Value |
 | ----- | ----- |
-| Date | 2026-08-03 |
+| Date | 2026-08-20 (re-audit; prior 2026-08-03) |
 | Grade | Pass (good) |
 | Risk | Low |
-| Method | Static review of capture path, admin CSRF/access checker, redaction defaults, Messenger payloads, recipe defaults (`allow_unauthenticated: false`, request body off) |
-| Open residuals | None (Critical/High). App-owned: retention of captured PII when operators enable body capture / disable redaction; protect export files on disk. |
+| Method | Static review of capture path, admin CSRF/access checker, redaction defaults, Messenger payloads, Flex `when@prod` (sampling 0.25, bodies off, retention 14d, `ROLE_ADMIN`) |
+| Open residuals | None (Critical/High). App-owned: schedule `nowo:http-log:purge`; protect export files; do not disable redaction / enable bodies without review. |
 
 See [CONFIGURATION.md](CONFIGURATION.md) and [USAGE.md](USAGE.md).

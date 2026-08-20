@@ -12,6 +12,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+## 1.1.4 (Flex when@prod PII + access_control)
+
+Review Flex recipe `when@prod` retention/sampling and `security_nowo_http_log.yaml` after update. Schedule `nowo:http-log:purge` if not already.
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
+
 ## 1.1.3 (maintainer lock refresh)
 
 No application upgrade steps.

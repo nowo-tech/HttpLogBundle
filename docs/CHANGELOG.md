@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-08-20
+
+### Security
+
+- **Flex recipe:** ship `when@prod` PII hardening (sampling 0.25, response bodies off, retention **14** days) and `security_nowo_http_log.yaml` access_control. Prefer **`^1.1.4`**.
+
 ## [1.1.3] - 2026-08-19
 
 ### Changed
