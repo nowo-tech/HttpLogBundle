@@ -57,3 +57,25 @@ nowo_http_log:
             - ROLE_ADMIN
         access_checker: null
         allow_unauthenticated: false
+
+when@prod:
+    nowo_http_log:
+        sampling_rate: 0.25
+        capture:
+            request_body: false
+            max_body_bytes: 16384
+            response_body_by_type:
+                html: false
+                json: false
+                soap: false
+                xml: false
+                text: false
+                binary: false
+                other: false
+        retention:
+            days: 14
+        export:
+            max_sync_rows: 500
+        security:
+            access_roles: [ROLE_ADMIN]
+            allow_unauthenticated: false
