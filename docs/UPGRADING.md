@@ -4,11 +4,29 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Table of contents
 
+
+- [From 1.1.4 to 1.1.5](#from-114-to-115)
 - [Unreleased](#unreleased)
 - [1.1.0](#110)
 - [1.0.2](#102)
 - [1.0.1](#101)
 - [1.0.0](#100)
+
+## From 1.1.4 to 1.1.5
+
+No breaking changes. **No application upgrade steps.**
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
+
+## From 1.1.4 to 1.1.5
+
+No breaking changes. **No application upgrade steps.**
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 ## Unreleased
 
