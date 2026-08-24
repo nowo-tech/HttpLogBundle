@@ -47,3 +47,8 @@ coverage.xml
 /phpunit.xml
 /.phpunit.cache/
 ###< phpunit/phpunit ###
+
+# SQLite artifacts (REQ-DEMO-011 — demos use MySQL)
+*.db
+*.sqlite
+*.sqlite3
