@@ -938,16 +938,16 @@
         },
         {
             "name": "nowo-tech/form-kit-bundle",
-            "version": "v2.4.4",
+            "version": "v2.4.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/FormKitBundle.git",
-                "reference": "ace97700b32e49db110f8ccd9df819089cc7b4ef"
+                "reference": "50e1e8569fe0e109be95d19a0d3e12b43e93767b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/FormKitBundle/zipball/ace97700b32e49db110f8ccd9df819089cc7b4ef",
-                "reference": "ace97700b32e49db110f8ccd9df819089cc7b4ef",
+                "url": "https://api.github.com/repos/nowo-tech/FormKitBundle/zipball/50e1e8569fe0e109be95d19a0d3e12b43e93767b",
+                "reference": "50e1e8569fe0e109be95d19a0d3e12b43e93767b",
                 "shasum": ""
             },
             "require": {
@@ -1031,24 +1031,24 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-08-19T16:33:18+00:00"
+            "time": "2026-08-24T16:03:01+00:00"
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v1.8.2",
+            "version": "v1.8.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "b0766d1ec0e31c5dc74bbd9c9d276f7a8748d3ea"
+                "reference": "204998927aa3c864c43c145e7f46c1452f8031ca"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/b0766d1ec0e31c5dc74bbd9c9d276f7a8748d3ea",
-                "reference": "b0766d1ec0e31c5dc74bbd9c9d276f7a8748d3ea",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/204998927aa3c864c43c145e7f46c1452f8031ca",
+                "reference": "204998927aa3c864c43c145e7f46c1452f8031ca",
                 "shasum": ""
             },
             "require": {
-                "php": ">=8.1 <8.6",
+                "php": ">=8.2 <8.6",
                 "symfony/asset": "^6.0 || ^7.0 || ^8.0",
                 "symfony/config": "^6.0 || ^7.0 || ^8.0",
                 "symfony/dependency-injection": "^6.0 || ^7.0 || ^8.0",
@@ -1062,6 +1062,7 @@
             },
             "require-dev": {
                 "friendsofphp/php-cs-fixer": "^3.0",
+                "nowo-tech/phpstan-frankenphp": "^1.0",
                 "phpstan/extension-installer": "^1.0",
                 "phpstan/phpstan": "^2.0",
                 "phpstan/phpstan-phpunit": "^2.0",
@@ -1114,7 +1115,7 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-08-19T16:33:04+00:00"
+            "time": "2026-08-24T16:03:11+00:00"
         },
         {
             "name": "psr/cache",
@@ -6478,20 +6479,20 @@
         },
         {
             "name": "nowo-tech/phpstan-frankenphp",
-            "version": "v1.1.2",
+            "version": "v1.1.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/PhpStanFrankenPhp.git",
-                "reference": "36e559027bf5e88bf042697937344a792ab328d8"
+                "reference": "25fbd5eb77cca17d0177f0977553c9df92e75de6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/PhpStanFrankenPhp/zipball/36e559027bf5e88bf042697937344a792ab328d8",
-                "reference": "36e559027bf5e88bf042697937344a792ab328d8",
+                "url": "https://api.github.com/repos/nowo-tech/PhpStanFrankenPhp/zipball/25fbd5eb77cca17d0177f0977553c9df92e75de6",
+                "reference": "25fbd5eb77cca17d0177f0977553c9df92e75de6",
                 "shasum": ""
             },
             "require": {
-                "php": ">=8.1 <8.6",
+                "php": ">=8.2 <8.6",
                 "phpstan/phpstan": "^2.0"
             },
             "require-dev": {
@@ -6560,7 +6561,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-08-19T16:27:50+00:00"
+            "time": "2026-08-24T16:03:11+00:00"
         },
         {
             "name": "phar-io/manifest",
