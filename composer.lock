@@ -938,16 +938,16 @@
         },
         {
             "name": "nowo-tech/form-kit-bundle",
-            "version": "v2.4.5",
+            "version": "v2.5.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/FormKitBundle.git",
-                "reference": "50e1e8569fe0e109be95d19a0d3e12b43e93767b"
+                "reference": "74347a3711ee510019b6fcc0651a5ff2b3101ee5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/FormKitBundle/zipball/50e1e8569fe0e109be95d19a0d3e12b43e93767b",
-                "reference": "50e1e8569fe0e109be95d19a0d3e12b43e93767b",
+                "url": "https://api.github.com/repos/nowo-tech/FormKitBundle/zipball/74347a3711ee510019b6fcc0651a5ff2b3101ee5",
+                "reference": "74347a3711ee510019b6fcc0651a5ff2b3101ee5",
                 "shasum": ""
             },
             "require": {
@@ -978,7 +978,16 @@
             "suggest": {
                 "a2lix/translation-form-bundle": "For the optional \"translations\" type in FormTypeMap (^3.2 on PHP 8.2/Symfony 7.4, ^4.0 on PHP 8.4+/Symfony 7.4|8)",
                 "friendsofsymfony/ckeditor-bundle": "For addCKEditorField() / addCKEditorFieldType() (CKEditor 4 in forms)",
+                "nowo-tech/ckeditor5-editor-bundle": "For addCkeditor5Editor() / addCkeditor5EditorField() / addCkeditor5EditorFieldType() (CKEditor 5)",
+                "nowo-tech/icon-selector-bundle": "For addIconSelector() / addIconSelectorField() / addIconSelectorFieldType()",
+                "nowo-tech/otp-input-bundle": "For addOtp() / addOtpField() / addOtpFieldType()",
+                "nowo-tech/password-strength-bundle": "For addPasswordStrength() / addPasswordStrengthField() / addPasswordStrengthFieldType()",
+                "nowo-tech/password-toggle-bundle": "For addPasswordToggle() / addPasswordToggleField() / addPasswordToggleFieldType()",
+                "nowo-tech/phone-input-bundle": "For addPhone() / addPhoneField() / addPhoneFieldType()",
                 "nowo-tech/select-all-choice-bundle": "For addMultiSelectSelectAll() / addMultiSelectSelectAllType() (\"Select all\" on ChoiceType multiple)",
+                "nowo-tech/slide-to-confirm-bundle": "For addSlideToConfirm() / addSlideToConfirmField() / addSlideToConfirmFieldType()",
+                "nowo-tech/tag-input-bundle": "For addTagInput() / addTagInputField() / addTagInputFieldType()",
+                "nowo-tech/tiptap-editor-bundle": "For addTiptapEditor() / addTiptapEditorField() / addTiptapEditorFieldType()",
                 "symfony/ux-autocomplete": "Entity autocomplete fields; use addAutocompleteField() / addAutocompleteFieldType() with your autocomplete FormType FQCN",
                 "symfony/ux-cropperjs": "For addCropper() / addCropperField() / addCropperFieldType() (image crop widget)",
                 "symfony/ux-dropzone": "For addDropzone() / addDropzoneField() / addDropzoneFieldType() (drag-and-drop file upload)",
@@ -1031,7 +1040,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-08-24T16:03:01+00:00"
+            "time": "2026-08-25T08:02:55+00:00"
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
