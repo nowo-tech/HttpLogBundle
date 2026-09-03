@@ -69,7 +69,20 @@ cache-clear: ensure-up
 	$(DOCKER_COMPOSE) exec php php bin/console cache:clear
 
 link-bundle: ensure-up
-	$(DOCKER_COMPOSE) exec php sh -c "mkdir -p var/data && rm -rf vendor/nowo-tech/http-log-bundle && ln -sf /var/http-log-bundle vendor/nowo-tech/http-log-bundle && php bin/console doctrine:schema:update --force --complete && php bin/console cache:clear"
+	@echo "Waiting for MySQL from PHP container..."
+	@i=0; \
+	while [ $$i -lt 30 ]; do \
+		if $(DOCKER_COMPOSE) exec php sh -c "mkdir -p var/data && rm -rf vendor/nowo-tech/http-log-bundle && ln -sf /var/http-log-bundle vendor/nowo-tech/http-log-bundle && php bin/console doctrine:schema:update --force --complete && php bin/console cache:clear" 2>/dev/null; then \
+			break; \
+		fi; \
+		i=$$((i+1)); \
+		sleep 2; \
+	done; \
+	if [ $$i -ge 30 ]; then \
+		echo "MySQL not reachable from demo PHP container"; \
+		$(DOCKER_COMPOSE) logs --tail=50 database php || true; \
+		exit 1; \
+	fi
 
 update: ensure-up
 	$(DOCKER_COMPOSE) exec -T -e COMPOSER_MEMORY_LIMIT=-1 php composer update --no-interaction
