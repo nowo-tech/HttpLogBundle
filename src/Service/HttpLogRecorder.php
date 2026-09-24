@@ -6,11 +6,13 @@ namespace Nowo\HttpLogBundle\Service;
 
 use DateTimeImmutable;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\Persistence\ManagerRegistry;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Message\PersistHttpLogMessage;
 use Nowo\HttpLogBundle\Model\HttpLogCapture;
 use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
+use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\MessageBusInterface;
@@ -19,6 +21,7 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Throwable;
 
+use function array_keys;
 use function is_string;
 
 /**
@@ -40,6 +43,8 @@ final class HttpLogRecorder
         private readonly bool $async,
         private readonly array $captureConfig,
         private readonly ?TokenStorageInterface $tokenStorage = null,
+        private readonly ?ManagerRegistry $managerRegistry = null,
+        private readonly ?Security $security = null,
     ) {
     }
 
@@ -109,7 +114,7 @@ final class HttpLogRecorder
             contentType: $responseContentType,
             bodyContentType: $bodyContentType->value,
             durationMs: $durationMs,
-            userIdentifier: ($this->captureConfig['user'] ?? true) ? $this->resolveUserIdentifier() : null,
+            userIdentifier: ($this->captureConfig['user'] ?? true) ? $this->resolveUserIdentifier($request) : null,
             requestHeaders: $requestHeaders,
             responseHeaders: $responseHeaders,
             requestBody: $requestBody,
@@ -121,11 +126,28 @@ final class HttpLogRecorder
         );
     }
 
+    /**
+     * Persists the capture and detaches the entry afterwards, so a long-lived EntityManager
+     * (worker mode without kernel reset) does not keep one entry per logged request.
+     * A manager closed by a failed flush is reset before the exception is rethrown.
+     */
     public function persistCapture(HttpLogCapture $capture): void
     {
-        $entry = $this->createEntryFromCapture($capture);
-        $this->entityManager->persist($entry);
-        $this->entityManager->flush();
+        $entityManager = $this->resolveEntityManager();
+        $entry         = $this->createEntryFromCapture($capture);
+
+        try {
+            $entityManager->persist($entry);
+            $entityManager->flush();
+        } catch (Throwable $exception) {
+            $this->resetClosedEntityManager($entityManager);
+
+            throw $exception;
+        } finally {
+            if ($entityManager->isOpen() && $entityManager->contains($entry)) {
+                $entityManager->detach($entry);
+            }
+        }
     }
 
     public function createEntryFromCapture(HttpLogCapture $capture): HttpLogEntry
@@ -157,9 +179,48 @@ final class HttpLogRecorder
         return $entry;
     }
 
-    private function resolveUserIdentifier(): ?string
+    private function resolveEntityManager(): EntityManagerInterface
     {
-        if (!$this->tokenStorage instanceof TokenStorageInterface) {
+        if (!$this->managerRegistry instanceof ManagerRegistry) {
+            return $this->entityManager;
+        }
+
+        $manager = $this->managerRegistry->getManagerForClass(HttpLogEntry::class);
+        if (!$manager instanceof EntityManagerInterface) {
+            return $this->entityManager;
+        }
+
+        return $this->resetClosedEntityManager($manager) ?? $manager;
+    }
+
+    private function resetClosedEntityManager(EntityManagerInterface $manager): ?EntityManagerInterface
+    {
+        if ($manager->isOpen() || !$this->managerRegistry instanceof ManagerRegistry) {
+            return null;
+        }
+
+        foreach (array_keys($this->managerRegistry->getManagerNames()) as $name) {
+            if ($this->managerRegistry->getManager($name) !== $manager) {
+                continue;
+            }
+
+            $this->logger->warning('Resetting closed EntityManager used for HTTP log entries.', ['manager' => $name]);
+            $reset = $this->managerRegistry->resetManager($name);
+
+            return $reset instanceof EntityManagerInterface ? $reset : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * The token storage is not reset between requests when the kernel is reused (worker mode
+     * without services_resetter), so the token is only trusted when a firewall with security
+     * enabled handled the current request.
+     */
+    private function resolveUserIdentifier(Request $request): ?string
+    {
+        if (!$this->tokenStorage instanceof TokenStorageInterface || !$this->isHandledBySecuredFirewall($request)) {
             return null;
         }
 
@@ -174,6 +235,15 @@ final class HttpLogRecorder
         }
 
         return $user->getUserIdentifier();
+    }
+
+    private function isHandledBySecuredFirewall(Request $request): bool
+    {
+        if ($this->security instanceof Security) {
+            return $this->security->getFirewallConfig($request)?->isSecurityEnabled() ?? false;
+        }
+
+        return $request->attributes->has('_firewall_context');
     }
 
     private function safeResponseBody(Response $response): ?string

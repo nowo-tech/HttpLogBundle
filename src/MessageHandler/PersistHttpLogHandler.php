@@ -44,6 +44,10 @@ final class PersistHttpLogHandler
     {
         /** @var HttpLogEntry|null $entry */
         $entry = $this->repository->findOneBy(['requestId' => $requestId]);
+        if ($entry instanceof HttpLogEntry) {
+            // Avoid leaving the hydrated row in a long-lived identity map (worker mode).
+            $this->repository->detachAll([$entry]);
+        }
 
         return $entry;
     }

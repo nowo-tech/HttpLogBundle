@@ -122,6 +122,7 @@ final class ExportHttpLogService
                 fputcsv($resource, $this->entryToCsvRow($entry));
                 ++$total;
             }
+            $this->repository->detachAll($result['items']);
             ++$page;
         } while ($result['items'] !== []);
 
@@ -146,6 +147,7 @@ final class ExportHttpLogService
                 $first = false;
                 ++$total;
             }
+            $this->repository->detachAll($result['items']);
             ++$page;
         } while ($result['items'] !== []);
 

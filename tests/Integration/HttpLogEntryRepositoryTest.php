@@ -13,10 +13,12 @@ use Doctrine\ORM\Tools\SchemaTool;
 use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\Persistence\ObjectManager;
 use Doctrine\Persistence\ObjectRepository;
+use LogicException;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 
 use function dirname;
 
@@ -155,6 +157,104 @@ final class HttpLogEntryRepositoryTest extends TestCase
 
         self::assertSame(1, $this->repository->countAll());
         self::assertSame($keepEntry->getId(), $this->repository->findFiltered([], 1, 10)['items'][0]->getId());
+    }
+
+    #[Test]
+    public function findOneByAndDetachAllUseResolvedEntityManager(): void
+    {
+        $entry = $this->persistEntry(
+            method: 'GET',
+            routeName: 'api.one',
+            statusCode: 200,
+            clientIp: '10.0.0.9',
+            path: '/api/one',
+            bodyContentType: 'json',
+            createdAt: new DateTimeImmutable('2026-09-24T12:00:00+00:00'),
+        );
+
+        $found = $this->repository->findOneBy(
+            ['requestId' => $entry->getRequestId()],
+            ['id' => 'DESC'],
+        );
+        self::assertInstanceOf(HttpLogEntry::class, $found);
+        self::assertTrue($this->entityManager->contains($found));
+
+        $this->repository->detachAll([$found]);
+        self::assertFalse($this->entityManager->contains($found));
+        self::assertSame(0, $this->entityManager->getUnitOfWork()->size());
+
+        $getEntityManager = new ReflectionMethod(HttpLogEntryRepository::class, 'getEntityManager');
+        self::assertSame($this->entityManager, $getEntityManager->invoke($this->repository));
+    }
+
+    #[Test]
+    public function resolveEntityManagerResetsClosedManager(): void
+    {
+        $configuration = ORMSetup::createAttributeMetadataConfiguration(
+            [dirname(__DIR__, 2) . '/src/Entity'],
+            true,
+        );
+        if (PHP_VERSION_ID >= 80400) {
+            $configuration->enableNativeLazyObjects(true);
+        }
+        $connection = DriverManager::getConnection([
+            'driver' => 'pdo_sqlite',
+            'memory' => true,
+        ], $configuration);
+
+        $registry = new ResettableManagerRegistry(
+            static fn (): EntityManager => new EntityManager($connection, $configuration),
+        );
+        $repository = new HttpLogEntryRepository($registry);
+        (new SchemaTool($registry->current()))->createSchema([
+            $registry->current()->getClassMetadata(HttpLogEntry::class),
+        ]);
+
+        $closed = $registry->current();
+        $closed->close();
+        self::assertFalse($closed->isOpen());
+
+        self::assertSame(0, $repository->countAll());
+        self::assertTrue($registry->current()->isOpen());
+        self::assertNotSame($closed, $registry->current());
+    }
+
+    #[Test]
+    public function resolveEntityManagerThrowsWhenManagerMissing(): void
+    {
+        $registry = $this->createMock(ManagerRegistry::class);
+        $registry->method('getManagerForClass')->willReturn(null);
+
+        $repository = new HttpLogEntryRepository($registry);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Could not find the entity manager');
+        $repository->countAll();
+    }
+
+    #[Test]
+    public function resolveEntityManagerThrowsWhenClosedManagerCannotBeReset(): void
+    {
+        $closed = $this->createMock(EntityManager::class);
+        $closed->method('isOpen')->willReturn(false);
+
+        $other = $this->createMock(EntityManager::class);
+        $other->method('isOpen')->willReturn(true);
+
+        $registry = $this->createMock(ManagerRegistry::class);
+        $registry->method('getManagerForClass')->willReturn($closed);
+        $registry->method('getManagerNames')->willReturn(['other' => 'other', 'default' => 'default']);
+        $registry->method('getManager')->willReturnCallback(
+            static fn (?string $name = null): EntityManager => $name === 'default' ? $closed : $other,
+        );
+        // resetManager still returns a non-EM so the open check fails after a matching name.
+        $registry->method('resetManager')->willReturn($this->createMock(ObjectManager::class));
+
+        $repository = new HttpLogEntryRepository($registry);
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('is closed and could not be reset');
+        $repository->countAll();
     }
 
     private function persistEntry(

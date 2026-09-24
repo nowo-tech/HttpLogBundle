@@ -9,6 +9,7 @@ This document describes how the bundle's demo application runs under **FrankenPH
 - [Development configuration](#development-configuration)
 - [Production configuration](#production-configuration)
 - [Switching classic vs worker (`FRANKENPHP_MODE`)](#switching-classic-vs-worker-frankenphp_mode)
+- [Worker mode without kernel reset](#worker-mode-without-kernel-reset)
 - [Reproducing in another bundle](#reproducing-in-another-bundle)
 - [Troubleshooting](#troubleshooting)
 
@@ -101,6 +102,19 @@ Recreate the container after changing the value:
 docker compose up -d
 # or: make -C demo/symfony8 restart
 ```
+
+---
+
+## Worker mode without kernel reset
+
+This bundle is designed for FrankenPHP **worker** mode even when the Symfony kernel is **not** rebooted between requests (scenario B: no `services_resetter`). Summary:
+
+- Log entries are **detached** after flush; admin list/detail and export batches detach after use.
+- A **closed** EntityManager is reset via `ManagerRegistry` so one failed insert does not brick the worker.
+- `userIdentifier` is stored only when a **secured firewall** handled the request (avoids stale `TokenStorage`).
+- Prefer routing `PersistHttpLogMessage` to a real Messenger transport; keep `services_resetter` when possible so Doctrine/Security framework state is cleared.
+
+Full audit: [FRANKENPHP-WORKER-AUDIT.md](FRANKENPHP-WORKER-AUDIT.md). Upgrade notes: [UPGRADING.md](UPGRADING.md).
 
 ---
 

@@ -107,6 +107,16 @@ As a maintainer, I run the Symfony 8 FrankenPHP demo and CI smoke checks to veri
 | --- | --- |
 | FR-ORM-001 | Persist `HttpLogEntry` via Doctrine with paginated repository queries |
 
+### FrankenPHP worker / long-lived kernel (`FR-WORKER-*`)
+
+| ID | Requirement |
+| --- | --- |
+| FR-WORKER-001 | Bundle services hold no per-request mutable state; capture timing and request id live in request attributes |
+| FR-WORKER-002 | After persisting a log entry, detach it so the shared EntityManager identity map does not grow under worker mode without kernel reset |
+| FR-WORKER-003 | Resolve and reset a closed EntityManager via `ManagerRegistry` so a failed log flush does not leave the worker unable to use Doctrine |
+| FR-WORKER-004 | Record `userIdentifier` only when a firewall with security enabled handled the current request (no stale `TokenStorage` under scenario B) |
+| FR-WORKER-005 | Repository queries resolve the EntityManager from `ManagerRegistry` on every call; export/purge/admin detach or avoid hydrating rows that would linger across requests |
+
 ### Messenger (`FR-MSG-*`)
 
 | ID | Requirement |
@@ -134,6 +144,7 @@ As a maintainer, I run the Symfony 8 FrankenPHP demo and CI smoke checks to veri
 | SC-02 | Demo returns HTTP 200 and admin UI is reachable with credentials |
 | SC-03 | `code-inventory.md` lists every file under `src/` (43 units) |
 | SC-04 | Integrator docs describe full YAML tree and security defaults |
+| SC-05 | Bundle is viable under FrankenPHP worker mode without kernel reset (scenario B); see [docs/FRANKENPHP-WORKER-AUDIT.md](../../docs/FRANKENPHP-WORKER-AUDIT.md) |
 
 ## Validation
 

@@ -1042,7 +1042,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/http-log-bundle",
-                "reference": "12b309c30599c2785609d31391d0be5c592a4995"
+                "reference": "4712d6241d3be2faaa42d7502203db64a06567d4"
             },
             "require": {
                 "doctrine/doctrine-bundle": "^2.10 || ^3.0",

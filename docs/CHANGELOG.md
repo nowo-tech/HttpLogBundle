@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.1.6] - 2026-09-24](#116---2026-09-24)
+- [[1.1.5] - 2026-08-24](#115---2026-08-24)
+- [[1.1.4] - 2026-08-20](#114---2026-08-20)
+- [[1.1.3] - 2026-08-19](#113---2026-08-19)
+- [[1.1.2] - 2026-08-19](#112---2026-08-19)
 - [[1.1.1] - 2026-08-18](#111---2026-08-18)
 - [[1.1.0] - 2026-08-04](#110---2026-08-04)
 - [[1.0.2] - 2026-08-04](#102---2026-08-04)
@@ -16,6 +21,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.6] - 2026-09-24
+
+### Fixed
+
+- **FrankenPHP worker mode (no kernel reset):** `HttpLogRecorder` detaches every persisted `HttpLogEntry` after flush, so the identity map no longer grows by one entry per logged request.
+- **FrankenPHP worker mode:** the recorder resolves its EntityManager through `ManagerRegistry` and resets it when it is closed (before persisting, and after a failed flush), so one failed log insert no longer leaves the EntityManager closed for the rest of the worker's life.
+- **FrankenPHP worker mode:** the user identifier is only recorded when a firewall with security enabled handled the current request, so a token left in `TokenStorage` by a previous request is no longer attributed to an anonymous request.
+- **FrankenPHP worker mode:** `HttpLogEntryRepository` resolves the EntityManager from `ManagerRegistry` on every call (and resets a closed manager), so DoctrineBundle's cached repository EM is not reused after `resetManager()`.
+- **Export / purge / admin:** export batches and admin list/detail detach after use; `purgeByCriteria()` selects ids only (`findIdsFiltered()`); persist handler detaches idempotency lookups.
+- Fixed PHPStan findings (0 errors at level 8).
+
+### Added
+
+- `HttpLogEntryRepository::findIdsFiltered()` and `HttpLogEntryRepository::detachAll()`.
+- Optional `HttpLogRecorder` constructor arguments `$managerRegistry` and `$security` (autowired; existing arguments unchanged).
+- Worker-mode regression tests (`HttpLogRecorderWorkerModeTest`) and [FRANKENPHP-WORKER-AUDIT.md](FRANKENPHP-WORKER-AUDIT.md).
+- Specs: `FR-WORKER-001`…`005` / `SC-05` in `specs/001-baseline/spec.md`.
+
+### Documentation
+
+- [DEMO-FRANKENPHP.md](DEMO-FRANKENPHP.md), [USAGE.md](USAGE.md), [UPGRADING.md](UPGRADING.md), README — worker mode without kernel reset.
 
 ## [1.1.5] - 2026-08-24
 

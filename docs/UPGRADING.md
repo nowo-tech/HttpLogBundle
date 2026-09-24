@@ -4,31 +4,45 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Table of contents
 
-
-- [From 1.1.4 to 1.1.5](#from-114-to-115)
 - [Unreleased](#unreleased)
+- [1.1.6](#116)
+- [From 1.1.4 to 1.1.5](#from-114-to-115)
+- [1.1.4](#114-flex-whenprod-pii--access_control)
+- [1.1.3](#113-maintainer-lock-refresh)
+- [1.1.2](#112-composer-audit-ci)
+- [1.1.1](#111-symfony-8-demos--hot-reload-14)
 - [1.1.0](#110)
 - [1.0.2](#102)
 - [1.0.1](#101)
 - [1.0.0](#100)
 
-## From 1.1.4 to 1.1.5
-
-No breaking changes. **No application upgrade steps.**
-
-```bash
-composer update nowo-tech/http-log-bundle
-```
-
-## From 1.1.4 to 1.1.5
-
-No breaking changes. **No application upgrade steps.**
-
-```bash
-composer update nowo-tech/http-log-bundle
-```
-
 ## Unreleased
+
+## 1.1.6
+
+FrankenPHP / long-lived kernel (worker mode **without** kernel reset). **No configuration key changes.**
+
+```bash
+composer update nowo-tech/http-log-bundle
+php bin/console cache:clear
+```
+
+Behaviour changes:
+
+- `userIdentifier` is stored only when the request matched a firewall with security enabled. Requests outside any firewall or under `security: false` are logged without a user (in classic PHP-FPM they never had one).
+- `HttpLogRecorder::persistCapture()` detaches the entry after flushing and may reset a closed EntityManager via `ManagerRegistry::resetManager()`. Decorators or listeners that expected the new `HttpLogEntry` to stay managed after the flush must re-fetch it from the repository.
+- `HttpLogRecorder` has two new optional trailing constructor arguments (`$managerRegistry`, `$security`); code constructing it manually keeps working.
+- `HttpLogEntryRepository` resolves the EntityManager from the registry on every call. Admin list/detail and export detach loaded rows after use; purge selects ids only.
+
+See [FRANKENPHP-WORKER-AUDIT.md](FRANKENPHP-WORKER-AUDIT.md).
+
+## From 1.1.4 to 1.1.5
+
+No breaking changes. **No application upgrade steps.**
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 ## 1.1.4 (Flex when@prod PII + access_control)
 

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\Service;
 
 use DateTimeImmutable;
-use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Psr\Clock\ClockInterface;
 
@@ -16,6 +15,8 @@ use function sprintf;
  */
 final class PurgeHttpLogService
 {
+    private const BATCH_SIZE = 500;
+
     /**
      * @param array<string, mixed> $retentionConfig
      */
@@ -57,14 +58,12 @@ final class PurgeHttpLogService
             return $this->repository->countFiltered($criteria);
         }
 
-        $page  = 1;
         $total = 0;
 
         do {
-            $result = $this->repository->findFiltered($criteria, $page, 500);
-            $ids    = array_map(static fn (HttpLogEntry $entry): int => (int) $entry->getId(), $result['items']);
+            $ids = $this->repository->findIdsFiltered($criteria, self::BATCH_SIZE);
             $total += $this->repository->deleteByIds($ids);
-        } while ($result['items'] !== []);
+        } while ($ids !== []);
 
         return $total;
     }

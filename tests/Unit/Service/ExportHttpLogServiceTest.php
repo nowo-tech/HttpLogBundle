@@ -66,6 +66,25 @@ final class ExportHttpLogServiceTest extends TestCase
     }
 
     #[Test]
+    public function exportDetachesEveryLoadedBatchForBothFormats(): void
+    {
+        $entries    = [$this->createEntry(1, 'req-detach-1'), $this->createEntry(2, 'req-detach-2')];
+        $repository = $this->createRepositoryMock($entries);
+        $detached   = [];
+        $repository->expects(self::exactly(4))
+            ->method('detachAll')
+            ->willReturnCallback(static function (iterable $batch) use (&$detached): void {
+                $detached[] = $batch;
+            });
+
+        $service = new ExportHttpLogService($repository);
+        $service->exportToString([], ExportFormat::Csv);
+        $service->exportToString([], ExportFormat::Json);
+
+        self::assertSame([$entries, [], $entries, []], $detached);
+    }
+
+    #[Test]
     public function exportToFileWritesContentToTempFile(): void
     {
         $entries = [$this->createEntry(10, 'req-file')];

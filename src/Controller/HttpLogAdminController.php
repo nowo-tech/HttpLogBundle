@@ -9,6 +9,7 @@ use DateTimeInterface;
 use Exception;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Enum\ExportFormat;
+use Nowo\HttpLogBundle\Form\AbstractHttpLogActionType;
 use Nowo\HttpLogBundle\Form\HttpLogDeleteType;
 use Nowo\HttpLogBundle\Form\HttpLogExportType;
 use Nowo\HttpLogBundle\Form\HttpLogFilterType;
@@ -79,7 +80,7 @@ final class HttpLogAdminController extends AbstractController
         $page           = max(1, $request->query->getInt('page', 1));
         $result         = $this->repository->findFiltered($criteria, $page, $this->pageSize);
 
-        return $this->render('@NowoHttpLogBundle/admin/index.html.twig', [
+        $response = $this->render('@NowoHttpLogBundle/admin/index.html.twig', [
             'filterForm'    => $filterForm->createView(),
             'exportCsvForm' => $this->createForm(HttpLogExportType::class, null, [
                 'action'   => $this->generateUrl('nowo_http_log_admin_export'),
@@ -100,6 +101,9 @@ final class HttpLogAdminController extends AbstractController
             'pageSize' => $this->pageSize,
             'criteria' => $criteria,
         ]);
+        $this->repository->detachAll($result['items']);
+
+        return $response;
     }
 
     #[Route('/{id}', name: 'nowo_http_log_admin_show', requirements: ['id' => '\\d+'], methods: ['GET'])]
@@ -112,12 +116,15 @@ final class HttpLogAdminController extends AbstractController
             throw $this->createNotFoundException();
         }
 
-        return $this->render('@NowoHttpLogBundle/admin/show.html.twig', [
+        $response = $this->render('@NowoHttpLogBundle/admin/show.html.twig', [
             'entry'      => $entry,
             'deleteForm' => $this->createForm(HttpLogDeleteType::class, null, [
                 'action' => $this->generateUrl('nowo_http_log_admin_delete', ['id' => $entry->getId()]),
             ])->createView(),
         ]);
+        $this->repository->detachAll([$entry]);
+
+        return $response;
     }
 
     #[Route('/export', name: 'nowo_http_log_admin_export', methods: ['POST'])]
@@ -221,6 +228,7 @@ final class HttpLogAdminController extends AbstractController
     }
 
     /**
+     * @param class-string<AbstractHttpLogActionType> $type
      * @param array<string, mixed> $options
      *
      * @return array<string, mixed>

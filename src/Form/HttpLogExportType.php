@@ -27,7 +27,7 @@ final class HttpLogExportType extends AbstractHttpLogActionType
     ];
 
     /**
-     * @param array{criteria?: array<string, mixed>, format?: string} $options
+     * @param array{criteria: array<string, mixed>, format: string} $options
      */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {

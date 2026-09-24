@@ -7,6 +7,9 @@ namespace Nowo\HttpLogBundle\Form;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
+/**
+ * @extends AbstractType<array<string, mixed>>
+ */
 abstract class AbstractHttpLogActionType extends AbstractType
 {
     final public function getBlockPrefix(): string

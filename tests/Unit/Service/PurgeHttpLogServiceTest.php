@@ -5,13 +5,11 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\Tests\Unit\Service;
 
 use DateTimeImmutable;
-use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Service\PurgeHttpLogService;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
-use ReflectionProperty;
 
 final class PurgeHttpLogServiceTest extends TestCase
 {
@@ -129,20 +127,14 @@ final class PurgeHttpLogServiceTest extends TestCase
     }
 
     #[Test]
-    public function purgeByCriteriaDeletesPagesUntilRepositoryReturnsEmptyItems(): void
+    public function purgeByCriteriaDeletesIdBatchesUntilRepositoryReturnsNoIds(): void
     {
-        $entry      = new HttpLogEntry();
-        $reflection = new ReflectionProperty(HttpLogEntry::class, 'id');
-        $reflection->setValue($entry, 41);
-
         $repository = $this->createMock(HttpLogEntryRepository::class);
+        $repository->expects(self::never())->method('findFiltered');
         $repository->expects(self::exactly(2))
-            ->method('findFiltered')
-            ->with(['method' => 'DELETE'], self::logicalOr(self::equalTo(1), self::equalTo(2)), 500)
-            ->willReturnOnConsecutiveCalls(
-                ['items' => [$entry], 'total' => 1],
-                ['items' => [], 'total' => 1],
-            );
+            ->method('findIdsFiltered')
+            ->with(['method' => 'DELETE'], 500)
+            ->willReturnOnConsecutiveCalls([41], []);
         $repository->expects(self::exactly(2))
             ->method('deleteByIds')
             ->willReturnCallback(static fn (array $ids): int => $ids === [41] ? 1 : 0);
