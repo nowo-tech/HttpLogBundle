@@ -12,6 +12,7 @@ use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 use LogicException;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
+use SortDirection;
 
 use function array_key_exists;
 use function array_keys;
@@ -58,6 +59,12 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
 
         if ($orderBy !== null) {
             foreach ($orderBy as $field => $direction) {
+                if (!$direction instanceof SortDirection) {
+                    $direction = match (strtoupper((string) $direction)) {
+                        'DESC'  => SortDirection::Descending,
+                        default => SortDirection::Ascending,
+                    };
+                }
                 $qb->addOrderBy('e.' . $field, $direction);
             }
         }
@@ -76,7 +83,7 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
     public function findFiltered(array $criteria, int $page, int $pageSize): array
     {
         $qb = $this->createQueryBuilder('e')
-            ->orderBy('e.createdAt', 'DESC');
+            ->orderBy('e.createdAt', SortDirection::Descending);
 
         $this->applyCriteria($qb, $criteria);
 
@@ -108,7 +115,7 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
     {
         $qb = $this->createQueryBuilder('e')
             ->select('e.id')
-            ->orderBy('e.id', 'ASC')
+            ->orderBy('e.id', SortDirection::Ascending)
             ->setMaxResults($limit);
 
         $this->applyCriteria($qb, $criteria);
