@@ -188,6 +188,38 @@ final class HttpLogEntryRepositoryTest extends TestCase
     }
 
     #[Test]
+    public function findOneBySupportsAscendingStringOrder(): void
+    {
+        $first = $this->persistEntry(
+            method: 'GET',
+            routeName: 'api.same',
+            statusCode: 200,
+            clientIp: '10.0.0.10',
+            path: '/api/same/first',
+            bodyContentType: 'json',
+            createdAt: new DateTimeImmutable('2026-09-24T12:00:00+00:00'),
+        );
+        $second = $this->persistEntry(
+            method: 'GET',
+            routeName: 'api.same',
+            statusCode: 200,
+            clientIp: '10.0.0.11',
+            path: '/api/same/second',
+            bodyContentType: 'json',
+            createdAt: new DateTimeImmutable('2026-09-24T12:05:00+00:00'),
+        );
+
+        $found = $this->repository->findOneBy(
+            ['routeName' => 'api.same'],
+            ['id' => 'ASC'],
+        );
+
+        self::assertInstanceOf(HttpLogEntry::class, $found);
+        self::assertSame($first->getId(), $found->getId());
+        self::assertNotSame($second->getId(), $found->getId());
+    }
+
+    #[Test]
     public function resolveEntityManagerResetsClosedManager(): void
     {
         $configuration = ORMSetup::createAttributeMetadataConfiguration(
