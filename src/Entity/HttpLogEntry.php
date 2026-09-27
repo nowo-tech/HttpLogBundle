@@ -106,6 +106,7 @@ class HttpLogEntry
 
     public function setRequestId(?string $requestId): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->requestId = $requestId;
 
         return $this;
@@ -118,6 +119,7 @@ class HttpLogEntry
 
     public function setMethod(string $method): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->method = $method;
 
         return $this;
@@ -130,6 +132,7 @@ class HttpLogEntry
 
     public function setScheme(?string $scheme): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->scheme = $scheme;
 
         return $this;
@@ -142,6 +145,7 @@ class HttpLogEntry
 
     public function setHost(?string $host): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->host = $host;
 
         return $this;
@@ -154,6 +158,7 @@ class HttpLogEntry
 
     public function setPath(string $path): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->path = $path;
 
         return $this;
@@ -166,6 +171,7 @@ class HttpLogEntry
 
     public function setRouteName(?string $routeName): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->routeName = $routeName;
 
         return $this;
@@ -180,6 +186,7 @@ class HttpLogEntry
     /** @param array<string, mixed>|null $queryParams */
     public function setQueryParams(?array $queryParams): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->queryParams = $queryParams;
 
         return $this;
@@ -192,6 +199,7 @@ class HttpLogEntry
 
     public function setStatusCode(?int $statusCode): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->statusCode = $statusCode;
 
         return $this;
@@ -204,6 +212,7 @@ class HttpLogEntry
 
     public function setClientIp(?string $clientIp): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->clientIp = $clientIp;
 
         return $this;
@@ -216,6 +225,7 @@ class HttpLogEntry
 
     public function setContentType(?string $contentType): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->contentType = $contentType;
 
         return $this;
@@ -228,6 +238,7 @@ class HttpLogEntry
 
     public function setBodyContentType(?string $bodyContentType): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->bodyContentType = $bodyContentType;
 
         return $this;
@@ -240,6 +251,7 @@ class HttpLogEntry
 
     public function setDurationMs(?float $durationMs): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->durationMs = $durationMs;
 
         return $this;
@@ -252,6 +264,7 @@ class HttpLogEntry
 
     public function setUserIdentifier(?string $userIdentifier): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->userIdentifier = $userIdentifier;
 
         return $this;
@@ -266,6 +279,7 @@ class HttpLogEntry
     /** @param array<string, mixed>|null $requestHeaders */
     public function setRequestHeaders(?array $requestHeaders): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->requestHeaders = $requestHeaders;
 
         return $this;
@@ -280,6 +294,7 @@ class HttpLogEntry
     /** @param array<string, mixed>|null $responseHeaders */
     public function setResponseHeaders(?array $responseHeaders): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->responseHeaders = $responseHeaders;
 
         return $this;
@@ -292,6 +307,7 @@ class HttpLogEntry
 
     public function setRequestBody(?string $requestBody): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->requestBody = $requestBody;
 
         return $this;
@@ -304,6 +320,7 @@ class HttpLogEntry
 
     public function setResponseBody(?string $responseBody): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->responseBody = $responseBody;
 
         return $this;
@@ -316,6 +333,7 @@ class HttpLogEntry
 
     public function setRequestBodyTruncated(bool $requestBodyTruncated): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->requestBodyTruncated = $requestBodyTruncated;
 
         return $this;
@@ -328,6 +346,7 @@ class HttpLogEntry
 
     public function setResponseBodyTruncated(bool $responseBodyTruncated): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->responseBodyTruncated = $responseBodyTruncated;
 
         return $this;
@@ -340,6 +359,7 @@ class HttpLogEntry
 
     public function setResponseBodyStored(bool $responseBodyStored): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->responseBodyStored = $responseBodyStored;
 
         return $this;
@@ -352,6 +372,7 @@ class HttpLogEntry
 
     public function setCreatedAt(DateTimeImmutable $createdAt): self
     {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->createdAt = $createdAt;
 
         return $this;
