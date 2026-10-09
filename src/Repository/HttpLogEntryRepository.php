@@ -59,13 +59,11 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
 
         if ($orderBy !== null) {
             foreach ($orderBy as $field => $direction) {
-                if (!$direction instanceof SortDirection) {
-                    $direction = match (strtoupper((string) $direction)) {
-                        'DESC'  => SortDirection::Descending,
-                        default => SortDirection::Ascending,
-                    };
-                }
-                $qb->addOrderBy('e.' . $field, $direction);
+                $sortDirection = match (strtoupper($direction)) {
+                    'DESC'  => SortDirection::Descending,
+                    default => SortDirection::Ascending,
+                };
+                $qb->addOrderBy('e.' . $field, $sortDirection);
             }
         }
 
