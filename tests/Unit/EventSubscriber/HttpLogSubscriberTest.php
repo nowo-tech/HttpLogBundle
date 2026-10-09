@@ -85,6 +85,27 @@ final class HttpLogSubscriberTest extends TestCase
         $this->dispatchTerminate($subscriber, path: '/admin/http-log/1');
     }
 
+    public function testUnroutedRequestsAreSkippedOnlyWhenConfigured(): void
+    {
+        $recorder = $this->createMock(HttpLogRecorder::class);
+        $recorder->expects(self::once())->method('record');
+
+        // Default: an unrouted 404 is still logged (BC).
+        $this->dispatchTerminate($this->createSubscriber($recorder), '/wp-login.php', null);
+        // ignore_unrouted: scanner noise is skipped, routed requests are still logged.
+        $never = $this->createMock(HttpLogRecorder::class);
+        $never->expects(self::never())->method('record');
+        $this->dispatchTerminate($this->createSubscriber($never, ignoreUnrouted: true), '/.env', null);
+    }
+
+    public function testRoutedRequestsAreLoggedWithIgnoreUnrouted(): void
+    {
+        $recorder = $this->createMock(HttpLogRecorder::class);
+        $recorder->expects(self::once())->method('record');
+
+        $this->dispatchTerminate($this->createSubscriber($recorder, ignoreUnrouted: true), '/api/items', 'demo_route');
+    }
+
     public function testSkipsWhenEnvironmentNotMatched(): void
     {
         $messageBus = $this->createMock(MessageBusInterface::class);
@@ -192,6 +213,7 @@ final class HttpLogSubscriberTest extends TestCase
         array $ignoreRoutes = [],
         array $ignorePathPrefixes = [],
         string $kernelEnvironment = 'dev',
+        bool $ignoreUnrouted = false,
     ): HttpLogSubscriber {
         return new HttpLogSubscriber(
             $recorder,
@@ -202,6 +224,7 @@ final class HttpLogSubscriberTest extends TestCase
             $ignoreRoutes,
             $ignorePathPrefixes,
             $kernelEnvironment,
+            $ignoreUnrouted,
         );
     }
 

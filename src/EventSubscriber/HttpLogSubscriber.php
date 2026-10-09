@@ -44,6 +44,7 @@ final class HttpLogSubscriber implements EventSubscriberInterface
         private readonly array $ignoreRoutes,
         private readonly array $ignorePathPrefixes,
         private readonly string $kernelEnvironment,
+        private readonly bool $ignoreUnrouted = false,
     ) {
     }
 
@@ -78,7 +79,7 @@ final class HttpLogSubscriber implements EventSubscriberInterface
             return;
         }
 
-        if ($this->isIgnoredRoute($request) || $this->isIgnoredPath($request)) {
+        if ($this->isIgnoredRoute($request) || $this->isIgnoredPath($request) || $this->isIgnoredUnrouted($request)) {
             return;
         }
 
@@ -114,6 +115,17 @@ final class HttpLogSubscriber implements EventSubscriberInterface
         }
 
         return random_int(0, PHP_INT_MAX) / PHP_INT_MAX <= $this->samplingRate;
+    }
+
+    private function isIgnoredUnrouted(Request $request): bool
+    {
+        if (!$this->ignoreUnrouted) {
+            return false;
+        }
+
+        $route = $request->attributes->get('_route');
+
+        return !is_string($route) || $route === '';
     }
 
     private function isIgnoredRoute(Request $request): bool

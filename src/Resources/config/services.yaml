@@ -43,6 +43,7 @@ services:
             $ignoreRoutes: '%nowo_http_log.ignore_routes%'
             $ignorePathPrefixes: '%nowo_http_log.ignore_path_prefixes%'
             $kernelEnvironment: '%kernel.environment%'
+            $ignoreUnrouted: '%nowo_http_log.ignore_unrouted%'
 
     Nowo\HttpLogBundle\Service\PurgeHttpLogService:
         arguments:

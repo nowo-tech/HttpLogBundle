@@ -31,6 +31,7 @@ nowo_http_log:
         - 'nowo_http_log_*'
     ignore_path_prefixes:                 # Skip paths starting with these prefixes
         - '/admin/http-log'
+    ignore_unrouted: false                # true: skip requests no route matched (scanner 404s such as /wp-login.php)
     capture:
         request_headers: true
         request_body: false               # Off by default (privacy / size)
@@ -90,6 +91,7 @@ nowo_http_log:
 | `track_sub_requests` | bool | `false` | Include sub-requests in capture. |
 | `ignore_routes` | list | see YAML | Route name patterns skipped (`fnmatch`). |
 | `ignore_path_prefixes` | list | `[/admin/http-log]` | Path prefixes excluded from capture. |
+| `ignore_unrouted` | bool | `false` | When `true`, skip requests no route matched (no `_route`, e.g. scanner 404s on `/wp-login.php`, `/.env`). |
 
 ## capture
 

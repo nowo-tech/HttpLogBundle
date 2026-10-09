@@ -202,6 +202,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         $container->setParameter($alias . '.track_sub_requests', $config['track_sub_requests']);
         $container->setParameter($alias . '.ignore_routes', $config['ignore_routes']);
         $container->setParameter($alias . '.ignore_path_prefixes', $config['ignore_path_prefixes']);
+        $container->setParameter($alias . '.ignore_unrouted', $config['ignore_unrouted']);
         $container->setParameter($alias . '.capture', $config['capture']);
         $container->setParameter($alias . '.redaction', $config['redaction']);
         $container->setParameter($alias . '.retention', $config['retention']);
