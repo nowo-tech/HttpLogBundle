@@ -51,7 +51,7 @@ Maps **100%** of production files under `src/` (43 units). Test and demo trees a
 
 | Source file | Purpose | Requirement IDs |
 | --- | --- | --- |
-| `EventSubscriber/HttpLogSubscriber.php` | Kernel capture on terminate | FR-CAP-001, FR-CAP-002 |
+| `EventSubscriber/HttpLogSubscriber.php` | Kernel capture on terminate | FR-CAP-001, FR-CAP-002, FR-IGN-001, FR-IGN-002 |
 | `Controller/HttpLogAdminController.php` | Admin UI routes | FR-ADM-001, FR-UI-002 |
 
 ## Forms

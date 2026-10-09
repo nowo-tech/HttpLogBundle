@@ -91,6 +91,7 @@ As a maintainer, I run the Symfony 8 FrankenPHP demo and CI smoke checks to veri
 | ID | Requirement |
 | --- | --- |
 | FR-IGN-001 | Skip capture when `ignore_routes` or `ignore_path_prefixes` match |
+| FR-IGN-002 | When `ignore_unrouted` is `true`, skip capture for requests without a matched `_route` (unrouted 404s); default `false` keeps logging them |
 
 ### Configuration & DI (`FR-CFG-*`, `FR-DI-*`, `FR-BUNDLE-*`)
 

@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.2.0](#to-120)
 - [To 1.1.7](#to-117)
 - [1.1.6](#116)
 - [From 1.1.4 to 1.1.5](#from-114-to-115)
@@ -18,6 +19,23 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 - [1.0.0](#100)
 
 ## Unreleased
+
+## To 1.2.0
+
+From **1.1.7** — new optional config key, Doctrine ORM floor raised.
+
+```bash
+composer update nowo-tech/http-log-bundle
+php bin/console cache:clear
+```
+
+- **Doctrine ORM:** the bundle now requires `doctrine/orm` `^3.7` (it uses the `SortDirection` enum). Apps still on ORM 2.x or < 3.7 must upgrade ORM first.
+- **New option `ignore_unrouted`** (default `false`, no behaviour change): set it to `true` to stop logging requests no route matched (scanner 404s such as `/wp-login.php`, `/.env`):
+
+```yaml
+nowo_http_log:
+    ignore_unrouted: true
+```
 
 ## To 1.1.7
 

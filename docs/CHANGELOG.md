@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.2.0] - 2026-10-09](#120---2026-10-09)
 - [[1.1.7] - 2026-09-27](#117---2026-09-27)
 - [[1.1.6] - 2026-09-24](#116---2026-09-24)
 - [[1.1.5] - 2026-08-24](#115---2026-08-24)
@@ -22,10 +23,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-09
+
+### Added
+
+- `ignore_unrouted` (default `false`): skip requests no route matched (scanner 404s such as `/wp-login.php`, `/.env`), which `ignore_routes` cannot express.
+
 ### Changed
 
 - **Doctrine ORM SortDirection:** replace string `'ASC'`/`'DESC'` in `#[ORM\OrderBy]` and QueryBuilder `orderBy`/`addOrderBy` with `SortDirection::Ascending`/`Descending` (doctrine/orm deprecation, https://github.com/doctrine/orm/issues/11313); require `doctrine/orm` `^3.7` where applicable.
 
+### Fixed
+
+- `HttpLogEntryRepository::findOneBy()` maps the string `$orderBy` direction straight to `SortDirection` (removes an always-false `instanceof`, PHPStan 2.3); integration test covers the ascending fallback.
+
+### Dependencies
+
+- `doctrine/orm` runtime constraint is now `^3.7` (was `^2.15 || ^3.0`).
+- Dependabot: `doctrine/orm` 3.7.3, `igor-php/igor-php` `^0.10.0` (dev), `phpstan/phpstan-phpunit`.
+- Composer refresh: `nowo-tech/form-kit-bundle` 2.6.1, `nowo-tech/ui-kit-bundle` 1.9.1; dev `phpstan/phpstan` 2.3.1, `phpstan/phpstan-symfony` 2.1.0, `rector/rector` 2.7.0.
+- Demo: Symfony 8.1.8, `doctrine/orm` 3.7.4, `doctrine/dbal` 4.5.0, `twig/twig` 3.30.0; regenerated `config/reference.php`.
+
+[1.2.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.2.0
 
 ## [1.1.7] - 2026-09-27
 
