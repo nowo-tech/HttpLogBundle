@@ -87,6 +87,9 @@
         "allow-plugins": {
             "phpstan/extension-installer": true,
             "rector/rector": true
+        },
+        "platform": {
+            "php": "8.2.0"
         }
     },
     "minimum-stability": "stable",
