@@ -1045,16 +1045,16 @@
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v1.9.2",
+            "version": "v1.11.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "132920f1cd5dd72d7d9f570053c570c095fe2a69"
+                "reference": "3b834fc8911c57a2d35db9a89a16d47b8debb535"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/132920f1cd5dd72d7d9f570053c570c095fe2a69",
-                "reference": "132920f1cd5dd72d7d9f570053c570c095fe2a69",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/3b834fc8911c57a2d35db9a89a16d47b8debb535",
+                "reference": "3b834fc8911c57a2d35db9a89a16d47b8debb535",
                 "shasum": ""
             },
             "require": {
@@ -1080,10 +1080,12 @@
                 "phpstan/phpstan-symfony": "^2.0",
                 "phpunit/phpunit": "^10.5 || ^11.0",
                 "rector/rector": "^2.0",
+                "symfony/http-client": "^6.0 || ^7.0 || ^8.0",
                 "symfony/yaml": "^6.0 || ^7.0 || ^8.0",
                 "vincentlanglet/twig-cs-fixer": "^3.0"
             },
             "suggest": {
+                "symfony/http-client": "For the optional release_check feature (GitHub release-version dialog)",
                 "symfony/ux-icons": "For icon_set: ux_icon in row actions and icons"
             },
             "type": "symfony-bundle",
@@ -1126,7 +1128,7 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-10-09T08:19:23+00:00"
+            "time": "2026-10-09T19:05:24+00:00"
         },
         {
             "name": "psr/cache",
