@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Docs (CONFIGURATION, UPGRADING to 1.5.0): a custom `web_ui.path_prefix` must also be added to `ignore_path_prefixes` (default `/admin/http-log`), otherwise the admin UI requests are recorded.
+
 ## [1.5.0] - 2026-10-13
 
 ### Security

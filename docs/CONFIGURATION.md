@@ -167,7 +167,7 @@ Use `nowo:http-log:purge` or the admin UI to purge.
 | Key | Default | Description |
 | --- | --- | --- |
 | `enabled` | `true` | Registers admin routes and Twig templates. |
-| `path_prefix` | `/admin/http-log` | Route prefix of the admin UI (list, detail, export, purge, delete), applied by the router through the `nowo_http_log.web_ui.path_prefix` parameter. A trailing `/` is removed; `/` alone and `%` are rejected. Update your `access_control` rule when you change it. |
+| `path_prefix` | `/admin/http-log` | Route prefix of the admin UI (list, detail, export, purge, delete), applied by the router through the `nowo_http_log.web_ui.path_prefix` parameter. A trailing `/` is removed; `/` alone and `%` are rejected. Update your `access_control` rule when you change it, and add the new prefix to `ignore_path_prefixes` (its default only lists `/admin/http-log`), otherwise the admin pages log themselves. |
 | `icon_set` | `bootstrap-icons` | Seeds `nowo_ui_kit.icon_set` when NowoUiKitBundle is installed and the host did not set it. |
 | `layout_template` | bundle layout | Root Twig layout (global `nowo_http_log_layout_template`) extended by `admin/base.html.twig`. Set to your app layout or a one-file bridge. |
 | `css_framework` | `bootstrap5` | UI macro styling (`CssFramework` enum). Also seeds `nowo_ui_kit.css_framework` when the host has not configured UiKit. |
