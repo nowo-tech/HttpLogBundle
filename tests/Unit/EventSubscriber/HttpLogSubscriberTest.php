@@ -85,6 +85,40 @@ final class HttpLogSubscriberTest extends TestCase
         $this->dispatchTerminate($subscriber, path: '/admin/http-log/1');
     }
 
+    public function testSkipsWebUiPathPrefixEvenWhenNotInIgnorePathPrefixes(): void
+    {
+        $recorder = $this->createMock(HttpLogRecorder::class);
+        $recorder->expects(self::never())->method('record');
+
+        // Custom web_ui.path_prefix, default ignore_path_prefixes and no ignore_routes match.
+        $subscriber = $this->createSubscriber(
+            $recorder,
+            ignorePathPrefixes: ['/admin/http-log'],
+            webUiPathPrefix: '/ops/logs',
+        );
+        $this->dispatchTerminate($subscriber, path: '/ops/logs', route: 'app_custom');
+        $this->dispatchTerminate($subscriber, path: '/ops/logs/42', route: 'app_custom');
+        $this->dispatchTerminate($subscriber, path: '/ops/logs/export', route: null);
+    }
+
+    public function testWebUiPathPrefixIsSegmentAware(): void
+    {
+        $recorder = $this->createMock(HttpLogRecorder::class);
+        $recorder->expects(self::exactly(2))->method('record');
+
+        $subscriber = $this->createSubscriber($recorder, webUiPathPrefix: '/ops/logs');
+        $this->dispatchTerminate($subscriber, path: '/ops/logsearch');
+        $this->dispatchTerminate($subscriber, path: '/ops');
+    }
+
+    public function testEmptyWebUiPathPrefixIgnoresNothing(): void
+    {
+        $recorder = $this->createMock(HttpLogRecorder::class);
+        $recorder->expects(self::once())->method('record');
+
+        $this->dispatchTerminate($this->createSubscriber($recorder, webUiPathPrefix: ''), path: '/');
+    }
+
     public function testUnroutedRequestsAreSkippedOnlyWhenConfigured(): void
     {
         $recorder = $this->createMock(HttpLogRecorder::class);
@@ -214,6 +248,7 @@ final class HttpLogSubscriberTest extends TestCase
         array $ignorePathPrefixes = [],
         string $kernelEnvironment = 'dev',
         bool $ignoreUnrouted = false,
+        ?string $webUiPathPrefix = null,
     ): HttpLogSubscriber {
         return new HttpLogSubscriber(
             $recorder,
@@ -225,6 +260,7 @@ final class HttpLogSubscriberTest extends TestCase
             $ignorePathPrefixes,
             $kernelEnvironment,
             $ignoreUnrouted,
+            $webUiPathPrefix,
         );
     }
 

@@ -34,6 +34,7 @@ final class HttpLogSubscriber implements EventSubscriberInterface
      * @param list<string> $environments
      * @param list<string> $ignoreRoutes
      * @param list<string> $ignorePathPrefixes
+     * @param string|null $webUiPathPrefix Admin UI route prefix (web_ui.path_prefix) when the web UI is enabled; always ignored, segment-aware
      */
     public function __construct(
         private readonly HttpLogRecorder $recorder,
@@ -45,6 +46,7 @@ final class HttpLogSubscriber implements EventSubscriberInterface
         private readonly array $ignorePathPrefixes,
         private readonly string $kernelEnvironment,
         private readonly bool $ignoreUnrouted = false,
+        private readonly ?string $webUiPathPrefix = null,
     ) {
     }
 
@@ -147,6 +149,14 @@ final class HttpLogSubscriber implements EventSubscriberInterface
     private function isIgnoredPath(Request $request): bool
     {
         $path = $request->getPathInfo();
+
+        // The admin UI must never record its own requests, whatever ignore_path_prefixes says.
+        // Segment-aware: "/admin/http-log" matches "/admin/http-log" and "/admin/http-log/1", not "/admin/http-logger".
+        if ($this->webUiPathPrefix !== null && $this->webUiPathPrefix !== ''
+            && ($path === $this->webUiPathPrefix || str_starts_with($path, $this->webUiPathPrefix . '/'))
+        ) {
+            return true;
+        }
 
         foreach ($this->ignorePathPrefixes as $prefix) {
             if (str_starts_with($path, $prefix)) {

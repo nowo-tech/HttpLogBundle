@@ -6,6 +6,7 @@ namespace Nowo\HttpLogBundle\DependencyInjection;
 
 use LogicException;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
+use Nowo\HttpLogBundle\EventSubscriber\HttpLogSubscriber;
 use Nowo\HttpLogBundle\Security\ConfigurableHttpLogAccessChecker;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
 use Nowo\HttpLogBundle\View\AdminChrome;
@@ -224,6 +225,10 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         $container->setParameter($alias . '.web_ui.chrome', self::escapeParameterValue(AdminChrome::fromWebUi($config['web_ui'])));
         $container->setParameter($alias . '.security', $config['security']);
         $container->setParameter($alias . '.security.allow_unauthenticated', $config['security']['allow_unauthenticated']);
+
+        // The admin UI never records its own requests, even with a custom web_ui.path_prefix.
+        $container->getDefinition(HttpLogSubscriber::class)
+            ->setArgument('$webUiPathPrefix', $config['web_ui']['enabled'] ? $config['web_ui']['path_prefix'] : null);
 
         if (!$config['web_ui']['enabled'] && $container->hasDefinition(HttpLogAdminController::class)) {
             $container->removeDefinition(HttpLogAdminController::class);

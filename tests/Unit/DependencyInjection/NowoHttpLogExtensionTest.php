@@ -8,6 +8,7 @@ use LogicException;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
 use Nowo\HttpLogBundle\DependencyInjection\NowoHttpLogExtension;
+use Nowo\HttpLogBundle\EventSubscriber\HttpLogSubscriber;
 use Nowo\HttpLogBundle\Security\ConfigurableHttpLogAccessChecker;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
 use Nowo\HttpLogBundle\View\AdminChrome;
@@ -391,6 +392,32 @@ final class NowoHttpLogExtensionTest extends TestCase
 
         self::assertSame(['json'], $container->getParameter('nowo_http_log.export.formats'));
         self::assertSame('/admin/http-log', $container->getParameter('nowo_http_log.web_ui.path_prefix'));
+    }
+
+    #[Test]
+    public function loadPassesWebUiPathPrefixToSubscriber(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.environment', 'test');
+        (new NowoHttpLogExtension())->load([[
+            'security' => ['allow_unauthenticated' => true],
+            'web_ui'   => ['path_prefix' => '/ops/logs/'],
+        ]], $container);
+
+        self::assertSame('/ops/logs', $container->getDefinition(HttpLogSubscriber::class)->getArgument('$webUiPathPrefix'));
+    }
+
+    #[Test]
+    public function loadDoesNotIgnoreWebUiPathPrefixWhenWebUiDisabled(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.environment', 'test');
+        (new NowoHttpLogExtension())->load([[
+            'security' => ['allow_unauthenticated' => true],
+            'web_ui'   => ['enabled' => false, 'path_prefix' => '/ops/logs'],
+        ]], $container);
+
+        self::assertNull($container->getDefinition(HttpLogSubscriber::class)->getArgument('$webUiPathPrefix'));
     }
 
     private function createExtension(string $alias): Extension

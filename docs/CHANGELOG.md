@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Docs (CONFIGURATION, UPGRADING to 1.5.0): a custom `web_ui.path_prefix` must also be added to `ignore_path_prefixes` (default `/admin/http-log`), otherwise the admin UI requests are recorded.
+- The recorder now always ignores the admin UI path (`web_ui.path_prefix`, when `web_ui.enabled` is true) in addition to `ignore_path_prefixes`, so a custom prefix no longer makes the admin UI record its own requests (e.g. when `ignore_routes` was overridden without `nowo_http_log_*`). The match is segment-aware: `/ops/logs` skips `/ops/logs` and `/ops/logs/42`, not `/ops/logsearch`. Docs (CONFIGURATION, UPGRADING) updated accordingly.
 
 ## [1.5.0] - 2026-10-13
 

@@ -32,6 +32,8 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+- **Admin UI path always ignored:** while `web_ui.enabled` is true, requests under `web_ui.path_prefix` (segment-aware) are never recorded, even if the prefix is not listed in `ignore_path_prefixes`. Adding it there manually is no longer needed (harmless if kept). If you deliberately logged admin UI traffic (by overriding both `ignore_path_prefixes` and `ignore_routes`), that traffic is no longer recorded.
+
 ## To 1.5.0
 
 From **1.4.0** — fixes - findOneBy field whitelist, path_prefix/export.formats/icon_set wired, Symfony >=7.4.
@@ -41,7 +43,7 @@ composer update nowo-tech/http-log-bundle
 ```
 
 - **Symfony 7.4+:** the minimum Symfony version is now 7.4 (7.0–7.3 are end of life and were never really tested).
-- **Admin route prefix:** `web_ui.path_prefix` now moves the admin routes. If you set it to something other than `/admin/http-log` while keeping the UI there, either remove the key or update your `access_control` / links to the new path. Add the new prefix to `ignore_path_prefixes` too (the default only lists `/admin/http-log`), or the admin UI requests get recorded. If you import the routes with your own `prefix:`, it is added in front of `path_prefix`.
+- **Admin route prefix:** `web_ui.path_prefix` now moves the admin routes. If you set it to something other than `/admin/http-log` while keeping the UI there, either remove the key or update your `access_control` / links to the new path. The recorder skips `web_ui.path_prefix` automatically (since the next release after 1.5.0; on 1.5.0 itself add the new prefix to `ignore_path_prefixes` or keep `nowo_http_log_*` in `ignore_routes`). If you import the routes with your own `prefix:`, it is added in front of `path_prefix`.
 - **Export formats:** `export.formats` now limits the UI buttons, the export action and `nowo:http-log:export`. Only `csv` and `json` are accepted, and the list cannot be empty.
 - **`findOneBy()` on `HttpLogEntryRepository`:** unknown field names now throw `InvalidArgumentException` instead of producing DQL.
 - **Templates:** if you override `admin/index.html.twig`, `exportCsvForm` / `exportJsonForm` can be `null` when that format is disabled; guard with `{% if exportCsvForm %}`.
