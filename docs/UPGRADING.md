@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.4.0](#to-140)
 - [To 1.3.1](#to-131)
 - [To 1.3.0](#to-130)
 - [To 1.2.0](#to-120)
@@ -21,6 +22,16 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 - [1.0.0](#100)
 
 ## Unreleased
+
+## To 1.4.0
+
+From **1.3.1** — security - redact before truncation, redact form bodies, fail closed on empty access_roles.
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
+
+- No breaking changes. No application upgrade steps.
 
 ## To 1.3.1
 

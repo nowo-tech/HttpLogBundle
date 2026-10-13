@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.4.0] - 2026-10-13](#140---2026-10-13)
 - [[1.3.1] - 2026-10-13](#131---2026-10-13)
 - [[1.3.0] - 2026-10-13](#130---2026-10-13)
 - [[1.2.0] - 2026-10-09](#120---2026-10-09)
@@ -25,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-13
+
 ### Security
 
 - Request/response bodies are now redacted **before** `max_body_bytes` truncation; previously a truncated JSON body failed to decode and was stored raw with its secrets. A JSON-looking body that cannot be parsed is stored as `[REDACTED-UNPARSEABLE]`.
@@ -35,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Admin purge rejects a negative or non-integer `older_than_days` with HTTP 400 (a negative value produced a future cutoff via `--N days`); `PurgeHttpLogService::purgeByRetention()` rejects negative overrides.
+
+[1.4.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.4.0
 
 ## [1.3.1] - 2026-10-13
 
