@@ -33,10 +33,14 @@ final readonly class ConfigurableHttpLogAccessChecker implements HttpLogAccessCh
         return $this->hasAnyRole();
     }
 
+    /**
+     * Fails closed: an empty access_roles list grants nobody (use security.allow_unauthenticated
+     * or a custom access checker to open the admin UI deliberately).
+     */
     private function hasAnyRole(): bool
     {
         if ($this->accessRoles === []) {
-            return true;
+            return false;
         }
 
         foreach ($this->accessRoles as $role) {

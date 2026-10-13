@@ -25,6 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Request/response bodies are now redacted **before** `max_body_bytes` truncation; previously a truncated JSON body failed to decode and was stored raw with its secrets. A JSON-looking body that cannot be parsed is stored as `[REDACTED-UNPARSEABLE]`.
+- `application/x-www-form-urlencoded` bodies and `multipart/form-data` text fields are now redacted by field name (`query_params` + `json_paths` leaf keys); they were stored verbatim (e.g. Symfony form-login `_password`).
+- Default redaction keys now include `_password`, `_token`, and `_csrf_token` (query params / form fields and `*.` JSON paths).
+- **Behaviour change:** `security.access_roles: []` now denies everyone (fail closed) instead of granting access to all users including anonymous ones. Use `allow_unauthenticated: true` or a custom `access_checker` to open the admin UI deliberately.
+
+### Fixed
+
+- Admin purge rejects a negative or non-integer `older_than_days` with HTTP 400 (a negative value produced a future cutoff via `--N days`); `PurgeHttpLogService::purgeByRetention()` rejects negative overrides.
+
 ## [1.3.1] - 2026-10-13
 
 ### Changed

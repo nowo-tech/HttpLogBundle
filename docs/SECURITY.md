@@ -29,11 +29,13 @@ Out of the box, these are redacted (see `Configuration` defaults):
 
 **Headers:** `Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key`
 
-**Query parameters:** `password`, `token`, `api_key`
+**Query parameters / form fields:** `password`, `_password`, `token`, `_token`, `_csrf_token`, `api_key`
 
-**JSON paths:** `*.password`, `*.token`
+**JSON paths:** `*.password`, `*._password`, `*.token`, `*._token`, `*._csrf_token`
 
-Extend lists for your application. Redaction runs **before** Doctrine persist.
+Extend lists for your application. Redaction runs **before** Doctrine persist and **before** `max_body_bytes` truncation, so a truncated body never contains a secret that full-body redaction would have removed. JSON, `application/x-www-form-urlencoded`, and multipart text fields are redacted; a JSON-looking body that cannot be parsed is stored as `[REDACTED-UNPARSEABLE]`.
+
+**Access roles:** an empty `security.access_roles` list denies everyone (fail closed). Use `allow_unauthenticated: true` (demos only) or a custom `access_checker` to grant access deliberately.
 
 ## Body capture defaults
 

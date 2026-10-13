@@ -37,13 +37,15 @@ final class ConfigurableHttpLogAccessCheckerTest extends TestCase
         self::assertFalse($checker->canPurge(null));
     }
 
-    public function testEmptyRolesAllowEveryone(): void
+    public function testEmptyRolesFailClosedEvenForAnonymous(): void
     {
         $authorizationChecker = $this->createMock(AuthorizationCheckerInterface::class);
         $authorizationChecker->expects(self::never())->method('isGranted');
 
         $checker = new ConfigurableHttpLogAccessChecker($authorizationChecker, []);
 
-        self::assertTrue($checker->canAccessAdmin(null));
+        self::assertFalse($checker->canAccessAdmin(null));
+        self::assertFalse($checker->canExport(null));
+        self::assertFalse($checker->canPurge(null));
     }
 }

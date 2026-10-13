@@ -34,11 +34,17 @@ nowo_http_log:
             - X-Api-Key
         query_params:
             - password
+            - _password
             - token
+            - _token
+            - _csrf_token
             - api_key
         json_paths:
             - '*.password'
+            - '*._password'
             - '*.token'
+            - '*._token'
+            - '*._csrf_token'
     retention:
         days: 30
     export:

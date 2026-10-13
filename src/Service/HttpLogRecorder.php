@@ -76,9 +76,17 @@ final class HttpLogRecorder
             $this->safeResponseBody($response),
         );
 
-        $requestBodyResult  = $this->capturePolicy->evaluateRequestBody($request->getContent(false));
+        // Bodies are redacted in full BEFORE truncation: a truncated JSON document cannot be decoded,
+        // so redacting afterwards would store its secrets verbatim.
+        $requestBodyResult = $this->capturePolicy->evaluateRequestBody(
+            $this->capturePolicy->shouldCaptureRequestBody()
+                ? $this->redactor->redactBody($request->getContent(false), $request->headers->get('Content-Type'))
+                : null,
+        );
         $responseBodyResult = $this->capturePolicy->evaluateResponseBody(
-            $this->safeResponseBody($response),
+            $this->capturePolicy->shouldCaptureResponseBody($bodyContentType)
+                ? $this->redactor->redactBody($this->safeResponseBody($response), $responseContentType)
+                : null,
             $bodyContentType,
         );
 
@@ -90,16 +98,6 @@ final class HttpLogRecorder
             : null;
 
         $queryParams = $this->redactor->redactQueryParams($request->query->all());
-
-        $requestBody = $requestBodyResult['body'];
-        if ($requestBody !== null) {
-            $requestBody = $this->redactor->redactJsonBody($requestBody);
-        }
-
-        $responseBody = $responseBodyResult['body'];
-        if ($responseBody !== null) {
-            $responseBody = $this->redactor->redactJsonBody($responseBody);
-        }
 
         return new HttpLogCapture(
             requestId: $requestId,
@@ -117,8 +115,8 @@ final class HttpLogRecorder
             userIdentifier: ($this->captureConfig['user'] ?? true) ? $this->resolveUserIdentifier($request) : null,
             requestHeaders: $requestHeaders,
             responseHeaders: $responseHeaders,
-            requestBody: $requestBody,
-            responseBody: $responseBody,
+            requestBody: $requestBodyResult['body'],
+            responseBody: $responseBodyResult['body'],
             requestBodyTruncated: $requestBodyResult['truncated'],
             responseBodyTruncated: $responseBodyResult['truncated'],
             responseBodyStored: $responseBodyResult['stored'],

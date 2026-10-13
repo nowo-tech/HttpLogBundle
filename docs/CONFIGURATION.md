@@ -56,11 +56,17 @@ nowo_http_log:
             - X-Api-Key
         query_params:
             - password
+            - _password
             - token
+            - _token
+            - _csrf_token
             - api_key
         json_paths:
             - '*.password'
+            - '*._password'
             - '*.token'
+            - '*._token'
+            - '*._csrf_token'
     retention:
         days: 30                          # null = keep forever
     export:
@@ -132,7 +138,13 @@ Applied **before** persistence.
 | `query_params` | Query keys replaced with `[REDACTED]`. |
 | `json_paths` | JSON object keys; supports `*.suffix` wildcard for nested keys. |
 
-Non-JSON bodies are not structurally redacted.
+Bodies are redacted **in full, before** `max_body_bytes` truncation, according to their `Content-Type`:
+
+- **JSON** (`application/json`, `*+json`, or a body starting with `{` / `[`): keys matching `json_paths`. A JSON-looking body that cannot be decoded is stored as `[REDACTED-UNPARSEABLE]` instead of its raw content.
+- **`application/x-www-form-urlencoded`** and **`multipart/form-data` text fields**: field names (any segment of `a[b][c]`) matching `query_params` or the leaf key of `json_paths` (case-insensitive). Multipart file parts are kept; multipart without a boundary is stored as `[REDACTED-UNPARSEABLE]`.
+- Other bodies (HTML, plain text, XML, binary) are not structurally redacted.
+
+Body redaction is skipped entirely when both `query_params` and `json_paths` are empty.
 
 ## retention
 
@@ -232,7 +244,7 @@ Write a literal `%` in YAML values as `%%` (Symfony container parameters).
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `access_roles` | `[ROLE_ADMIN]` | Any matching role grants admin, export, and purge (REQ-UI-002). |
+| `access_roles` | `[ROLE_ADMIN]` | Any matching role grants admin, export, and purge (REQ-UI-002). An empty list grants **nobody** (fail closed); use `allow_unauthenticated` or a custom `access_checker` to open the UI deliberately. |
 | `access_checker` | `null` | Optional service id for fine-grained checks (`HttpLogAccessCheckerInterface`). |
 | `allow_unauthenticated` | `false` | When `true`, skips Symfony Security requirement for the UI (not recommended in production). |
 

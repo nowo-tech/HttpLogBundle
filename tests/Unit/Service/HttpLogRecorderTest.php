@@ -38,6 +38,7 @@ use Symfony\Component\Security\Core\User\InMemoryUser;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 use function array_key_exists;
+use function str_repeat;
 
 final class HttpLogRecorderTest extends TestCase
 {
@@ -179,10 +180,12 @@ final class HttpLogRecorderTest extends TestCase
         $entityManager->expects(self::once())->method('flush');
 
         $policy = $this->createMock(CapturePolicy::class);
-        $policy->method('evaluateRequestBody')->willReturn([
+        $policy->method('shouldCaptureRequestBody')->willReturn(true);
+        $policy->method('shouldCaptureResponseBody')->with(BodyContentType::Other)->willReturn(false);
+        $policy->method('evaluateRequestBody')->with('{"secret":"[REDACTED]"}')->willReturn([
             'stored'    => true,
             'truncated' => false,
-            'body'      => '{"secret":"value"}',
+            'body'      => '{"secret":"[REDACTED]"}',
         ]);
         $policy->method('evaluateResponseBody')->with(null, BodyContentType::Other)->willReturn([
             'stored'    => false,
@@ -200,8 +203,8 @@ final class HttpLogRecorderTest extends TestCase
         $redactor->expects(self::never())->method('redactHeaders');
         $redactor->expects(self::once())->method('redactQueryParams')->willReturnArgument(0);
         $redactor->expects(self::once())
-            ->method('redactJsonBody')
-            ->with('{"secret":"value"}')
+            ->method('redactBody')
+            ->with('{"secret":"value"}', 'application/x-www-form-urlencoded')
             ->willReturn('{"secret":"[REDACTED]"}');
 
         $recorder = $this->createRecorder(
@@ -615,6 +618,111 @@ final class HttpLogRecorderTest extends TestCase
         $recorder->persistCapture($this->createCapture());
     }
 
+    #[Test]
+    public function requestJsonBodyIsRedactedBeforeTruncation(): void
+    {
+        $capturedEntry = null;
+        $entityManager = $this->createCapturingEntityManager($capturedEntry);
+
+        $recorder = $this->createRecorder(
+            $entityManager,
+            $this->createMock(MessageBusInterface::class),
+            async: false,
+            redactor: new HttpLogRedactor([], ['password'], ['*.password']),
+            policy: new CapturePolicy(['request_body' => true, 'max_body_bytes' => 40] + $this->captureConfig),
+            captureConfig: ['request_body' => true, 'max_body_bytes' => 40] + $this->captureConfig,
+        );
+
+        // Truncated to 40 bytes the document is invalid JSON; it must still not leak the password.
+        $body    = '{"user":{"password":"hunter2-secret"},"padding":"' . str_repeat('x', 200) . '"}';
+        $request = Request::create('/login', 'POST', [], [], [], ['CONTENT_TYPE' => 'application/json'], $body);
+
+        $recorder->record($request, new Response('{"ok":true}', 200, ['Content-Type' => 'application/json']), 1.0, null);
+
+        self::assertInstanceOf(HttpLogEntry::class, $capturedEntry);
+        self::assertTrue($capturedEntry->isRequestBodyTruncated());
+        self::assertIsString($capturedEntry->getRequestBody());
+        self::assertStringNotContainsString('hunter2-secret', $capturedEntry->getRequestBody());
+        self::assertStringStartsWith('{"user":{"password":"[REDACTED]"}', $capturedEntry->getRequestBody());
+    }
+
+    #[Test]
+    public function formLoginBodyIsRedactedWithDefaultKeys(): void
+    {
+        $capturedEntry = null;
+        $entityManager = $this->createCapturingEntityManager($capturedEntry);
+
+        $recorder = $this->createRecorder(
+            $entityManager,
+            $this->createMock(MessageBusInterface::class),
+            async: false,
+            redactor: new HttpLogRedactor(
+                [],
+                ['password', '_password', 'token', '_token', '_csrf_token', 'api_key'],
+                ['*.password', '*._password', '*.token', '*._token', '*._csrf_token'],
+            ),
+            policy: new CapturePolicy(['request_body' => true] + $this->captureConfig),
+            captureConfig: ['request_body' => true] + $this->captureConfig,
+        );
+
+        $request = Request::create(
+            '/login',
+            'POST',
+            [],
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/x-www-form-urlencoded'],
+            '_username=ada&_password=hunter2&_csrf_token=abc123',
+        );
+
+        $recorder->record($request, new Response('', 302), 1.0, null);
+
+        self::assertInstanceOf(HttpLogEntry::class, $capturedEntry);
+        self::assertSame(
+            '_username=ada&_password=%5BREDACTED%5D&_csrf_token=%5BREDACTED%5D',
+            $capturedEntry->getRequestBody(),
+        );
+    }
+
+    #[Test]
+    public function responseBodyIsRedactedBeforeTruncation(): void
+    {
+        $capturedEntry = null;
+        $entityManager = $this->createCapturingEntityManager($capturedEntry);
+
+        $recorder = $this->createRecorder(
+            $entityManager,
+            $this->createMock(MessageBusInterface::class),
+            async: false,
+            redactor: new HttpLogRedactor([], [], ['*.token']),
+            policy: new CapturePolicy(['max_body_bytes' => 30] + $this->captureConfig),
+            captureConfig: ['max_body_bytes' => 30] + $this->captureConfig,
+        );
+
+        $body = '{"token":"jwt-secret-value","items":[' . str_repeat('1,', 100) . '1]}';
+        $recorder->record(
+            Request::create('/api/token'),
+            new Response($body, 200, ['Content-Type' => 'application/json']),
+            1.0,
+            null,
+        );
+
+        self::assertInstanceOf(HttpLogEntry::class, $capturedEntry);
+        self::assertTrue($capturedEntry->isResponseBodyTruncated());
+        self::assertStringNotContainsString('jwt-secret-value', (string) $capturedEntry->getResponseBody());
+    }
+
+    private function createCapturingEntityManager(?HttpLogEntry &$capturedEntry): EntityManagerInterface
+    {
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->method('persist')
+            ->willReturnCallback(static function (HttpLogEntry $entry) use (&$capturedEntry): void {
+                $capturedEntry = $entry;
+            });
+
+        return $entityManager;
+    }
+
     private function createUserToken(string $identifier): TokenInterface
     {
         return new UsernamePasswordToken(new InMemoryUser($identifier, null), 'main');
@@ -679,7 +787,7 @@ final class HttpLogRecorderTest extends TestCase
         $redactor = $this->createMock(HttpLogRedactor::class);
         $redactor->method('redactHeaders')->willReturnArgument(0);
         $redactor->method('redactQueryParams')->willReturnArgument(0);
-        $redactor->method('redactJsonBody')->willReturnArgument(0);
+        $redactor->method('redactBody')->willReturnArgument(0);
 
         return $redactor;
     }

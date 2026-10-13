@@ -40,15 +40,19 @@ final class CapturePolicy
         return $this->truncateBody($body);
     }
 
+    public function shouldCaptureResponseBody(BodyContentType $contentType): bool
+    {
+        $byType = $this->captureConfig['response_body_by_type'] ?? [];
+
+        return (bool) ($byType[$contentType->value] ?? false);
+    }
+
     /**
      * @return array{stored: bool, truncated: bool, body: ?string}
      */
     public function evaluateResponseBody(?string $body, BodyContentType $contentType): array
     {
-        $byType = $this->captureConfig['response_body_by_type'] ?? [];
-        $key    = $contentType->value;
-
-        if (!($byType[$key] ?? false)) {
+        if (!$this->shouldCaptureResponseBody($contentType)) {
             return ['stored' => false, 'truncated' => false, 'body' => null];
         }
 
