@@ -316,6 +316,65 @@ final class HttpLogAdminControllerTest extends TestCase
     }
 
     #[Test]
+    public function exportRejectsFormatsThatAreNotEnabled(): void
+    {
+        $request = Request::create('/admin/http-log/export', 'POST', [
+            '_token' => 'valid-token',
+            'format' => 'json',
+        ]);
+
+        $exportService = $this->createMock(ExportHttpLogService::class);
+        $exportService->expects(self::never())->method('countForCriteria');
+        $exportService->expects(self::never())->method('exportToString');
+
+        $controller = $this->createController(
+            request: $request,
+            exportService: $exportService,
+            allowUnauthenticated: true,
+            csrfValid: true,
+            exportFormats: ['csv'],
+        );
+
+        $this->expectException(BadRequestHttpException::class);
+        $this->expectExceptionMessage('Export format "json" is not enabled');
+        $controller->export($request);
+    }
+
+    #[Test]
+    public function indexOnlyOffersEnabledExportFormats(): void
+    {
+        $request = Request::create('/admin/http-log', 'GET');
+
+        $form = $this->createMock(FormInterface::class);
+        $form->method('isSubmitted')->willReturn(false);
+        $form->method('createView')->willReturn(new FormView());
+
+        $repository = $this->createMock(HttpLogEntryRepository::class);
+        $repository->method('findFiltered')->willReturn(['items' => [], 'total' => 0]);
+
+        $twig = $this->createMock(Environment::class);
+        $twig->expects(self::once())
+            ->method('render')
+            ->with(
+                '@NowoHttpLogBundle/admin/index.html.twig',
+                self::callback(static fn (array $parameters): bool => $parameters['exportCsvForm'] === null
+                    && $parameters['exportJsonForm'] instanceof FormView),
+            )
+            ->willReturn('index');
+
+        $controller = $this->createController(
+            request: $request,
+            repository: $repository,
+            formFactory: $this->createIndexFormFactory($form),
+            twig: $twig,
+            allowUnauthenticated: true,
+            exportFormats: ['json'],
+        );
+
+        self::assertSame('index', $controller->index($request)->getContent());
+    }
+
+    #[Test]
     public function exportQueuesBackgroundJobWhenResultExceedsSyncThreshold(): void
     {
         $request = Request::create('/admin/http-log/export', 'POST', [
@@ -649,6 +708,7 @@ final class HttpLogAdminControllerTest extends TestCase
         int $pageSize = 20,
         array $adminUi = AdminChrome::DEFAULTS,
         ?TranslatorInterface $translator = null,
+        array $exportFormats = ['csv', 'json'],
     ): HttpLogAdminController {
         $request ??= Request::create('/admin/http-log', 'GET');
         $session = new Session(new MockArraySessionStorage());
@@ -687,6 +747,7 @@ final class HttpLogAdminControllerTest extends TestCase
             $pageSize,
             $adminUi,
             $translator,
+            $exportFormats,
         );
         $controller->setContainer($container);
 

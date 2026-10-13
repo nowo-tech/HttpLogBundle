@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\DependencyInjection;
 
 use Nowo\HttpLogBundle\Enum\CssFramework;
+use Nowo\HttpLogBundle\Enum\ExportFormat;
 use Nowo\HttpLogBundle\View\AdminChrome;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
@@ -12,9 +13,13 @@ use Symfony\Component\Config\Definition\ConfigurationInterface;
 
 use function array_diff;
 use function array_keys;
+use function array_map;
 use function implode;
 use function is_int;
 use function is_string;
+use function rtrim;
+use function str_contains;
+use function str_starts_with;
 
 /**
  * Configuration tree for {@see NowoHttpLogExtension}.
@@ -115,7 +120,11 @@ final class Configuration implements ConfigurationInterface
                     ->addDefaultsIfNotSet()
                     ->children()
                         ->arrayNode('formats')
-                            ->scalarPrototype()->end()
+                            ->info('Export formats allowed in the admin UI and the nowo:http-log:export command.')
+                            ->enumPrototype()
+                                ->values(array_map(static fn (ExportFormat $f): string => $f->value, ExportFormat::cases()))
+                            ->end()
+                            ->requiresAtLeastOneElement()
                             ->defaultValue(['csv', 'json'])
                         ->end()
                         ->integerNode('max_sync_rows')->defaultValue(1000)->min(1)->end()
@@ -126,11 +135,20 @@ final class Configuration implements ConfigurationInterface
                     ->children()
                         ->booleanNode('enabled')->defaultTrue()->end()
                         ->scalarNode('path_prefix')
+                            ->info('Prefix of the admin UI routes (list, detail, export, purge, delete).')
                             ->defaultValue('/admin/http-log')
                             ->validate()
-                                ->ifTrue(static fn (mixed $v): bool => !is_string($v) || !str_starts_with($v, '/'))
-                                ->thenInvalid('web_ui.path_prefix must start with "/"')
+                                ->ifTrue(static fn (mixed $v): bool => !is_string($v) || !str_starts_with($v, '/') || rtrim($v, '/') === '' || str_contains($v, '%'))
+                                ->thenInvalid('web_ui.path_prefix must start with "/", must not be "/" alone and must not contain "%%"; got %s')
                             ->end()
+                            ->validate()
+                                ->always(static fn (string $v): string => rtrim($v, '/'))
+                            ->end()
+                        ->end()
+                        ->scalarNode('icon_set')
+                            ->info('Icon set seeded into nowo_ui_kit.icon_set when UiKit is installed and the host did not set it (e.g. bootstrap-icons, tabler-icons).')
+                            ->defaultValue('bootstrap-icons')
+                            ->cannotBeEmpty()
                         ->end()
                         ->scalarNode('layout_template')
                             ->defaultValue('@NowoHttpLogBundle/layout.html.twig')

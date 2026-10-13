@@ -88,4 +88,39 @@ final class ExportHttpLogCommandTest extends TestCase
 
         self::assertSame(Command::SUCCESS, $status);
     }
+
+    #[Test]
+    public function executeRejectsFormatsNotEnabledInConfiguration(): void
+    {
+        $exportService = $this->createMock(ExportHttpLogService::class);
+        $exportService->expects(self::never())->method('exportToFile');
+
+        $command = new ExportHttpLogCommand(
+            $exportService,
+            $this->createMock(ClockInterface::class),
+            ['csv'],
+        );
+
+        $tester = new CommandTester($command);
+        $status = $tester->execute([
+            '--output' => '/tmp/out.json',
+            '--format' => 'json',
+        ]);
+
+        self::assertSame(Command::INVALID, $status);
+        self::assertStringContainsString('Export format "json" is not enabled. Allowed: csv', $tester->getDisplay());
+    }
+
+    #[Test]
+    public function executeRejectsUnknownFormatWhenCsvIsDisabled(): void
+    {
+        $exportService = $this->createMock(ExportHttpLogService::class);
+        $exportService->expects(self::never())->method('exportToFile');
+
+        $command = new ExportHttpLogCommand($exportService, $this->createMock(ClockInterface::class), ['json']);
+
+        $tester = new CommandTester($command);
+
+        self::assertSame(Command::INVALID, $tester->execute(['--output' => '/tmp/out.csv', '--format' => 'xml']));
+    }
 }

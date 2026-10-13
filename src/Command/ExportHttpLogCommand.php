@@ -14,6 +14,8 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+use function implode;
+use function in_array;
 use function is_string;
 use function sprintf;
 
@@ -26,6 +28,8 @@ final class ExportHttpLogCommand extends Command
     public function __construct(
         private readonly ExportHttpLogService $exportService,
         private readonly ClockInterface $clock,
+        /** @var list<string> Allowed export formats (export.formats). */
+        private readonly array $exportFormats = ['csv', 'json'],
     ) {
         parent::__construct();
     }
@@ -33,7 +37,7 @@ final class ExportHttpLogCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('format', null, InputOption::VALUE_REQUIRED, 'Export format (csv|json)', ExportFormat::Csv->value)
+            ->addOption('format', null, InputOption::VALUE_REQUIRED, 'Export format (csv|json, limited to nowo_http_log.export.formats)', ExportFormat::Csv->value)
             ->addOption('output', null, InputOption::VALUE_REQUIRED, 'Output file path')
             ->addOption('days', null, InputOption::VALUE_REQUIRED, 'Only export entries from the last N days');
     }
@@ -44,6 +48,11 @@ final class ExportHttpLogCommand extends Command
 
         $formatValue = (string) $input->getOption('format');
         $format      = ExportFormat::tryFrom($formatValue) ?? ExportFormat::Csv;
+        if (!in_array($format->value, $this->exportFormats, true)) {
+            $io->error(sprintf('Export format "%s" is not enabled. Allowed: %s (nowo_http_log.export.formats).', $format->value, implode(', ', $this->exportFormats)));
+
+            return Command::INVALID;
+        }
 
         $outputPath = $input->getOption('output');
         if (!is_string($outputPath) || $outputPath === '') {

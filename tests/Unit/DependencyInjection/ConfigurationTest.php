@@ -6,6 +6,7 @@ namespace Nowo\HttpLogBundle\Tests\Unit\DependencyInjection;
 
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
 use Nowo\HttpLogBundle\Enum\CssFramework;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\Definition\Processor;
@@ -63,6 +64,64 @@ final class ConfigurationTest extends TestCase
         (new Processor())->processConfiguration(new Configuration(), [[
             'web_ui' => ['path_prefix' => 'admin/http-log'],
         ]]);
+    }
+
+    public function testPathPrefixTrailingSlashIsTrimmed(): void
+    {
+        $config = (new Processor())->processConfiguration(new Configuration(), [[
+            'web_ui' => ['path_prefix' => '/ops/http-log/'],
+        ]]);
+
+        self::assertSame('/ops/http-log', $config['web_ui']['path_prefix']);
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function invalidPathPrefixes(): iterable
+    {
+        yield 'root only' => ['/'];
+        yield 'slashes only' => ['//'];
+        yield 'parameter placeholder' => ['/%kernel.secret%'];
+    }
+
+    #[DataProvider('invalidPathPrefixes')]
+    public function testRejectsUnusablePathPrefixes(string $prefix): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+
+        (new Processor())->processConfiguration(new Configuration(), [[
+            'web_ui' => ['path_prefix' => $prefix],
+        ]]);
+    }
+
+    public function testExportFormatsAreRestrictedToSupportedFormats(): void
+    {
+        $config = (new Processor())->processConfiguration(new Configuration(), [[
+            'export' => ['formats' => ['json']],
+        ]]);
+        self::assertSame(['json'], $config['export']['formats']);
+
+        $this->expectException(InvalidConfigurationException::class);
+        (new Processor())->processConfiguration(new Configuration(), [[
+            'export' => ['formats' => ['xml']],
+        ]]);
+    }
+
+    public function testExportFormatsCannotBeEmpty(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+
+        (new Processor())->processConfiguration(new Configuration(), [[
+            'export' => ['formats' => []],
+        ]]);
+    }
+
+    public function testIconSetDefaultsToBootstrapIcons(): void
+    {
+        $config = (new Processor())->processConfiguration(new Configuration(), [[]]);
+
+        self::assertSame('bootstrap-icons', $config['web_ui']['icon_set']);
     }
 
     public function testRejectsNegativeRetentionDays(): void

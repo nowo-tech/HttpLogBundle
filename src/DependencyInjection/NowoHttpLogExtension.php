@@ -18,6 +18,8 @@ use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 
 use function array_key_exists;
 use function array_map;
+use function array_unique;
+use function array_values;
 use function is_array;
 use function is_string;
 use function str_replace;
@@ -144,7 +146,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
     /**
      * When UiKit is installed, seed nowo_ui_kit.css_framework / icon_set from web_ui
      * so kit macros resolve the same stack. Does not override keys the host already set.
-     * web_ui.icon_set is optional — defaults to bootstrap-icons when seeding UiKit.
+     * web_ui.icon_set defaults to bootstrap-icons.
      */
     private function prependUiKitDefaults(ContainerBuilder $container): void
     {
@@ -176,7 +178,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
             $defaults['css_framework'] = (string) ($webUi['css_framework'] ?? 'bootstrap5');
         }
         if (!$hostHasIconSet) {
-            $defaults['icon_set'] = (string) ($webUi['icon_set'] ?? 'bootstrap-icons');
+            $defaults['icon_set'] = (string) $webUi['icon_set'];
         }
 
         $container->prependExtensionConfig('nowo_ui_kit', $defaults);
@@ -211,6 +213,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         $container->setParameter($alias . '.retention', $config['retention']);
         $container->setParameter($alias . '.export', $config['export']);
         $container->setParameter($alias . '.export.max_sync_rows', $config['export']['max_sync_rows']);
+        $container->setParameter($alias . '.export.formats', array_values(array_unique($config['export']['formats'])));
         $container->setParameter($alias . '.redaction.headers', $config['redaction']['headers']);
         $container->setParameter($alias . '.redaction.query_params', $config['redaction']['query_params']);
         $container->setParameter($alias . '.redaction.json_paths', $config['redaction']['json_paths']);

@@ -26,6 +26,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- `HttpLogEntryRepository::findOneBy()` no longer interpolates criteria / order-by keys into DQL: field names are checked against the entity metadata and unknown ones throw `InvalidArgumentException` (a caller-controlled key such as `id = 1 OR 1 = 1 OR e.id` could rewrite the query). `null` criteria now use `IS NULL` and list values `IN (...)`, like Doctrine's own repository.
+
+### Fixed
+
+- `web_ui.path_prefix` is now the prefix of the admin routes (it was only exposed to Twig; routes were hard-coded to `/admin/http-log`). A trailing `/` is trimmed; `/` alone and values containing `%` are rejected.
+- `export.formats` is enforced: only enabled formats get an export button, the export action answers 400 for a disabled format and `nowo:http-log:export` exits with `INVALID`. Values are restricted to `csv` / `json` and at least one is required.
+- `web_ui.icon_set` is now a real configuration key (default `bootstrap-icons`); it was read when seeding NowoUiKitBundle but could not be set.
+
+### Changed
+
+- Requirements: Symfony `^7.4 || ^8.0` (was `^7.0`); CI no longer runs a 7.0 cell (it resolved to 7.4 anyway).
+
 ## [1.4.0] - 2026-10-13
 
 ### Security

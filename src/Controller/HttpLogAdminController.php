@@ -21,6 +21,7 @@ use Nowo\HttpLogBundle\Service\ExportHttpLogService;
 use Nowo\HttpLogBundle\Service\PurgeHttpLogService;
 use Nowo\HttpLogBundle\View\AdminChrome;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Form\FormView;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -46,7 +47,8 @@ use function uniqid;
 
 use const FILTER_VALIDATE_INT;
 
-#[Route('/admin/http-log')]
+// The prefix is the web_ui.path_prefix container parameter, resolved by the Symfony router (any import style).
+#[Route('%nowo_http_log.web_ui.path_prefix%')]
 final class HttpLogAdminController extends AbstractController
 {
     /** @var list<string> */
@@ -74,6 +76,8 @@ final class HttpLogAdminController extends AbstractController
         /** @var array<string, mixed> Resolved admin chrome ({@see AdminChrome::fromWebUi()}). */
         private readonly array $adminUi = AdminChrome::DEFAULTS,
         private readonly ?TranslatorInterface $translator = null,
+        /** @var list<string> Allowed export formats (export.formats). */
+        private readonly array $exportFormats = ['csv', 'json'],
     ) {
     }
 
@@ -94,18 +98,10 @@ final class HttpLogAdminController extends AbstractController
         $result         = $this->repository->findFiltered($criteria, $page, $this->pageSize);
 
         $response = $this->render($this->template('index'), [
-            'filterForm'    => $filterForm->createView(),
-            'exportCsvForm' => $this->createForm(HttpLogExportType::class, null, [
-                'action'   => $this->generateUrl('nowo_http_log_admin_export'),
-                'criteria' => $criteriaParams,
-                'format'   => ExportFormat::Csv->value,
-            ])->createView(),
-            'exportJsonForm' => $this->createForm(HttpLogExportType::class, null, [
-                'action'   => $this->generateUrl('nowo_http_log_admin_export'),
-                'criteria' => $criteriaParams,
-                'format'   => ExportFormat::Json->value,
-            ])->createView(),
-            'purgeForm' => $this->createForm(HttpLogPurgeType::class, null, [
+            'filterForm'     => $filterForm->createView(),
+            'exportCsvForm'  => $this->exportFormView(ExportFormat::Csv, $criteriaParams),
+            'exportJsonForm' => $this->exportFormView(ExportFormat::Json, $criteriaParams),
+            'purgeForm'      => $this->createForm(HttpLogPurgeType::class, null, [
                 'action' => $this->generateUrl('nowo_http_log_admin_purge'),
             ])->createView(),
             'entries'          => $result['items'],
@@ -153,7 +149,10 @@ final class HttpLogAdminController extends AbstractController
         ]);
         $formatValue = (string) ($data['format'] ?? ExportFormat::Csv->value);
         $format      = ExportFormat::tryFrom($formatValue) ?? ExportFormat::Csv;
-        $criteria    = $this->criteriaFromRequest($request);
+        if (!$this->isExportFormatAllowed($format)) {
+            throw new BadRequestHttpException(sprintf('Export format "%s" is not enabled (nowo_http_log.export.formats).', $format->value));
+        }
+        $criteria = $this->criteriaFromRequest($request);
 
         $count = $this->exportService->countForCriteria($criteria);
         if ($count > $this->maxSyncExportRows) {
@@ -172,6 +171,27 @@ final class HttpLogAdminController extends AbstractController
             'Content-Type'        => $mimeType,
             'Content-Disposition' => sprintf('attachment; filename="%s"', $filename),
         ]);
+    }
+
+    private function isExportFormatAllowed(ExportFormat $format): bool
+    {
+        return in_array($format->value, $this->exportFormats, true);
+    }
+
+    /**
+     * @param array<string, mixed> $criteriaParams
+     */
+    private function exportFormView(ExportFormat $format, array $criteriaParams): ?FormView
+    {
+        if (!$this->isExportFormatAllowed($format)) {
+            return null;
+        }
+
+        return $this->createForm(HttpLogExportType::class, null, [
+            'action'   => $this->generateUrl('nowo_http_log_admin_export'),
+            'criteria' => $criteriaParams,
+            'format'   => $format->value,
+        ])->createView();
     }
 
     #[Route('/purge', name: 'nowo_http_log_admin_purge', methods: ['POST'])]

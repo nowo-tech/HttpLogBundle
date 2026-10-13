@@ -13,6 +13,7 @@ use Doctrine\ORM\Tools\SchemaTool;
 use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\Persistence\ObjectManager;
 use Doctrine\Persistence\ObjectRepository;
+use InvalidArgumentException;
 use LogicException;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
@@ -21,6 +22,7 @@ use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
 use function dirname;
+use function sprintf;
 
 use const PHP_VERSION_ID;
 
@@ -185,6 +187,44 @@ final class HttpLogEntryRepositoryTest extends TestCase
 
         $getEntityManager = new ReflectionMethod(HttpLogEntryRepository::class, 'getEntityManager');
         self::assertSame($this->entityManager, $getEntityManager->invoke($this->repository));
+    }
+
+    #[Test]
+    public function findOneByRejectsFieldNamesThatAreNotMapped(): void
+    {
+        $this->persistEntry('GET', 'api.one', 200, '10.0.0.1', '/api/one', 'json', new DateTimeImmutable('2026-09-24T12:00:00+00:00'));
+
+        foreach ([
+            'id = 1 OR 1 = 1 OR e.id'       => 1,
+            'routeName IS NOT NULL OR e.id' => 1,
+            'no_such_field'                 => 'x',
+        ] as $field => $value) {
+            try {
+                $this->repository->findOneBy([$field => $value]);
+                self::fail(sprintf('Field "%s" must be rejected.', $field));
+            } catch (InvalidArgumentException $e) {
+                self::assertStringContainsString('Unrecognized field', $e->getMessage());
+            }
+        }
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->repository->findOneBy(['method' => 'GET'], ['id DESC, (SELECT 1)' => 'ASC']);
+    }
+
+    #[Test]
+    public function findOneBySupportsNullAndListValues(): void
+    {
+        $withRoute = $this->persistEntry('GET', 'api.one', 200, '10.0.0.1', '/api/one', 'json', new DateTimeImmutable('2026-09-24T12:00:00+00:00'));
+        $withRoute->setRequestId(null);
+        $this->entityManager->flush();
+
+        $found = $this->repository->findOneBy(['requestId' => null]);
+        self::assertSame($withRoute->getId(), $found?->getId());
+
+        $found = $this->repository->findOneBy(['method' => ['POST', 'GET']]);
+        self::assertSame($withRoute->getId(), $found?->getId());
+
+        self::assertNull($this->repository->findOneBy(['method' => ['DELETE']]));
     }
 
     #[Test]

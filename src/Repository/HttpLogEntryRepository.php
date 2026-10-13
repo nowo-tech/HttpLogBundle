@@ -8,8 +8,10 @@ use DateTimeImmutable;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
+use InvalidArgumentException;
 use LogicException;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use SortDirection;
@@ -18,6 +20,7 @@ use function array_key_exists;
 use function array_keys;
 use function array_map;
 use function array_values;
+use function is_array;
 use function is_string;
 use function sprintf;
 
@@ -46,19 +49,32 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
         return $this->resolveEntityManager()->find(HttpLogEntry::class, $id, $lockMode ?? LockMode::NONE, $lockVersion);
     }
 
+    /**
+     * Field names are checked against the entity metadata before they reach DQL (same contract as
+     * Doctrine's EntityRepository: unknown fields throw), so a caller-controlled key cannot inject DQL.
+     */
     public function findOneBy(array $criteria, ?array $orderBy = null): ?object
     {
-        $qb = $this->createQueryBuilder('e')->setMaxResults(1);
+        $metadata = $this->resolveEntityManager()->getClassMetadata(HttpLogEntry::class);
+        $qb       = $this->createQueryBuilder('e')->setMaxResults(1);
 
         $index = 0;
         foreach ($criteria as $field => $value) {
+            $field = $this->assertKnownField($metadata, $field);
+            if ($value === null) {
+                $qb->andWhere(sprintf('e.%s IS NULL', $field));
+
+                continue;
+            }
+
             $param = 'findOneBy_' . $index++;
-            $qb->andWhere(sprintf('e.%s = :%s', $field, $param))
+            $qb->andWhere(sprintf(is_array($value) ? 'e.%s IN (:%s)' : 'e.%s = :%s', $field, $param))
                 ->setParameter($param, $value);
         }
 
         if ($orderBy !== null) {
             foreach ($orderBy as $field => $direction) {
+                $field         = $this->assertKnownField($metadata, $field);
                 $sortDirection = match (strtoupper($direction)) {
                     'DESC'  => SortDirection::Descending,
                     default => SortDirection::Ascending,
@@ -71,6 +87,19 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
         $entry = $qb->getQuery()->getOneOrNullResult();
 
         return $entry;
+    }
+
+    /**
+     * @param ClassMetadata<HttpLogEntry> $metadata
+     */
+    private function assertKnownField(ClassMetadata $metadata, int|string $field): string
+    {
+        $field = (string) $field;
+        if (!$metadata->hasField($field) && !$metadata->hasAssociation($field)) {
+            throw new InvalidArgumentException(sprintf('Unrecognized field "%s" for %s.', $field, HttpLogEntry::class));
+        }
+
+        return $field;
     }
 
     /**

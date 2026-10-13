@@ -1,6 +1,6 @@
 # Installation
 
-Install **Http Log Bundle** in a Symfony 7 or 8 application with Doctrine ORM and (recommended) Symfony Security and Messenger.
+Install **Http Log Bundle** in a Symfony 7.4 or 8 application with Doctrine ORM and (recommended) Symfony Security and Messenger.
 
 ## Table of contents
 
@@ -20,7 +20,7 @@ Install **Http Log Bundle** in a Symfony 7 or 8 application with Doctrine ORM an
 | Component | Version |
 | --- | --- |
 | PHP | 8.2 – 8.5 |
-| Symfony | 7.0+ or 8.0+ |
+| Symfony | 7.4+ or 8.0+ |
 | Doctrine ORM | 2.15+ or 3.x |
 | FormKitBundle | `nowo-tech/form-kit-bundle` ^2.0 (pulled transitively; admin forms / profile `http_log`) |
 | UiKitBundle | `nowo-tech/ui-kit-bundle` ^1.4 (pulled transitively; admin macros + `nowo-ui.css`) |

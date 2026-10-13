@@ -20,6 +20,11 @@ services:
         resource: '../../Command/'
         tags: ['console.command']
 
+    Nowo\HttpLogBundle\Command\ExportHttpLogCommand:
+        arguments:
+            $exportFormats: '%nowo_http_log.export.formats%'
+        tags: ['console.command']
+
     Nowo\HttpLogBundle\Service\HttpLogRedactor:
         arguments:
             $headerKeys: '%nowo_http_log.redaction.headers%'
@@ -56,6 +61,7 @@ services:
             $maxSyncExportRows: '%nowo_http_log.export.max_sync_rows%'
             $pageSize: '%nowo_http_log.web_ui.page_size%'
             $adminUi: '%nowo_http_log.web_ui.chrome%'
+            $exportFormats: '%nowo_http_log.export.formats%'
         tags: ['controller.service_arguments']
 
     # Form Kit injects FormOptionsMerger into tagged form types (FormOptionsMergerInjectorCompilerPass).

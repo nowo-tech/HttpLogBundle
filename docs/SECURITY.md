@@ -77,7 +77,7 @@ security:
         - { path: ^/admin/http-log, roles: ROLE_ADMIN }
 ```
 
-Adjust the path if you change `web_ui.path_prefix`. Combine with your existing firewall so only authenticated admins reach the UI.
+Adjust the path if you change `web_ui.path_prefix` (the admin routes move with it). Combine with your existing firewall so only authenticated admins reach the UI.
 
 Setting `allow_unauthenticated: true` is supported for local demos only.
 

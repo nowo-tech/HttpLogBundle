@@ -30,18 +30,22 @@
         {% block nowo_http_log_header_actions %}
         <div{{ chrome.class_attr(_cls.actions) }}>
             {% block nowo_http_log_action_export_csv %}
+            {% if exportCsvForm|default(null) %}
             {{ form_start(exportCsvForm, {attr: (_cls.action_form ? {class: _cls.action_form} : {})}) }}
                 {{ form_rest(exportCsvForm) }}
                 <button type="submit" class="{{ _cls.btn_export ?? ui.btn('secondary', 'sm', _css_fw) }} nowo-ui-btn-export">{{ 'admin.action.export_csv'|trans({}, 'NowoHttpLogBundle') }}</button>
             {{ form_end(exportCsvForm, {render_rest: false}) }}
+            {% endif %}
             {% endblock %}
 
             {% set _spaced_form_class = [_cls.action_form, _cls.action_form_gap]|filter(c => c is not null and c|trim != '')|join(' ') %}
             {% block nowo_http_log_action_export_json %}
+            {% if exportJsonForm|default(null) %}
             {{ form_start(exportJsonForm, {attr: (_spaced_form_class ? {class: _spaced_form_class} : {})}) }}
                 {{ form_rest(exportJsonForm) }}
                 <button type="submit" class="{{ _cls.btn_export ?? ui.btn('secondary', 'sm', _css_fw) }} nowo-ui-btn-export">{{ 'admin.action.export_json'|trans({}, 'NowoHttpLogBundle') }}</button>
             {{ form_end(exportJsonForm, {render_rest: false}) }}
+            {% endif %}
             {% endblock %}
 
             {% block nowo_http_log_action_purge %}

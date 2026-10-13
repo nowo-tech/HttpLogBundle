@@ -76,7 +76,8 @@ nowo_http_log:
         max_sync_rows: 1000               # Max rows for synchronous UI/CLI export
     web_ui:
         enabled: true
-        path_prefix: /admin/http-log      # Must start with /
+        path_prefix: /admin/http-log      # Route prefix of the admin UI; must start with /
+        icon_set: bootstrap-icons         # Seeds nowo_ui_kit.icon_set when UiKit is installed and unset
         layout_template: '@NowoHttpLogBundle/layout.html.twig'
         css_framework: bootstrap5         # bootstrap5 | tailwind | foundation | custom
         page_size: 50
@@ -158,7 +159,7 @@ Use `nowo:http-log:purge` or the admin UI to purge.
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `formats` | `[csv, json]` | Allowed export formats in UI and CLI. |
+| `formats` | `[csv, json]` | Allowed export formats (`csv`, `json`; at least one). The admin UI only shows buttons for enabled formats and answers **400** to others; `nowo:http-log:export` exits with `INVALID` for a disabled format. |
 | `max_sync_rows` | `1000` | Row cap for synchronous exports; larger jobs should use async Messenger. |
 
 ## web_ui
@@ -166,7 +167,8 @@ Use `nowo:http-log:purge` or the admin UI to purge.
 | Key | Default | Description |
 | --- | --- | --- |
 | `enabled` | `true` | Registers admin routes and Twig templates. |
-| `path_prefix` | `/admin/http-log` | Base path for list, detail, export, purge actions. |
+| `path_prefix` | `/admin/http-log` | Route prefix of the admin UI (list, detail, export, purge, delete), applied by the router through the `nowo_http_log.web_ui.path_prefix` parameter. A trailing `/` is removed; `/` alone and `%` are rejected. Update your `access_control` rule when you change it. |
+| `icon_set` | `bootstrap-icons` | Seeds `nowo_ui_kit.icon_set` when NowoUiKitBundle is installed and the host did not set it. |
 | `layout_template` | bundle layout | Root Twig layout (global `nowo_http_log_layout_template`) extended by `admin/base.html.twig`. Set to your app layout or a one-file bridge. |
 | `css_framework` | `bootstrap5` | UI macro styling (`CssFramework` enum). Also seeds `nowo_ui_kit.css_framework` when the host has not configured UiKit. |
 | `page_size` | `50` | Pagination size on index. |

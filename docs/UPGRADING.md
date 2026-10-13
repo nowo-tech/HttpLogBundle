@@ -23,6 +23,12 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+- **Symfony 7.4+:** the minimum Symfony version is now 7.4 (7.0–7.3 are end of life and were never really tested).
+- **Admin route prefix:** `web_ui.path_prefix` now moves the admin routes. If you set it to something other than `/admin/http-log` while keeping the UI there, either remove the key or update your `access_control` / links to the new path. If you import the routes with your own `prefix:`, it is added in front of `path_prefix`.
+- **Export formats:** `export.formats` now limits the UI buttons, the export action and `nowo:http-log:export`. Only `csv` and `json` are accepted, and the list cannot be empty.
+- **`findOneBy()` on `HttpLogEntryRepository`:** unknown field names now throw `InvalidArgumentException` instead of producing DQL.
+- **Templates:** if you override `admin/index.html.twig`, `exportCsvForm` / `exportJsonForm` can be `null` when that format is disabled; guard with `{% if exportCsvForm %}`.
+
 ## To 1.4.0
 
 From **1.3.1** — security - redact before truncation, redact form bodies, fail closed on empty access_roles.

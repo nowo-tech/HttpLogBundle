@@ -361,6 +361,38 @@ final class NowoHttpLogExtensionTest extends TestCase
         self::assertSame('bootstrap-icons', $merged['icon_set']);
     }
 
+    #[Test]
+    public function prependSeedsUiKitIconSetFromWebUi(): void
+    {
+        $container = new ContainerBuilder();
+        $container->registerExtension($this->createExtension('nowo_ui_kit'));
+        $container->registerExtension(new NowoHttpLogExtension());
+        $container->loadFromExtension('nowo_http_log', [
+            'security' => ['allow_unauthenticated' => true],
+            'web_ui'   => ['css_framework' => 'tailwind', 'icon_set' => 'tabler-icons'],
+        ]);
+
+        (new NowoHttpLogExtension())->prepend($container);
+
+        $merged = array_replace_recursive(...array_reverse($container->getExtensionConfig('nowo_ui_kit')));
+        self::assertSame('tailwind', $merged['css_framework']);
+        self::assertSame('tabler-icons', $merged['icon_set']);
+    }
+
+    #[Test]
+    public function loadExposesEnabledExportFormats(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.environment', 'test');
+        (new NowoHttpLogExtension())->load([[
+            'security' => ['allow_unauthenticated' => true],
+            'export'   => ['formats' => ['json', 'json']],
+        ]], $container);
+
+        self::assertSame(['json'], $container->getParameter('nowo_http_log.export.formats'));
+        self::assertSame('/admin/http-log', $container->getParameter('nowo_http_log.web_ui.path_prefix'));
+    }
+
     private function createExtension(string $alias): Extension
     {
         return new class($alias) extends Extension {
