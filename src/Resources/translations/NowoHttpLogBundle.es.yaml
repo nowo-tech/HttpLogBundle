@@ -40,3 +40,6 @@ filter.body_content_type: Tipo de cuerpo
 filter.created_from: Creado desde
 filter.created_to: Creado hasta
 filter.q: Buscar
+flash.export_queued: Exportación encolada para procesarse en segundo plano.
+flash.purged: 'Se han purgado %count% entradas del registro HTTP.'
+flash.deleted: Entrada del registro HTTP eliminada.

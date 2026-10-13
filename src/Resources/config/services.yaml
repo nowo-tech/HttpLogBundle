@@ -10,6 +10,7 @@ services:
             - '../../Entity/'
             - '../../Enum/'
             - '../../Message/'
+            - '../../View/'
             - '../../NowoHttpLogBundle.php'
 
     Nowo\HttpLogBundle\Repository\:
@@ -54,6 +55,7 @@ services:
             $allowUnauthenticated: '%nowo_http_log.security.allow_unauthenticated%'
             $maxSyncExportRows: '%nowo_http_log.export.max_sync_rows%'
             $pageSize: '%nowo_http_log.web_ui.page_size%'
+            $adminUi: '%nowo_http_log.web_ui.chrome%'
         tags: ['controller.service_arguments']
 
     # Form Kit injects FormOptionsMerger into tagged form types (FormOptionsMergerInjectorCompilerPass).

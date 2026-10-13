@@ -1,42 +1,45 @@
-admin.title: HTTP Log
-admin.index.title: HTTP Log Entries
-admin.show.title: 'HTTP Log Entry #%id%'
-admin.index.total: '%count% entries'
-admin.index.empty: No HTTP log entries found.
-admin.column.id: ID
-admin.column.created_at: Created at
-admin.column.method: Method
-admin.column.path: Path
-admin.column.status: Status
-admin.column.duration: Duration
-admin.column.client_ip: Client IP
-admin.field.request_id: Request ID
-admin.field.url: URL
-admin.field.route: Route
-admin.field.user: User
-admin.field.content_type: Content type
-admin.field.query_params: Query parameters
-admin.field.request_headers: Request headers
-admin.field.response_headers: Response headers
-admin.field.request_body: Request body
-admin.field.response_body: Response body
-admin.field.truncated: truncated
-admin.action.view: View
-admin.action.back: Back to list
-admin.action.filter: Filter
-admin.action.export_csv: Export CSV
-admin.action.export_json: Export JSON
-admin.action.purge: Purge old entries
-admin.action.delete: Delete entry
-admin.purge.confirm: Purge HTTP log entries matching the retention policy?
-admin.delete.confirm: Delete this HTTP log entry?
-admin.pagination.page: 'Page %page% of %total%'
-filter.method: Method
-filter.route_name: Route name
-filter.status_code: Status code
-filter.client_ip: Client IP
-filter.path: Path
-filter.body_content_type: Body type
-filter.created_from: Created from
-filter.created_to: Created to
-filter.q: Search
+admin.title: 'Journal HTTP'
+admin.index.title: 'Entrées du journal HTTP'
+admin.show.title: 'Entrée du journal HTTP n°%id%'
+admin.index.total: '%count% entrées'
+admin.index.empty: 'Aucune entrée du journal HTTP trouvée.'
+admin.column.id: 'ID'
+admin.column.created_at: 'Créé le'
+admin.column.method: 'Méthode'
+admin.column.path: 'Chemin'
+admin.column.status: 'Statut'
+admin.column.duration: 'Durée'
+admin.column.client_ip: 'IP client'
+admin.field.request_id: 'ID de requête'
+admin.field.url: 'URL'
+admin.field.route: 'Route'
+admin.field.user: 'Utilisateur'
+admin.field.content_type: 'Type de contenu'
+admin.field.query_params: 'Paramètres de requête'
+admin.field.request_headers: 'En-têtes de requête'
+admin.field.response_headers: 'En-têtes de réponse'
+admin.field.request_body: 'Corps de requête'
+admin.field.response_body: 'Corps de réponse'
+admin.field.truncated: 'tronqué'
+admin.action.view: 'Voir'
+admin.action.back: 'Retour à la liste'
+admin.action.filter: 'Filtrer'
+admin.action.export_csv: 'Exporter en CSV'
+admin.action.export_json: 'Exporter en JSON'
+admin.action.purge: 'Purger les anciennes entrées'
+admin.action.delete: 'Supprimer l’entrée'
+admin.purge.confirm: 'Purger les entrées du journal HTTP selon la politique de rétention ?'
+admin.delete.confirm: 'Supprimer cette entrée du journal HTTP ?'
+admin.pagination.page: 'Page %page% sur %total%'
+filter.method: 'Méthode'
+filter.route_name: 'Nom de route'
+filter.status_code: 'Code de statut'
+filter.client_ip: 'IP client'
+filter.path: 'Chemin'
+filter.body_content_type: 'Type de corps'
+filter.created_from: 'Créé à partir du'
+filter.created_to: 'Créé jusqu’au'
+filter.q: 'Rechercher'
+flash.export_queued: Export mis en file d’attente pour un traitement en arrière-plan.
+flash.purged: '%count% entrées du journal HTTP purgées.'
+flash.deleted: Entrée du journal HTTP supprimée.

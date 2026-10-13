@@ -1,42 +1,45 @@
-admin.title: HTTP Log
-admin.index.title: HTTP Log Entries
-admin.show.title: 'HTTP Log Entry #%id%'
-admin.index.total: '%count% entries'
-admin.index.empty: No HTTP log entries found.
-admin.column.id: ID
-admin.column.created_at: Created at
-admin.column.method: Method
-admin.column.path: Path
-admin.column.status: Status
-admin.column.duration: Duration
-admin.column.client_ip: Client IP
-admin.field.request_id: Request ID
-admin.field.url: URL
-admin.field.route: Route
-admin.field.user: User
-admin.field.content_type: Content type
-admin.field.query_params: Query parameters
-admin.field.request_headers: Request headers
-admin.field.response_headers: Response headers
-admin.field.request_body: Request body
-admin.field.response_body: Response body
-admin.field.truncated: truncated
-admin.action.view: View
-admin.action.back: Back to list
-admin.action.filter: Filter
-admin.action.export_csv: Export CSV
-admin.action.export_json: Export JSON
-admin.action.purge: Purge old entries
-admin.action.delete: Delete entry
-admin.purge.confirm: Purge HTTP log entries matching the retention policy?
-admin.delete.confirm: Delete this HTTP log entry?
-admin.pagination.page: 'Page %page% of %total%'
-filter.method: Method
-filter.route_name: Route name
-filter.status_code: Status code
-filter.client_ip: Client IP
-filter.path: Path
-filter.body_content_type: Body type
-filter.created_from: Created from
-filter.created_to: Created to
-filter.q: Search
+admin.title: 'Log HTTP'
+admin.index.title: 'Voci del log HTTP'
+admin.show.title: 'Voce del log HTTP #%id%'
+admin.index.total: '%count% voci'
+admin.index.empty: 'Nessuna voce del log HTTP trovata.'
+admin.column.id: 'ID'
+admin.column.created_at: 'Creato il'
+admin.column.method: 'Metodo'
+admin.column.path: 'Percorso'
+admin.column.status: 'Stato'
+admin.column.duration: 'Durata'
+admin.column.client_ip: 'IP client'
+admin.field.request_id: 'ID richiesta'
+admin.field.url: 'URL'
+admin.field.route: 'Rotta'
+admin.field.user: 'Utente'
+admin.field.content_type: 'Tipo di contenuto'
+admin.field.query_params: 'Parametri di query'
+admin.field.request_headers: 'Header della richiesta'
+admin.field.response_headers: 'Header della risposta'
+admin.field.request_body: 'Corpo della richiesta'
+admin.field.response_body: 'Corpo della risposta'
+admin.field.truncated: 'troncato'
+admin.action.view: 'Visualizza'
+admin.action.back: 'Torna all’elenco'
+admin.action.filter: 'Filtra'
+admin.action.export_csv: 'Esporta CSV'
+admin.action.export_json: 'Esporta JSON'
+admin.action.purge: 'Elimina voci vecchie'
+admin.action.delete: 'Elimina voce'
+admin.purge.confirm: 'Eliminare le voci del log HTTP secondo la politica di conservazione?'
+admin.delete.confirm: 'Eliminare questa voce del log HTTP?'
+admin.pagination.page: 'Pagina %page% di %total%'
+filter.method: 'Metodo'
+filter.route_name: 'Nome rotta'
+filter.status_code: 'Codice di stato'
+filter.client_ip: 'IP client'
+filter.path: 'Percorso'
+filter.body_content_type: 'Tipo di corpo'
+filter.created_from: 'Creato dal'
+filter.created_to: 'Creato fino al'
+filter.q: 'Cerca'
+flash.export_queued: Esportazione accodata per l’elaborazione in background.
+flash.purged: '%count% voci del log HTTP eliminate.'
+flash.deleted: Voce del log HTTP eliminata.

@@ -4,7 +4,7 @@
 **Package**: `nowo-tech/http-log-bundle`  
 **Last audited**: 2026-08-03
 
-Maps **100%** of production files under `src/` (43 units). Test and demo trees are out of Packagist scope unless promoted in the spec.
+Maps **100%** of production files under `src/` (51 units). Test and demo trees are out of Packagist scope unless promoted in the spec.
 
 ## Bundle entry
 
@@ -35,6 +35,7 @@ Maps **100%** of production files under `src/` (43 units). Test and demo trees a
 | `Enum/BodyContentType.php` | Content-type enum | FR-CAP-003 |
 | `Enum/CssFramework.php` | Admin UI CSS stack | FR-UI-001 |
 | `Enum/ExportFormat.php` | Export format enum | FR-EXP-001 |
+| `View/AdminChrome.php` | Admin chrome defaults (templates, CSS class map, switches) | FR-CHR-001..FR-CHR-008 (spec 002) |
 
 ## Services
 
@@ -59,6 +60,10 @@ Maps **100%** of production files under `src/` (43 units). Test and demo trees a
 | Source file | Purpose | Requirement IDs |
 | --- | --- | --- |
 | `Form/HttpLogFilterType.php` | Admin list filters | FR-ADM-001 |
+| `Form/AbstractHttpLogActionType.php` | Base for CSRF-protected admin action forms (flat `_token`) | FR-ADM-001 |
+| `Form/HttpLogExportType.php` | Export action form (format + criteria hidden fields) | FR-EXP-001 |
+| `Form/HttpLogPurgeType.php` | Purge action form | FR-PUR-001 |
+| `Form/HttpLogDeleteType.php` | Delete-entry action form | FR-ADM-001 |
 
 ## Security
 
@@ -112,11 +117,14 @@ Maps **100%** of production files under `src/` (43 units). Test and demo trees a
 | `Resources/views/layout.html.twig` | Admin layout shell | FR-TWIG-001, FR-UI-001 |
 | `Resources/views/admin/index.html.twig` | List page | FR-ADM-001, FR-TWIG-001 |
 | `Resources/views/admin/show.html.twig` | Detail page | FR-ADM-001, FR-TWIG-001 |
-| `Resources/views/admin/_filter.html.twig` | Filter partial | FR-ADM-001, FR-TWIG-001 |
+| `Resources/views/admin/_filter.html.twig` | Filter partial | FR-ADM-001, FR-TWIG-001, FR-CHR-001 |
+| `Resources/views/admin/base.html.twig` | Page shell extending `web_ui.layout_template` | FR-UI-001, FR-CHR-005 |
+| `Resources/views/admin/_pagination.html.twig` | Default list pagination partial | FR-CHR-002 |
+| `Resources/views/admin/_macros.html.twig` | Chrome helpers (`class_attr`, `attrs`) | FR-CHR-003, FR-CHR-004 |
 
 ## Coverage summary
 
 | Metric | Value |
 | --- | --- |
-| Production units mapped | 43 |
+| Production units mapped | 51 |
 | Unmapped files under `src/` | 0 |

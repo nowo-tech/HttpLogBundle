@@ -1,9 +1,16 @@
 {% trans_default_domain 'NowoHttpLogBundle' %}
 {% import '@NowoUiKitBundle/macros/ui.html.twig' as ui %}
+{% import '@NowoHttpLogBundle/admin/_macros.html.twig' as chrome %}
 {% set _css_fw = nowo_http_log_css_framework|default('bootstrap5') %}
-<div class="nowo-ui-filter card mb-4">
-    <div class="card-body">
-        {{ form_start(filterForm, {attr: {class: 'nowo-ui-filter-form row g-2 align-items-end'}}) }}
+{% set _ui = nowo_http_log_ui|default(constant('Nowo\\HttpLogBundle\\View\\AdminChrome::DEFAULTS')) %}
+{% set _cls = _ui.css_classes %}
+{% set _attrs = _ui.attributes|default({}) %}
+{# Extend this partial (web_ui.templates.filter) and override the blocks below to restyle the filter. #}
+{% block nowo_http_log_filter_panel %}
+<div{{ chrome.class_attr(_cls.filter) }}{{ chrome.attrs(_attrs.filter|default({})) }}>
+    <div{{ chrome.class_attr(_cls.filter_body) }}>
+        {{ form_start(filterForm, {attr: (_cls.filter_form ? {class: _cls.filter_form} : {})|merge(_attrs.filter_form|default({}))}) }}
+            {% block nowo_http_log_filter_fields %}
             <div class="col-md-2">{{ form_row(filterForm.method) }}</div>
             <div class="col-md-2">{{ form_row(filterForm.routeName) }}</div>
             <div class="col-md-1">{{ form_row(filterForm.statusCode) }}</div>
@@ -13,9 +20,13 @@
             <div class="col-md-2">{{ form_row(filterForm.createdFrom) }}</div>
             <div class="col-md-2">{{ form_row(filterForm.createdTo) }}</div>
             <div class="col-md-3">{{ form_row(filterForm.q) }}</div>
+            {% endblock %}
+            {% block nowo_http_log_filter_actions %}
             <div class="col-md-2">
-                <button type="submit" class="{{ ui.btn('primary', null, _css_fw) }} nowo-ui-btn-filter">{{ 'admin.action.filter'|trans({}, 'NowoHttpLogBundle') }}</button>
+                <button type="submit" class="{{ _cls.btn_filter ?? ui.btn('primary', null, _css_fw) }} nowo-ui-btn-filter">{{ 'admin.action.filter'|trans({}, 'NowoHttpLogBundle') }}</button>
             </div>
+            {% endblock %}
         {{ form_end(filterForm) }}
     </div>
 </div>
+{% endblock %}

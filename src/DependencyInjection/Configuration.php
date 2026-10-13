@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\DependencyInjection;
 
 use Nowo\HttpLogBundle\Enum\CssFramework;
+use Nowo\HttpLogBundle\View\AdminChrome;
+use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 
+use function array_diff;
+use function array_keys;
+use function implode;
 use function is_int;
 use function is_string;
 
@@ -138,6 +143,42 @@ final class Configuration implements ConfigurationInterface
                             ->defaultValue(50)
                             ->min(1)
                         ->end()
+                        ->append($this->templatesNode())
+                        ->append($this->cssClassesNode())
+                        ->arrayNode('attributes')
+                            ->info('Extra HTML attributes per chrome element (e.g. results: { data-testid: http-log-results }).')
+                            ->useAttributeAsKey('element')
+                            ->normalizeKeys(false)
+                            ->arrayPrototype()
+                                ->useAttributeAsKey('name')
+                                ->normalizeKeys(false)
+                                ->scalarPrototype()->end()
+                            ->end()
+                            ->defaultValue([])
+                            ->validate()
+                                ->ifTrue(static fn (array $v): bool => array_diff(array_keys($v), AdminChrome::ATTRIBUTE_TARGETS) !== [])
+                                ->thenInvalid('web_ui.attributes keys must be one of: ' . implode(', ', AdminChrome::ATTRIBUTE_TARGETS) . '; got %s')
+                            ->end()
+                        ->end()
+                        ->booleanNode('ui_kit_stylesheet')
+                            ->info('Append UiKit nowo-ui.css from admin/base.html.twig. Disable when the host layout ships its own admin CSS.')
+                            ->defaultTrue()
+                        ->end()
+                        ->booleanNode('header_actions_in_layout')
+                            ->info('When true, pages skip the inline header actions (export/purge, back link); the layout renders {{ block(\'nowo_http_log_header_actions\') }}.')
+                            ->defaultFalse()
+                        ->end()
+                        ->arrayNode('confirm_attributes')
+                            ->info('Form attributes replacing the inline onsubmit confirm() on purge/delete forms (CSP-friendly). "{message}" is replaced by the translated prompt.')
+                            ->useAttributeAsKey('name')
+                            ->normalizeKeys(false)
+                            ->scalarPrototype()->end()
+                            ->defaultValue([])
+                        ->end()
+                        ->booleanNode('ui_kit_row_actions')
+                            ->info('Render list row actions with @NowoUiKitBundle/partials/_row_actions.html.twig (honours nowo_ui_kit.row_actions_display; UiKit >= 1.6).')
+                            ->defaultFalse()
+                        ->end()
                     ->end()
                 ->end()
                 ->arrayNode('security')
@@ -154,5 +195,35 @@ final class Configuration implements ConfigurationInterface
             ->end();
 
         return $treeBuilder;
+    }
+
+    private function templatesNode(): ArrayNodeDefinition
+    {
+        $node     = (new TreeBuilder('templates'))->getRootNode();
+        $children = $node
+            ->info('Twig templates the admin controller renders / the pages include.')
+            ->addDefaultsIfNotSet()
+            ->children();
+
+        foreach (AdminChrome::DEFAULT_TEMPLATES as $key => $default) {
+            $children->scalarNode($key)->defaultValue($default)->cannotBeEmpty()->end();
+        }
+
+        return $node;
+    }
+
+    private function cssClassesNode(): ArrayNodeDefinition
+    {
+        $node     = (new TreeBuilder('css_classes'))->getRootNode();
+        $children = $node
+            ->info('CSS class map for the admin chrome. null = UiKit macro for css_framework; "" = no class attribute / wrapper.')
+            ->addDefaultsIfNotSet()
+            ->children();
+
+        foreach (AdminChrome::DEFAULT_CSS_CLASSES as $key => $default) {
+            $children->scalarNode($key)->defaultValue($default)->end();
+        }
+
+        return $node;
     }
 }

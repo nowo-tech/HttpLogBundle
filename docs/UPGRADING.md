@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.3.0](#to-130)
 - [To 1.2.0](#to-120)
 - [To 1.1.7](#to-117)
 - [1.1.6](#116)
@@ -19,6 +20,23 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 - [1.0.0](#100)
 
 ## Unreleased
+
+## To 1.3.0
+
+From **1.2.0** — admin chrome hooks (blocks, class map, partial paths) and a pagination fix. No breaking change: with no new keys the admin pages render the same markup, except that pagination links now keep the active filters.
+
+```bash
+composer update nowo-tech/http-log-bundle
+php bin/console cache:clear
+```
+
+- **Nothing to do** if you use the bundle templates as they are.
+- **You forked `admin/index.html.twig`, `admin/show.html.twig` or `admin/_filter.html.twig`:** your copies keep working (same variables, routes, CSRF ids). Review them against [USAGE.md — Customising the admin chrome](USAGE.md#customising-the-admin-chrome): most chrome-only forks can be deleted in favour of `web_ui.css_classes` / `web_ui.attributes` / `web_ui.templates` / `header_actions_in_layout` / `confirm_attributes`, or shrunk to `{% extends '@!NowoHttpLogBundle/admin/index.html.twig' %}` plus one or two `nowo_http_log_*` blocks.
+- **Host layout with a page-header actions slot:** set `web_ui.header_actions_in_layout: true` and render `{{ block('nowo_http_log_header_actions') }}` (guarded by `is defined`) from your layout or bridge.
+- **Strict CSP:** set `web_ui.confirm_attributes` (e.g. `data-controller`, `data-action`, `data-…-message-value: '{message}'`) to drop the inline `onsubmit` handlers.
+- **Flash messages** are now translated (`flash.*` keys). If you asserted the English texts in other locales, update the assertions or override the keys in `translations/NowoHttpLogBundle.<locale>.yaml`. The de / fr / it / nl / pt admin strings are now translated too; override keys you want to keep in English.
+- **Pagination now keeps the filters** (bug fix): links carry `http_log_filter[field]=value` instead of flat `field=value`. If you forked `admin/index.html.twig` or wrote your own pagination partial, build the links from the `query` variable the list page now passes to `web_ui.templates.pagination` (`{http_log_filter: {…}}`, dates as `Y-m-d\TH:i`) — or switch to the bundle page plus `templates.pagination` — otherwise page 2 still loses the filters. Bookmarked URLs with the old flat keys simply open unfiltered, as before.
+- `ui_kit_row_actions: true` needs `nowo-tech/ui-kit-bundle` >= 1.6 (`_row_actions` partial).
 
 ## To 1.2.0
 

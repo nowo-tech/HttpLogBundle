@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.3.0] - 2026-10-13](#130---2026-10-13)
 - [[1.2.0] - 2026-10-09](#120---2026-10-09)
 - [[1.1.7] - 2026-09-27](#117---2026-09-27)
 - [[1.1.6] - 2026-09-24](#116---2026-09-24)
@@ -23,9 +24,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-13
+
+Admin chrome hooks (spec [002](../specs/002-admin-chrome-hooks/spec.md)): hosts theme the admin pages from config, blocks and partial paths instead of forking them. Default output is unchanged (whitespace-equivalent to 1.2.0, golden-file tests) except the pagination links, which now keep the filters (see Fixed).
+
+### Added
+
+- **Twig blocks** around every chrome region of `admin/index.html.twig` (page header / intro, filter, toolbar, summary, header actions and each export / purge action, table, table head, table row, row actions, empty state, pagination), `admin/show.html.twig` (page header / intro, header actions, details, each detail section, delete form) and `admin/_filter.html.twig` (panel, fields, actions).
+- **`web_ui.templates`** (`index`, `show`, `filter`, `pagination`): page and partial paths. The pagination partial (new `admin/_pagination.html.twig`) receives a UiKit `_pagination` compatible contract (`pagination`, `item_count`, `route`, `query`, …).
+- **`web_ui.css_classes`**: strict CSS class map, defaults equal to the shipped classes; `null` keeps the UiKit macro for `css_framework` (`ui.btn`, `ui.row_actions`), `''` drops the attribute; optional `results` / `show` wrappers.
+- **`web_ui.attributes`**: extra HTML attributes (e.g. `data-testid`) on filter, results, toolbar, table, detail and delete-form elements.
+- **`web_ui.ui_kit_stylesheet`** (default `true`), **`web_ui.header_actions_in_layout`** (default `false`; the bundle layout renders `block('nowo_http_log_header_actions')` in its header), **`web_ui.confirm_attributes`** (CSP-friendly replacement for the inline `onsubmit` confirm; `{message}` placeholder), **`web_ui.ui_kit_row_actions`** (UiKit `_row_actions` partial).
+- `@!NowoHttpLogBundle` Twig namespace (bundle originals) so `templates/bundles/NowoHttpLogBundle/` overrides can extend the page they replace and override only blocks.
+- `Nowo\HttpLogBundle\View\AdminChrome` (defaults + `fromWebUi()`); the controller passes the resolved chrome to Twig as `nowo_http_log_ui`.
+- Translation keys `flash.export_queued`, `flash.purged`, `flash.deleted` in all seven catalogues.
+- Docs: USAGE "Customising the admin chrome" (blocks, thin forks, header actions bridge, pagination contract, Symfony Beacon per-fork verdict and config); CONFIGURATION "Admin chrome hooks (1.3.0)".
+
 ### Changed
 
+- Admin flash messages are translated through the `NowoHttpLogBundle` catalogue (English text unchanged; English fallback when no translator is available).
+- German, French, Italian, Dutch and Portuguese catalogues: the admin strings are now translated (they still held English placeholders).
+- The container parameter `nowo_http_log.web_ui` escapes `%` in string values (so class names such as `w-[50%]` survive parameter resolution).
 - Development: `composer.json` pins `config.platform.php` to 8.2.0 so the committed lock stays installable on the minimum PHP; CI overrides the platform per matrix cell.
+
+### Fixed
+
+- **Pagination kept dropping the filters:** list pagination links carried the criteria as flat query keys (`?method=GET&page=2`, dates lost entirely) while the GET filter form reads `http_log_filter[...]`, so page 2 was unfiltered. Links now carry the active criteria in the form's shape (`?http_log_filter[method]=GET&http_log_filter[createdFrom]=2026-08-01T09:30&page=2`); the same `query` is passed to custom pagination partials.
+
+### Tests
+
+- `tests/Integration/PaginationKeepsFiltersTest.php`: real controller, filter form and templates — filtered list, follow the "next" link, page 2 is still filtered.
+- `tests/Integration/AdminChromeRenderTest.php` renders the real templates (forms, routing, translations, UiKit macros) against 1.2.0 golden files and covers every hook; configuration, extension, compiler-pass and controller tests for the new options. Coverage stays at 100 % lines.
+
+[1.3.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.3.0
 
 ## [1.2.0] - 2026-10-09
 

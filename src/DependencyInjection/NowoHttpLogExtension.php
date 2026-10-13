@@ -8,6 +8,7 @@ use LogicException;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
 use Nowo\HttpLogBundle\Security\ConfigurableHttpLogAccessChecker;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
+use Nowo\HttpLogBundle\View\AdminChrome;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
@@ -16,8 +17,10 @@ use Symfony\Component\DependencyInjection\Extension\PrependExtensionInterface;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 
 use function array_key_exists;
+use function array_map;
 use function is_array;
 use function is_string;
+use function str_replace;
 
 /**
  * Loads bundle configuration and registers services.
@@ -211,10 +214,11 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         $container->setParameter($alias . '.redaction.headers', $config['redaction']['headers']);
         $container->setParameter($alias . '.redaction.query_params', $config['redaction']['query_params']);
         $container->setParameter($alias . '.redaction.json_paths', $config['redaction']['json_paths']);
-        $container->setParameter($alias . '.web_ui', $config['web_ui']);
+        $container->setParameter($alias . '.web_ui', self::escapeParameterValue($config['web_ui']));
         $container->setParameter($alias . '.web_ui.enabled', $config['web_ui']['enabled']);
         $container->setParameter($alias . '.web_ui.path_prefix', $config['web_ui']['path_prefix']);
         $container->setParameter($alias . '.web_ui.page_size', $config['web_ui']['page_size']);
+        $container->setParameter($alias . '.web_ui.chrome', self::escapeParameterValue(AdminChrome::fromWebUi($config['web_ui'])));
         $container->setParameter($alias . '.security', $config['security']);
         $container->setParameter($alias . '.security.allow_unauthenticated', $config['security']['allow_unauthenticated']);
 
@@ -223,6 +227,22 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         }
 
         $this->registerAccessChecker($container, $config['security']);
+    }
+
+    /**
+     * Escape "%" so container parameter resolution keeps literal values (e.g. "w-[50%]").
+     */
+    private static function escapeParameterValue(mixed $value): mixed
+    {
+        if (is_string($value)) {
+            return str_replace('%', '%%', $value);
+        }
+
+        if (is_array($value)) {
+            return array_map(self::escapeParameterValue(...), $value);
+        }
+
+        return $value;
     }
 
     public function getAlias(): string

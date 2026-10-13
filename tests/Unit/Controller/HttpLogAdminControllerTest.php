@@ -13,6 +13,7 @@ use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
 use Nowo\HttpLogBundle\Service\ExportHttpLogService;
 use Nowo\HttpLogBundle\Service\PurgeHttpLogService;
+use Nowo\HttpLogBundle\View\AdminChrome;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
@@ -36,6 +37,7 @@ use Symfony\Component\Routing\RouterInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
 final class HttpLogAdminControllerTest extends TestCase
@@ -187,6 +189,78 @@ final class HttpLogAdminControllerTest extends TestCase
         $response = $controller->show(7);
 
         self::assertSame('show', $response->getContent());
+    }
+
+    #[Test]
+    public function showRendersConfiguredTemplateWithAdminChrome(): void
+    {
+        $entry      = $this->createEntry(7);
+        $repository = $this->createMock(HttpLogEntryRepository::class);
+        $repository->method('find')->willReturn($entry);
+
+        $adminUi = AdminChrome::fromWebUi([
+            'templates'   => ['show' => 'host/http_log/show.html.twig'],
+            'css_classes' => ['show' => 'panel'],
+        ]);
+
+        $twig = $this->createMock(Environment::class);
+        $twig->expects(self::once())
+            ->method('render')
+            ->with(
+                'host/http_log/show.html.twig',
+                self::callback(static fn (array $parameters): bool => $parameters['nowo_http_log_ui'] === $adminUi),
+            )
+            ->willReturn('show');
+
+        $controller = $this->createController(repository: $repository, twig: $twig, adminUi: $adminUi);
+
+        self::assertSame('show', $controller->show(7)->getContent());
+    }
+
+    #[Test]
+    public function indexFallsBackToDefaultTemplateWhenConfiguredPathIsInvalid(): void
+    {
+        $request = Request::create('/admin/http-log', 'GET');
+
+        $form = $this->createMock(FormInterface::class);
+        $form->method('isSubmitted')->willReturn(false);
+        $form->method('createView')->willReturn(new FormView());
+
+        $repository = $this->createMock(HttpLogEntryRepository::class);
+        $repository->method('findFiltered')->willReturn(['items' => [], 'total' => 0]);
+
+        $twig = $this->createMock(Environment::class);
+        $twig->expects(self::once())
+            ->method('render')
+            ->with('@NowoHttpLogBundle/admin/index.html.twig', self::callback(static fn (array $parameters): bool => isset($parameters['nowo_http_log_ui'])))
+            ->willReturn('index');
+
+        $controller = $this->createController(
+            request: $request,
+            repository: $repository,
+            formFactory: $this->createIndexFormFactory($form),
+            twig: $twig,
+            adminUi: ['templates' => 'invalid'],
+        );
+
+        self::assertSame('index', $controller->index($request)->getContent());
+    }
+
+    #[Test]
+    public function flashMessagesUseTheTranslatorWhenAvailable(): void
+    {
+        $request = Request::create('/admin/http-log/1/delete', 'POST', ['_token' => 'valid-token']);
+
+        $translator = $this->createMock(TranslatorInterface::class);
+        $translator->expects(self::once())
+            ->method('trans')
+            ->with('flash.deleted', [], 'NowoHttpLogBundle')
+            ->willReturn('Entrada del registro HTTP eliminada.');
+
+        $controller = $this->createController(request: $request, translator: $translator);
+        $controller->delete(1, $request);
+
+        self::assertSame(['Entrada del registro HTTP eliminada.'], $request->getSession()->getFlashBag()->get('success'));
     }
 
     #[Test]
@@ -536,6 +610,8 @@ final class HttpLogAdminControllerTest extends TestCase
         bool $csrfValid = true,
         int $maxSyncExportRows = 10,
         int $pageSize = 20,
+        array $adminUi = AdminChrome::DEFAULTS,
+        ?TranslatorInterface $translator = null,
     ): HttpLogAdminController {
         $request ??= Request::create('/admin/http-log', 'GET');
         $session = new Session(new MockArraySessionStorage());
@@ -572,6 +648,8 @@ final class HttpLogAdminControllerTest extends TestCase
             $allowUnauthenticated,
             $maxSyncExportRows,
             $pageSize,
+            $adminUi,
+            $translator,
         );
         $controller->setContainer($container);
 

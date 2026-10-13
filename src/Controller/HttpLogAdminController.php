@@ -19,6 +19,7 @@ use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
 use Nowo\HttpLogBundle\Service\ExportHttpLogService;
 use Nowo\HttpLogBundle\Service\PurgeHttpLogService;
+use Nowo\HttpLogBundle\View\AdminChrome;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -26,13 +27,17 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
+use function array_map;
 use function in_array;
 use function is_array;
 use function is_scalar;
 use function is_string;
 use function max;
 use function sprintf;
+use function strtr;
+use function strval;
 use function sys_get_temp_dir;
 use function uniqid;
 
@@ -61,6 +66,9 @@ final class HttpLogAdminController extends AbstractController
         private readonly bool $allowUnauthenticated,
         private readonly int $maxSyncExportRows,
         private readonly int $pageSize,
+        /** @var array<string, mixed> Resolved admin chrome ({@see AdminChrome::fromWebUi()}). */
+        private readonly array $adminUi = AdminChrome::DEFAULTS,
+        private readonly ?TranslatorInterface $translator = null,
     ) {
     }
 
@@ -80,7 +88,7 @@ final class HttpLogAdminController extends AbstractController
         $page           = max(1, $request->query->getInt('page', 1));
         $result         = $this->repository->findFiltered($criteria, $page, $this->pageSize);
 
-        $response = $this->render('@NowoHttpLogBundle/admin/index.html.twig', [
+        $response = $this->render($this->template('index'), [
             'filterForm'    => $filterForm->createView(),
             'exportCsvForm' => $this->createForm(HttpLogExportType::class, null, [
                 'action'   => $this->generateUrl('nowo_http_log_admin_export'),
@@ -95,11 +103,12 @@ final class HttpLogAdminController extends AbstractController
             'purgeForm' => $this->createForm(HttpLogPurgeType::class, null, [
                 'action' => $this->generateUrl('nowo_http_log_admin_purge'),
             ])->createView(),
-            'entries'  => $result['items'],
-            'total'    => $result['total'],
-            'page'     => $page,
-            'pageSize' => $this->pageSize,
-            'criteria' => $criteria,
+            'entries'          => $result['items'],
+            'total'            => $result['total'],
+            'page'             => $page,
+            'pageSize'         => $this->pageSize,
+            'criteria'         => $criteria,
+            'nowo_http_log_ui' => $this->adminUi,
         ]);
         $this->repository->detachAll($result['items']);
 
@@ -116,11 +125,12 @@ final class HttpLogAdminController extends AbstractController
             throw $this->createNotFoundException();
         }
 
-        $response = $this->render('@NowoHttpLogBundle/admin/show.html.twig', [
+        $response = $this->render($this->template('show'), [
             'entry'      => $entry,
             'deleteForm' => $this->createForm(HttpLogDeleteType::class, null, [
                 'action' => $this->generateUrl('nowo_http_log_admin_delete', ['id' => $entry->getId()]),
             ])->createView(),
+            'nowo_http_log_ui' => $this->adminUi,
         ]);
         $this->repository->detachAll([$entry]);
 
@@ -144,7 +154,7 @@ final class HttpLogAdminController extends AbstractController
         if ($count > $this->maxSyncExportRows) {
             $outputPath = sprintf('%s/http-log-export-%s.%s', sys_get_temp_dir(), uniqid('', true), $format->value);
             $this->messageBus->dispatch(new ExportHttpLogMessage($criteria, $format->value, $outputPath));
-            $this->addFlash('success', 'Export queued for background processing.');
+            $this->addFlash('success', $this->translate('flash.export_queued', 'Export queued for background processing.'));
 
             return $this->redirectToRoute('nowo_http_log_admin_index', $this->queryParamsFromCriteria($criteria));
         }
@@ -177,7 +187,7 @@ final class HttpLogAdminController extends AbstractController
             $purged = $this->purgeService->purgeByRetention();
         }
 
-        $this->addFlash('success', sprintf('Purged %d HTTP log entries.', $purged));
+        $this->addFlash('success', $this->translate('flash.purged', 'Purged %count% HTTP log entries.', ['%count%' => $purged]));
 
         return $this->redirectToRoute('nowo_http_log_admin_index');
     }
@@ -189,9 +199,34 @@ final class HttpLogAdminController extends AbstractController
         $this->validateActionForm($request, HttpLogDeleteType::class);
 
         $this->repository->deleteByIds([$id]);
-        $this->addFlash('success', 'HTTP log entry deleted.');
+        $this->addFlash('success', $this->translate('flash.deleted', 'HTTP log entry deleted.'));
 
         return $this->redirectToRoute('nowo_http_log_admin_index');
+    }
+
+    /**
+     * Template path from web_ui.templates (spec 002), falling back to the bundle default.
+     */
+    private function template(string $name): string
+    {
+        $templates = $this->adminUi['templates'] ?? [];
+        $template  = is_array($templates) ? ($templates[$name] ?? null) : null;
+
+        return is_string($template) && $template !== '' ? $template : AdminChrome::DEFAULT_TEMPLATES[$name];
+    }
+
+    /**
+     * Flash messages use the NowoHttpLogBundle catalogue; the English fallback keeps apps without a translator working.
+     *
+     * @param array<string, int|string> $parameters
+     */
+    private function translate(string $key, string $fallback, array $parameters = []): string
+    {
+        if (!$this->translator instanceof TranslatorInterface) {
+            return strtr($fallback, array_map(strval(...), $parameters));
+        }
+
+        return $this->translator->trans($key, $parameters, 'NowoHttpLogBundle');
     }
 
     private function denyUnlessGrantedAdmin(): void

@@ -1339,6 +1339,56 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         layout_template?: scalar|Param|null, // Default: "@NowoHttpLogBundle/layout.html.twig"
  *         css_framework?: "bootstrap5"|"tailwind"|"foundation"|"custom"|Param, // Default: "bootstrap5"
  *         page_size?: int|Param, // Default: 50
+ *         templates?: array{ // Twig templates the admin controller renders / the pages include.
+ *             index?: scalar|Param|null, // Default: "@NowoHttpLogBundle/admin/index.html.twig"
+ *             show?: scalar|Param|null, // Default: "@NowoHttpLogBundle/admin/show.html.twig"
+ *             filter?: scalar|Param|null, // Default: "@NowoHttpLogBundle/admin/_filter.html.twig"
+ *             pagination?: scalar|Param|null, // Default: "@NowoHttpLogBundle/admin/_pagination.html.twig"
+ *         },
+ *         css_classes?: array{ // CSS class map for the admin chrome. null = UiKit macro for css_framework; "" = no class attribute / wrapper.
+ *             filter?: scalar|Param|null, // Default: "nowo-ui-filter card mb-4"
+ *             filter_body?: scalar|Param|null, // Default: "card-body"
+ *             filter_form?: scalar|Param|null, // Default: "nowo-ui-filter-form row g-2 align-items-end"
+ *             btn_filter?: scalar|Param|null, // Default: null
+ *             results?: scalar|Param|null, // Default: ""
+ *             toolbar?: scalar|Param|null, // Default: "nowo-ui-toolbar d-flex justify-content-between align-items-center mb-3"
+ *             summary?: scalar|Param|null, // Default: "nowo-ui-summary mb-0"
+ *             actions?: scalar|Param|null, // Default: "nowo-ui-actions"
+ *             action_form?: scalar|Param|null, // Default: "d-inline"
+ *             action_form_gap?: scalar|Param|null, // Default: "ms-1"
+ *             btn_export?: scalar|Param|null, // Default: null
+ *             btn_purge?: scalar|Param|null, // Default: null
+ *             table_wrapper?: scalar|Param|null, // Default: "nowo-ui-table-wrap table-responsive"
+ *             table?: scalar|Param|null, // Default: "table table-striped table-sm nowo-ui-table"
+ *             table_head_row?: scalar|Param|null, // Default: ""
+ *             table_head_cell?: scalar|Param|null, // Default: ""
+ *             table_row?: scalar|Param|null, // Default: ""
+ *             table_cell?: scalar|Param|null, // Default: ""
+ *             method_badge?: scalar|Param|null, // Default: "badge bg-secondary"
+ *             path_cell?: scalar|Param|null, // Default: "text-truncate"
+ *             row_actions?: scalar|Param|null, // Default: null
+ *             btn_view?: scalar|Param|null, // Default: null
+ *             empty_cell?: scalar|Param|null, // Default: "text-muted"
+ *             pagination?: scalar|Param|null, // Default: "nowo-ui-pagination mt-3"
+ *             pagination_list?: scalar|Param|null, // Default: "pagination"
+ *             page_item?: scalar|Param|null, // Default: "page-item"
+ *             page_link?: scalar|Param|null, // Default: "page-link"
+ *             show?: scalar|Param|null, // Default: ""
+ *             back?: scalar|Param|null, // Default: "nowo-ui-back mb-3"
+ *             back_link?: scalar|Param|null, // Default: ""
+ *             details?: scalar|Param|null, // Default: "row nowo-ui-details"
+ *             detail_term?: scalar|Param|null, // Default: "col-sm-3"
+ *             detail_value?: scalar|Param|null, // Default: "col-sm-9"
+ *             section_title?: scalar|Param|null, // Default: "h5 nowo-ui-section-title"
+ *             code?: scalar|Param|null, // Default: "nowo-ui-code bg-light p-3"
+ *             delete_form?: scalar|Param|null, // Default: "mt-4"
+ *             btn_delete?: scalar|Param|null, // Default: null
+ *         },
+ *         attributes?: array<string, array<string, scalar|Param|null>>,
+ *         ui_kit_stylesheet?: bool|Param, // Append UiKit nowo-ui.css from admin/base.html.twig. Disable when the host layout ships its own admin CSS. // Default: true
+ *         header_actions_in_layout?: bool|Param, // When true, pages skip the inline header actions (export/purge, back link); the layout renders {{ block('nowo_http_log_header_actions') }}. // Default: false
+ *         confirm_attributes?: array<string, scalar|Param|null>,
+ *         ui_kit_row_actions?: bool|Param, // Render list row actions with @NowoUiKitBundle/partials/_row_actions.html.twig (honours nowo_ui_kit.row_actions_display; UiKit >= 1.6). // Default: false
  *     },
  *     security?: array{
  *         access_roles?: list<scalar|Param|null>,

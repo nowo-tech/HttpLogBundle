@@ -1,42 +1,45 @@
-admin.title: HTTP Log
-admin.index.title: HTTP Log Entries
-admin.show.title: 'HTTP Log Entry #%id%'
-admin.index.total: '%count% entries'
-admin.index.empty: No HTTP log entries found.
-admin.column.id: ID
-admin.column.created_at: Created at
-admin.column.method: Method
-admin.column.path: Path
-admin.column.status: Status
-admin.column.duration: Duration
-admin.column.client_ip: Client IP
-admin.field.request_id: Request ID
-admin.field.url: URL
-admin.field.route: Route
-admin.field.user: User
-admin.field.content_type: Content type
-admin.field.query_params: Query parameters
-admin.field.request_headers: Request headers
-admin.field.response_headers: Response headers
-admin.field.request_body: Request body
-admin.field.response_body: Response body
-admin.field.truncated: truncated
-admin.action.view: View
-admin.action.back: Back to list
-admin.action.filter: Filter
-admin.action.export_csv: Export CSV
-admin.action.export_json: Export JSON
-admin.action.purge: Purge old entries
-admin.action.delete: Delete entry
-admin.purge.confirm: Purge HTTP log entries matching the retention policy?
-admin.delete.confirm: Delete this HTTP log entry?
-admin.pagination.page: 'Page %page% of %total%'
-filter.method: Method
-filter.route_name: Route name
-filter.status_code: Status code
-filter.client_ip: Client IP
-filter.path: Path
-filter.body_content_type: Body type
-filter.created_from: Created from
-filter.created_to: Created to
-filter.q: Search
+admin.title: 'HTTP-log'
+admin.index.title: 'HTTP-logregels'
+admin.show.title: 'HTTP-logregel #%id%'
+admin.index.total: '%count% regels'
+admin.index.empty: 'Geen HTTP-logregels gevonden.'
+admin.column.id: 'ID'
+admin.column.created_at: 'Aangemaakt op'
+admin.column.method: 'Methode'
+admin.column.path: 'Pad'
+admin.column.status: 'Status'
+admin.column.duration: 'Duur'
+admin.column.client_ip: 'Client-IP'
+admin.field.request_id: 'Request-ID'
+admin.field.url: 'URL'
+admin.field.route: 'Route'
+admin.field.user: 'Gebruiker'
+admin.field.content_type: 'Inhoudstype'
+admin.field.query_params: 'Queryparameters'
+admin.field.request_headers: 'Request-headers'
+admin.field.response_headers: 'Response-headers'
+admin.field.request_body: 'Request-body'
+admin.field.response_body: 'Response-body'
+admin.field.truncated: 'ingekort'
+admin.action.view: 'Bekijken'
+admin.action.back: 'Terug naar lijst'
+admin.action.filter: 'Filteren'
+admin.action.export_csv: 'CSV exporteren'
+admin.action.export_json: 'JSON exporteren'
+admin.action.purge: 'Oude regels opschonen'
+admin.action.delete: 'Regel verwijderen'
+admin.purge.confirm: 'HTTP-logregels opschonen volgens het bewaarbeleid?'
+admin.delete.confirm: 'Deze HTTP-logregel verwijderen?'
+admin.pagination.page: 'Pagina %page% van %total%'
+filter.method: 'Methode'
+filter.route_name: 'Routenaam'
+filter.status_code: 'Statuscode'
+filter.client_ip: 'Client-IP'
+filter.path: 'Pad'
+filter.body_content_type: 'Bodytype'
+filter.created_from: 'Aangemaakt vanaf'
+filter.created_to: 'Aangemaakt tot'
+filter.q: 'Zoeken'
+flash.export_queued: Export in de wachtrij gezet voor verwerking op de achtergrond.
+flash.purged: '%count% HTTP-logregels opgeschoond.'
+flash.deleted: HTTP-logregel verwijderd.

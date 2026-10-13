@@ -23,6 +23,7 @@ Http Log Bundle captures each HTTP exchange on kernel terminate, classifies resp
 - ✅ Redaction for headers, query parameters, and JSON paths
 - ✅ Doctrine entity `HttpLogEntry` with indexes for filter queries
 - ✅ Secured admin UI (filter, detail, export, purge) — REQ-UI-002
+- ✅ Admin chrome hooks: Twig blocks, CSS class / attribute maps and partial paths so hosts theme the UI without forking pages ([USAGE](docs/USAGE.md#customising-the-admin-chrome))
 - ✅ CLI: `nowo:http-log:export`, `nowo:http-log:purge`
 - ✅ Messenger async: persist, export, purge handlers
 - ✅ Ignore routes (`fnmatch`) and path prefixes (admin UI excluded by default)

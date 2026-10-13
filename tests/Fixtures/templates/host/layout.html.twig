@@ -1,0 +1,6 @@
+{# Beacon-like layout bridge (web_ui.layout_template): hands the page header actions to the host header slot. #}
+{% extends 'host/base.html.twig' %}
+
+{% set host_header_actions %}{% if block('nowo_http_log_header_actions') is defined %}{{ block('nowo_http_log_header_actions') }}{% endif %}{% endset %}
+
+{% block body %}{% block nowo_ui_content %}{% endblock %}{% endblock %}

@@ -49,7 +49,10 @@ final class TwigPathsPass implements CompilerPassInterface
             }
         }
 
+        // Spec 002: "@!NowoHttpLogBundle" always resolves to the bundle originals, so a host override in
+        // templates/bundles/NowoHttpLogBundle/ can extend the page it replaces and override only blocks.
         // @igor-ignore - Compile-time DI definition wiring; runs once at container build
+        $definition->addMethodCall('addPath', [$viewsPath, '!' . self::TWIG_NAMESPACE]);
 
         // @igor-ignore - Compile-time DI definition wiring; runs once at container build
         $definition->addMethodCall('addPath', [$viewsPath, self::TWIG_NAMESPACE]);

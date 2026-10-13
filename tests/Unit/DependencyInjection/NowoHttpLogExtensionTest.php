@@ -10,6 +10,7 @@ use Nowo\HttpLogBundle\DependencyInjection\Configuration;
 use Nowo\HttpLogBundle\DependencyInjection\NowoHttpLogExtension;
 use Nowo\HttpLogBundle\Security\ConfigurableHttpLogAccessChecker;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
+use Nowo\HttpLogBundle\View\AdminChrome;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
@@ -60,6 +61,31 @@ final class NowoHttpLogExtensionTest extends TestCase
             ConfigurableHttpLogAccessChecker::class,
             $container->getDefinition('nowo_http_log.access_checker.default')->getClass(),
         );
+    }
+
+    #[Test]
+    public function loadExposesEscapedAdminChromeParameter(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.environment', 'test');
+
+        (new NowoHttpLogExtension())->load([[
+            'security' => ['allow_unauthenticated' => true],
+            'web_ui'   => [
+                'css_classes'        => ['table' => 'w-[50%]'],
+                'confirm_attributes' => ['data-confirm-submit-message-value' => '{message}'],
+                'ui_kit_stylesheet'  => false,
+            ],
+        ]], $container);
+
+        $container->getParameterBag()->resolve();
+        /** @var array<string, mixed> $chrome */
+        $chrome = $container->getParameter('nowo_http_log.web_ui.chrome');
+
+        self::assertSame('w-[50%]', $chrome['css_classes']['table']);
+        self::assertSame('{message}', $chrome['confirm_attributes']['data-confirm-submit-message-value']);
+        self::assertFalse($chrome['ui_kit_stylesheet']);
+        self::assertSame(AdminChrome::DEFAULT_TEMPLATES, $chrome['templates']);
     }
 
     #[Test]

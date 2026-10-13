@@ -16,6 +16,10 @@
     <div class="nowo-ui-container container py-4">
         <header class="nowo-ui-header mb-4">
             <h1 class="nowo-ui-title">{% block page_title %}{{ 'admin.title'|trans({}, 'NowoHttpLogBundle') }}{% endblock %}</h1>
+            {# web_ui.header_actions_in_layout: pages hand their header actions to the layout (spec 002). #}
+            {% if nowo_http_log_ui.header_actions_in_layout|default(false) and block('nowo_http_log_header_actions') is defined %}
+                <div class="nowo-ui-header-actions">{{ block('nowo_http_log_header_actions') }}</div>
+            {% endif %}
         </header>
         <main class="nowo-ui-main">
             {% block nowo_ui_flashes %}

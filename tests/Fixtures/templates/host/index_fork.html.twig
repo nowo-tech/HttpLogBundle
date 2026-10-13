@@ -1,0 +1,7 @@
+{% extends '@!NowoHttpLogBundle/admin/index.html.twig' %}
+
+{% block nowo_http_log_intro %}<p class="host-intro">Every request, newest first.</p>{% endblock %}
+
+{% block nowo_http_log_row_actions %}<a class="host-view" href="{{ path('nowo_http_log_admin_show', {id: entry.id}) }}">#{{ entry.id }}</a>{% endblock %}
+
+{% block nowo_http_log_empty_state %}<tr><td class="host-empty" colspan="8">Nothing yet</td></tr>{% endblock %}

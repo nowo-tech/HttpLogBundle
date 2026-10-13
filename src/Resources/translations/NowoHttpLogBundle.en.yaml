@@ -40,3 +40,6 @@ filter.body_content_type: Body type
 filter.created_from: Created from
 filter.created_to: Created to
 filter.q: Search
+flash.export_queued: Export queued for background processing.
+flash.purged: 'Purged %count% HTTP log entries.'
+flash.deleted: HTTP log entry deleted.

@@ -1,81 +1,118 @@
 {% extends '@NowoHttpLogBundle/admin/base.html.twig' %}
 {% import '@NowoUiKitBundle/macros/ui.html.twig' as ui %}
+{% import '@NowoHttpLogBundle/admin/_macros.html.twig' as chrome %}
 {% set _css_fw = nowo_http_log_css_framework|default('bootstrap5') %}
+{% set _ui = nowo_http_log_ui|default(constant('Nowo\\HttpLogBundle\\View\\AdminChrome::DEFAULTS')) %}
+{% set _cls = _ui.css_classes %}
+{% set _attrs = _ui.attributes|default({}) %}
+{#
+  Chrome hooks (spec 002): override the nowo_http_log_* blocks in a template that extends
+  '@!NowoHttpLogBundle/admin/show.html.twig' (or set web_ui.templates.show), restyle via
+  web_ui.css_classes / web_ui.attributes.
+#}
 
 {% block title %}{{ 'admin.show.title'|trans({'%id%': entry.id}, 'NowoHttpLogBundle') }} — {{ parent() }}{% endblock %}
 
 {% block nowo_ui_content %}
-    <p class="nowo-ui-back mb-3">
-        <a href="{{ path('nowo_http_log_admin_index') }}">&larr; {{ 'admin.action.back'|trans({}, 'NowoHttpLogBundle') }}</a>
+    {% block nowo_http_log_page_header %}{% block nowo_http_log_intro %}{% endblock %}{% endblock %}
+    {% if not _ui.header_actions_in_layout %}
+    {% block nowo_http_log_header_actions %}
+    <p{{ chrome.class_attr(_cls.back) }}>
+        <a{{ chrome.class_attr(_cls.back_link) }} href="{{ path('nowo_http_log_admin_index') }}">&larr; {{ 'admin.action.back'|trans({}, 'NowoHttpLogBundle') }}</a>
     </p>
+    {% endblock %}
+    {% endif %}
 
-    <dl class="row nowo-ui-details">
-        <dt class="col-sm-3">{{ 'admin.column.id'|trans({}, 'NowoHttpLogBundle') }}</dt>
-        <dd class="col-sm-9">{{ entry.id }}</dd>
+    {% set _show_wrapper = _cls.show or _attrs.show|default({}) is not empty %}
+    {% if _show_wrapper %}<div{{ chrome.class_attr(_cls.show) }}{{ chrome.attrs(_attrs.show|default({})) }}>{% endif %}
+    {% block nowo_http_log_details %}
+    <dl{{ chrome.class_attr(_cls.details) }}{{ chrome.attrs(_attrs.details|default({})) }}>
+        <dt{{ chrome.class_attr(_cls.detail_term) }}>{{ 'admin.column.id'|trans({}, 'NowoHttpLogBundle') }}</dt>
+        <dd{{ chrome.class_attr(_cls.detail_value) }}>{{ entry.id }}</dd>
 
-        <dt class="col-sm-3">{{ 'admin.field.request_id'|trans({}, 'NowoHttpLogBundle') }}</dt>
-        <dd class="col-sm-9"><code>{{ entry.requestId }}</code></dd>
+        <dt{{ chrome.class_attr(_cls.detail_term) }}>{{ 'admin.field.request_id'|trans({}, 'NowoHttpLogBundle') }}</dt>
+        <dd{{ chrome.class_attr(_cls.detail_value) }}><code>{{ entry.requestId }}</code></dd>
 
-        <dt class="col-sm-3">{{ 'admin.column.created_at'|trans({}, 'NowoHttpLogBundle') }}</dt>
-        <dd class="col-sm-9">{{ entry.createdAt|date('Y-m-d H:i:s') }}</dd>
+        <dt{{ chrome.class_attr(_cls.detail_term) }}>{{ 'admin.column.created_at'|trans({}, 'NowoHttpLogBundle') }}</dt>
+        <dd{{ chrome.class_attr(_cls.detail_value) }}>{{ entry.createdAt|date('Y-m-d H:i:s') }}</dd>
 
-        <dt class="col-sm-3">{{ 'admin.column.method'|trans({}, 'NowoHttpLogBundle') }}</dt>
-        <dd class="col-sm-9">{{ entry.method }}</dd>
+        <dt{{ chrome.class_attr(_cls.detail_term) }}>{{ 'admin.column.method'|trans({}, 'NowoHttpLogBundle') }}</dt>
+        <dd{{ chrome.class_attr(_cls.detail_value) }}>{{ entry.method }}</dd>
 
-        <dt class="col-sm-3">{{ 'admin.field.url'|trans({}, 'NowoHttpLogBundle') }}</dt>
-        <dd class="col-sm-9"><code>{{ entry.scheme }}://{{ entry.host }}{{ entry.path }}</code></dd>
+        <dt{{ chrome.class_attr(_cls.detail_term) }}>{{ 'admin.field.url'|trans({}, 'NowoHttpLogBundle') }}</dt>
+        <dd{{ chrome.class_attr(_cls.detail_value) }}><code>{{ entry.scheme }}://{{ entry.host }}{{ entry.path }}</code></dd>
 
-        <dt class="col-sm-3">{{ 'admin.field.route'|trans({}, 'NowoHttpLogBundle') }}</dt>
-        <dd class="col-sm-9">{{ entry.routeName }}</dd>
+        <dt{{ chrome.class_attr(_cls.detail_term) }}>{{ 'admin.field.route'|trans({}, 'NowoHttpLogBundle') }}</dt>
+        <dd{{ chrome.class_attr(_cls.detail_value) }}>{{ entry.routeName }}</dd>
 
-        <dt class="col-sm-3">{{ 'admin.column.status'|trans({}, 'NowoHttpLogBundle') }}</dt>
-        <dd class="col-sm-9">{{ entry.statusCode }}</dd>
+        <dt{{ chrome.class_attr(_cls.detail_term) }}>{{ 'admin.column.status'|trans({}, 'NowoHttpLogBundle') }}</dt>
+        <dd{{ chrome.class_attr(_cls.detail_value) }}>{{ entry.statusCode }}</dd>
 
-        <dt class="col-sm-3">{{ 'admin.column.duration'|trans({}, 'NowoHttpLogBundle') }}</dt>
-        <dd class="col-sm-9">{{ entry.durationMs|number_format(2) }} ms</dd>
+        <dt{{ chrome.class_attr(_cls.detail_term) }}>{{ 'admin.column.duration'|trans({}, 'NowoHttpLogBundle') }}</dt>
+        <dd{{ chrome.class_attr(_cls.detail_value) }}>{{ entry.durationMs|number_format(2) }} ms</dd>
 
-        <dt class="col-sm-3">{{ 'admin.column.client_ip'|trans({}, 'NowoHttpLogBundle') }}</dt>
-        <dd class="col-sm-9">{{ entry.clientIp }}</dd>
+        <dt{{ chrome.class_attr(_cls.detail_term) }}>{{ 'admin.column.client_ip'|trans({}, 'NowoHttpLogBundle') }}</dt>
+        <dd{{ chrome.class_attr(_cls.detail_value) }}>{{ entry.clientIp }}</dd>
 
-        <dt class="col-sm-3">{{ 'admin.field.user'|trans({}, 'NowoHttpLogBundle') }}</dt>
-        <dd class="col-sm-9">{{ entry.userIdentifier }}</dd>
+        <dt{{ chrome.class_attr(_cls.detail_term) }}>{{ 'admin.field.user'|trans({}, 'NowoHttpLogBundle') }}</dt>
+        <dd{{ chrome.class_attr(_cls.detail_value) }}>{{ entry.userIdentifier }}</dd>
 
-        <dt class="col-sm-3">{{ 'admin.field.content_type'|trans({}, 'NowoHttpLogBundle') }}</dt>
-        <dd class="col-sm-9">{{ entry.contentType }} ({{ entry.bodyContentType }})</dd>
+        <dt{{ chrome.class_attr(_cls.detail_term) }}>{{ 'admin.field.content_type'|trans({}, 'NowoHttpLogBundle') }}</dt>
+        <dd{{ chrome.class_attr(_cls.detail_value) }}>{{ entry.contentType }} ({{ entry.bodyContentType }})</dd>
     </dl>
+    {% endblock %}
 
+    {% block nowo_http_log_detail_sections %}
+    {% block nowo_http_log_section_query_params %}
     {% if entry.queryParams %}
-        <h2 class="h5 nowo-ui-section-title">{{ 'admin.field.query_params'|trans({}, 'NowoHttpLogBundle') }}</h2>
-        <pre class="nowo-ui-code bg-light p-3">{{ entry.queryParams|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+        <h2{{ chrome.class_attr(_cls.section_title) }}>{{ 'admin.field.query_params'|trans({}, 'NowoHttpLogBundle') }}</h2>
+        <pre{{ chrome.class_attr(_cls.code) }}>{{ entry.queryParams|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
     {% endif %}
+    {% endblock %}
 
+    {% block nowo_http_log_section_request_headers %}
     {% if entry.requestHeaders %}
-        <h2 class="h5 nowo-ui-section-title">{{ 'admin.field.request_headers'|trans({}, 'NowoHttpLogBundle') }}</h2>
-        <pre class="nowo-ui-code bg-light p-3">{{ entry.requestHeaders|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+        <h2{{ chrome.class_attr(_cls.section_title) }}>{{ 'admin.field.request_headers'|trans({}, 'NowoHttpLogBundle') }}</h2>
+        <pre{{ chrome.class_attr(_cls.code) }}>{{ entry.requestHeaders|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
     {% endif %}
+    {% endblock %}
 
+    {% block nowo_http_log_section_response_headers %}
     {% if entry.responseHeaders %}
-        <h2 class="h5 nowo-ui-section-title">{{ 'admin.field.response_headers'|trans({}, 'NowoHttpLogBundle') }}</h2>
-        <pre class="nowo-ui-code bg-light p-3">{{ entry.responseHeaders|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+        <h2{{ chrome.class_attr(_cls.section_title) }}>{{ 'admin.field.response_headers'|trans({}, 'NowoHttpLogBundle') }}</h2>
+        <pre{{ chrome.class_attr(_cls.code) }}>{{ entry.responseHeaders|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
     {% endif %}
+    {% endblock %}
 
+    {% block nowo_http_log_section_request_body %}
     {% if entry.requestBody %}
-        <h2 class="h5 nowo-ui-section-title">{{ 'admin.field.request_body'|trans({}, 'NowoHttpLogBundle') }}{% if entry.requestBodyTruncated %} ({{ 'admin.field.truncated'|trans({}, 'NowoHttpLogBundle') }}){% endif %}</h2>
-        <pre class="nowo-ui-code bg-light p-3">{{ entry.requestBody }}</pre>
+        <h2{{ chrome.class_attr(_cls.section_title) }}>{{ 'admin.field.request_body'|trans({}, 'NowoHttpLogBundle') }}{% if entry.requestBodyTruncated %} ({{ 'admin.field.truncated'|trans({}, 'NowoHttpLogBundle') }}){% endif %}</h2>
+        <pre{{ chrome.class_attr(_cls.code) }}>{{ entry.requestBody }}</pre>
     {% endif %}
+    {% endblock %}
 
+    {% block nowo_http_log_section_response_body %}
     {% if entry.responseBody %}
-        <h2 class="h5 nowo-ui-section-title">{{ 'admin.field.response_body'|trans({}, 'NowoHttpLogBundle') }}{% if entry.responseBodyTruncated %} ({{ 'admin.field.truncated'|trans({}, 'NowoHttpLogBundle') }}){% endif %}</h2>
-        <pre class="nowo-ui-code bg-light p-3">{{ entry.responseBody }}</pre>
+        <h2{{ chrome.class_attr(_cls.section_title) }}>{{ 'admin.field.response_body'|trans({}, 'NowoHttpLogBundle') }}{% if entry.responseBodyTruncated %} ({{ 'admin.field.truncated'|trans({}, 'NowoHttpLogBundle') }}){% endif %}</h2>
+        <pre{{ chrome.class_attr(_cls.code) }}>{{ entry.responseBody }}</pre>
     {% endif %}
+    {% endblock %}
+    {% endblock %}
 
-    {{ form_start(deleteForm, {
-        attr: {
-            class: 'mt-4',
-            onsubmit: "return confirm('#{'admin.delete.confirm'|trans({}, 'NowoHttpLogBundle')|e('js')}');",
-        },
-    }) }}
+    {% block nowo_http_log_delete %}
+    {% set _delete_message = 'admin.delete.confirm'|trans({}, 'NowoHttpLogBundle') %}
+    {% set _delete_attr = (_cls.delete_form ? {class: _cls.delete_form} : {})|merge(_attrs.delete_form|default({})) %}
+    {% if _ui.confirm_attributes is empty %}
+        {% set _delete_attr = _delete_attr|merge({onsubmit: "return confirm('#{_delete_message|e('js')}');"}) %}
+    {% else %}
+        {% for _name, _value in _ui.confirm_attributes %}
+            {% set _delete_attr = _delete_attr|merge({(_name): _value|replace({'{message}': _delete_message})}) %}
+        {% endfor %}
+    {% endif %}
+    {{ form_start(deleteForm, {attr: _delete_attr}) }}
         {{ form_rest(deleteForm) }}
-        <button type="submit" class="{{ ui.btn('danger', null, _css_fw) }} nowo-ui-btn-delete">{{ 'admin.action.delete'|trans({}, 'NowoHttpLogBundle') }}</button>
+        <button type="submit" class="{{ _cls.btn_delete ?? ui.btn('danger', null, _css_fw) }} nowo-ui-btn-delete">{{ 'admin.action.delete'|trans({}, 'NowoHttpLogBundle') }}</button>
     {{ form_end(deleteForm, {render_rest: false}) }}
+    {% endblock %}
+    {% if _show_wrapper %}</div>{% endif %}
 {% endblock %}

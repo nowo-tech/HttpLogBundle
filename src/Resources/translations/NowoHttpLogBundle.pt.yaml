@@ -1,42 +1,45 @@
-admin.title: HTTP Log
-admin.index.title: HTTP Log Entries
-admin.show.title: 'HTTP Log Entry #%id%'
-admin.index.total: '%count% entries'
-admin.index.empty: No HTTP log entries found.
-admin.column.id: ID
-admin.column.created_at: Created at
-admin.column.method: Method
-admin.column.path: Path
-admin.column.status: Status
-admin.column.duration: Duration
-admin.column.client_ip: Client IP
-admin.field.request_id: Request ID
-admin.field.url: URL
-admin.field.route: Route
-admin.field.user: User
-admin.field.content_type: Content type
-admin.field.query_params: Query parameters
-admin.field.request_headers: Request headers
-admin.field.response_headers: Response headers
-admin.field.request_body: Request body
-admin.field.response_body: Response body
-admin.field.truncated: truncated
-admin.action.view: View
-admin.action.back: Back to list
-admin.action.filter: Filter
-admin.action.export_csv: Export CSV
-admin.action.export_json: Export JSON
-admin.action.purge: Purge old entries
-admin.action.delete: Delete entry
-admin.purge.confirm: Purge HTTP log entries matching the retention policy?
-admin.delete.confirm: Delete this HTTP log entry?
-admin.pagination.page: 'Page %page% of %total%'
-filter.method: Method
-filter.route_name: Route name
-filter.status_code: Status code
-filter.client_ip: Client IP
-filter.path: Path
-filter.body_content_type: Body type
-filter.created_from: Created from
-filter.created_to: Created to
-filter.q: Search
+admin.title: 'Registo HTTP'
+admin.index.title: 'Entradas do registo HTTP'
+admin.show.title: 'Entrada do registo HTTP #%id%'
+admin.index.total: '%count% entradas'
+admin.index.empty: 'Nenhuma entrada do registo HTTP encontrada.'
+admin.column.id: 'ID'
+admin.column.created_at: 'Criado em'
+admin.column.method: 'Método'
+admin.column.path: 'Caminho'
+admin.column.status: 'Estado'
+admin.column.duration: 'Duração'
+admin.column.client_ip: 'IP do cliente'
+admin.field.request_id: 'ID do pedido'
+admin.field.url: 'URL'
+admin.field.route: 'Rota'
+admin.field.user: 'Utilizador'
+admin.field.content_type: 'Tipo de conteúdo'
+admin.field.query_params: 'Parâmetros de consulta'
+admin.field.request_headers: 'Cabeçalhos do pedido'
+admin.field.response_headers: 'Cabeçalhos da resposta'
+admin.field.request_body: 'Corpo do pedido'
+admin.field.response_body: 'Corpo da resposta'
+admin.field.truncated: 'truncado'
+admin.action.view: 'Ver'
+admin.action.back: 'Voltar à lista'
+admin.action.filter: 'Filtrar'
+admin.action.export_csv: 'Exportar CSV'
+admin.action.export_json: 'Exportar JSON'
+admin.action.purge: 'Purgar entradas antigas'
+admin.action.delete: 'Eliminar entrada'
+admin.purge.confirm: 'Purgar entradas do registo HTTP segundo a política de retenção?'
+admin.delete.confirm: 'Eliminar esta entrada do registo HTTP?'
+admin.pagination.page: 'Página %page% de %total%'
+filter.method: 'Método'
+filter.route_name: 'Nome da rota'
+filter.status_code: 'Código de estado'
+filter.client_ip: 'IP do cliente'
+filter.path: 'Caminho'
+filter.body_content_type: 'Tipo de corpo'
+filter.created_from: 'Criado desde'
+filter.created_to: 'Criado até'
+filter.q: 'Pesquisar'
+flash.export_queued: Exportação colocada na fila para processamento em segundo plano.
+flash.purged: '%count% entradas do registo HTTP purgadas.'
+flash.deleted: Entrada do registo HTTP eliminada.

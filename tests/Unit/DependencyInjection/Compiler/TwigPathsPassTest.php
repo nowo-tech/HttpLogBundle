@@ -58,6 +58,9 @@ final class TwigPathsPassTest extends TestCase
         self::assertNotEmpty($calls);
         self::assertSame('addPath', $calls[array_key_last($calls)][0]);
         self::assertSame('NowoHttpLogBundle', $calls[array_key_last($calls)][1][1]);
+
+        $namespaces = array_map(static fn (array $call): string => (string) $call[1][1], $calls);
+        self::assertContains('!NowoHttpLogBundle', $namespaces, 'Original-templates namespace for block-only host overrides (spec 002).');
     }
 
     public function testPrependsOverridePathWhenDirectoryExists(): void

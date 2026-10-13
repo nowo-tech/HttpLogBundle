@@ -143,7 +143,7 @@ As a maintainer, I run the Symfony 8 FrankenPHP demo and CI smoke checks to veri
 | --- | --- |
 | SC-01 | Unit tests cover classifier, redactor, capture policy, subscriber, configuration, access checker, Twig compiler pass |
 | SC-02 | Demo returns HTTP 200 and admin UI is reachable with credentials |
-| SC-03 | `code-inventory.md` lists every file under `src/` (43 units) |
+| SC-03 | `code-inventory.md` lists every file under `src/` (51 units) |
 | SC-04 | Integrator docs describe full YAML tree and security defaults |
 | SC-05 | Bundle is viable under FrankenPHP worker mode without kernel reset (scenario B); see [docs/FRANKENPHP-WORKER-AUDIT.md](../../docs/FRANKENPHP-WORKER-AUDIT.md) |
 

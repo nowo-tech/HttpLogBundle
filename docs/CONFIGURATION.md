@@ -11,6 +11,7 @@ All options live under the root key `nowo_http_log` (alias `nowo_http_log`).
 - [retention](#retention)
 - [export](#export)
 - [web_ui](#web_ui)
+  - [Admin chrome hooks (1.3.0)](#admin-chrome-hooks-130)
 - [security](#security)
 - [Messenger retry and failure transport](#messenger-retry-and-failure-transport)
 - [Environment-specific examples](#environment-specific-examples)
@@ -73,6 +74,18 @@ nowo_http_log:
         layout_template: '@NowoHttpLogBundle/layout.html.twig'
         css_framework: bootstrap5         # bootstrap5 | tailwind | foundation | custom
         page_size: 50
+        # Admin chrome hooks (1.3.0) — defaults reproduce the 1.2.0 markup
+        templates:
+            index: '@NowoHttpLogBundle/admin/index.html.twig'
+            show: '@NowoHttpLogBundle/admin/show.html.twig'
+            filter: '@NowoHttpLogBundle/admin/_filter.html.twig'
+            pagination: '@NowoHttpLogBundle/admin/_pagination.html.twig'
+        css_classes: {}                   # see "Admin chrome hooks" for every key and default
+        attributes: {}                    # e.g. results: { data-testid: http-log-results }
+        ui_kit_stylesheet: true
+        header_actions_in_layout: false
+        confirm_attributes: {}            # e.g. data-confirm-message: '{message}'
+        ui_kit_row_actions: false
     security:
         access_roles:
             - ROLE_ADMIN
@@ -156,6 +169,64 @@ nowo_http_log:
 ```
 
 When `enabled: false`, the admin controller is removed from the container.
+
+### Admin chrome hooks (1.3.0)
+
+Restyle the admin pages without forking them (spec [002](../specs/002-admin-chrome-hooks/spec.md); usage and the
+Beacon example in [USAGE.md — Customising the admin chrome](USAGE.md#customising-the-admin-chrome)). The controller
+passes the resolved values to Twig as `nowo_http_log_ui`.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `templates.index` | `@NowoHttpLogBundle/admin/index.html.twig` | Template the list action renders. |
+| `templates.show` | `@NowoHttpLogBundle/admin/show.html.twig` | Template the detail action renders. |
+| `templates.filter` | `@NowoHttpLogBundle/admin/_filter.html.twig` | Filter partial included by the list page. |
+| `templates.pagination` | `@NowoHttpLogBundle/admin/_pagination.html.twig` | Pagination partial (UiKit-compatible contract, see USAGE). |
+| `css_classes.*` | 1.2.0 classes | Class map below. Unknown keys are rejected. |
+| `attributes` | `{}` | Extra HTML attributes per element: `filter`, `filter_form`, `results`, `toolbar`, `table_wrapper`, `table`, `show`, `details`, `delete_form`. Dashed names (`data-testid`) are kept. |
+| `ui_kit_stylesheet` | `true` | `admin/base.html.twig` appends UiKit `nowo-ui.css`. Set `false` when your layout ships the admin CSS. |
+| `header_actions_in_layout` | `false` | Pages skip the inline export / purge buttons and back link; the layout renders `{{ block('nowo_http_log_header_actions') }}` (the bundle layout does it in its header). |
+| `confirm_attributes` | `{}` | Replaces the inline `onsubmit="return confirm(…)"` on purge / delete forms (CSP). `{message}` is replaced by the translated prompt. |
+| `ui_kit_row_actions` | `false` | List row actions via `@NowoUiKitBundle/partials/_row_actions.html.twig` (honours `nowo_ui_kit.row_actions_display`; UiKit >= 1.6). |
+
+`css_classes` keys (`null` = UiKit macro for `css_framework`; `''` = no `class` attribute, and no wrapper element
+for `results` / `show`):
+
+| Key | Default | Element |
+| --- | --- | --- |
+| `filter` | `nowo-ui-filter card mb-4` | Filter panel |
+| `filter_body` | `card-body` | Filter panel body |
+| `filter_form` | `nowo-ui-filter-form row g-2 align-items-end` | Filter `<form>` |
+| `btn_filter` | `null` (`ui.btn('primary')`) | Filter submit (`nowo-ui-btn-filter` always appended) |
+| `results` | `''` | Optional wrapper around toolbar + table + pagination |
+| `toolbar` | `nowo-ui-toolbar d-flex justify-content-between align-items-center mb-3` | Toolbar row |
+| `summary` | `nowo-ui-summary mb-0` | "N entries" |
+| `actions` | `nowo-ui-actions` | Header actions container |
+| `action_form` | `d-inline` | Export / purge forms |
+| `action_form_gap` | `ms-1` | Added to the 2nd and 3rd action forms |
+| `btn_export` | `null` (`ui.btn('secondary', 'sm')`) | Export buttons (`nowo-ui-btn-export`) |
+| `btn_purge` | `null` (`ui.btn('danger', 'sm')`) | Purge button (`nowo-ui-btn-purge`) |
+| `table_wrapper` | `nowo-ui-table-wrap table-responsive` | Table wrapper |
+| `table` | `table table-striped table-sm nowo-ui-table` | `<table>` |
+| `table_head_row` / `table_head_cell` | `''` | `<thead><tr>` / `<th>` |
+| `table_row` / `table_cell` | `''` | `<tbody><tr>` / `<td>` |
+| `method_badge` | `badge bg-secondary` | HTTP method badge |
+| `path_cell` | `text-truncate` | Path `<td>` (added to `table_cell`) |
+| `row_actions` | `null` (`ui.row_actions`) | Row actions container |
+| `btn_view` | `null` (`ui.btn('secondary', 'sm')`) | View link (`nowo-ui-btn-view`) |
+| `empty_cell` | `text-muted` | Empty-state cell |
+| `pagination` / `pagination_list` | `nowo-ui-pagination mt-3` / `pagination` | Default pagination `<nav>` / `<ul>` |
+| `page_item` / `page_link` | `page-item` / `page-link` | Default pagination items |
+| `show` | `''` | Optional wrapper around the detail content |
+| `back` / `back_link` | `nowo-ui-back mb-3` / `''` | Back link paragraph / anchor |
+| `details` | `row nowo-ui-details` | Detail `<dl>` |
+| `detail_term` / `detail_value` | `col-sm-3` / `col-sm-9` | `<dt>` / `<dd>` |
+| `section_title` | `h5 nowo-ui-section-title` | Section `<h2>` |
+| `code` | `nowo-ui-code bg-light p-3` | Headers / body `<pre>` |
+| `delete_form` | `mt-4` | Delete `<form>` |
+| `btn_delete` | `null` (`ui.btn('danger')`) | Delete button (`nowo-ui-btn-delete`) |
+
+Write a literal `%` in YAML values as `%%` (Symfony container parameters).
 
 ## security
 
