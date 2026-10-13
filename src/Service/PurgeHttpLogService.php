@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\Service;
 
 use DateTimeImmutable;
+use InvalidArgumentException;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Psr\Clock\ClockInterface;
 
@@ -29,6 +30,10 @@ final class PurgeHttpLogService
 
     public function purgeByRetention(?int $daysOverride = null, bool $dryRun = false): int
     {
+        if ($daysOverride !== null && $daysOverride < 0) {
+            throw new InvalidArgumentException(sprintf('Retention days must be a non-negative integer, got %d.', $daysOverride));
+        }
+
         $days = $daysOverride ?? $this->retentionConfig['days'] ?? null;
         if ($days === null) {
             return 0;

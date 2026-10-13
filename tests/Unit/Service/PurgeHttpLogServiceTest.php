@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\Tests\Unit\Service;
 
 use DateTimeImmutable;
+use InvalidArgumentException;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Service\PurgeHttpLogService;
 use PHPUnit\Framework\Attributes\Test;
@@ -36,6 +37,19 @@ final class PurgeHttpLogServiceTest extends TestCase
         );
 
         self::assertSame(5, $service->purgeByRetention(30));
+    }
+
+    #[Test]
+    public function purgeByRetentionRejectsNegativeDaysOverride(): void
+    {
+        $repository = $this->createMock(HttpLogEntryRepository::class);
+        $repository->expects(self::never())->method('deleteOlderThan');
+
+        $service = new PurgeHttpLogService($repository, $this->createClock(), ['days' => 30]);
+
+        $this->expectException(InvalidArgumentException::class);
+
+        $service->purgeByRetention(-5);
     }
 
     #[Test]

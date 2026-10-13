@@ -24,14 +24,17 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 use function array_map;
+use function filter_var;
 use function in_array;
 use function is_array;
+use function is_int;
 use function is_scalar;
 use function is_string;
 use function max;
@@ -40,6 +43,8 @@ use function strtr;
 use function strval;
 use function sys_get_temp_dir;
 use function uniqid;
+
+use const FILTER_VALIDATE_INT;
 
 #[Route('/admin/http-log')]
 final class HttpLogAdminController extends AbstractController
@@ -182,7 +187,7 @@ final class HttpLogAdminController extends AbstractController
             $criteria = $this->criteriaFromRequest($request);
             $purged   = $this->purgeService->purgeByCriteria($criteria);
         } elseif ($days !== null && $days !== '') {
-            $purged = $this->purgeService->purgeByRetention((int) $days);
+            $purged = $this->purgeService->purgeByRetention($this->parseRetentionDays($days));
         } else {
             $purged = $this->purgeService->purgeByRetention();
         }
@@ -190,6 +195,19 @@ final class HttpLogAdminController extends AbstractController
         $this->addFlash('success', $this->translate('flash.purged', 'Purged %count% HTTP log entries.', ['%count%' => $purged]));
 
         return $this->redirectToRoute('nowo_http_log_admin_index');
+    }
+
+    /**
+     * older_than_days must be a non-negative integer: "-5" would become "--5 days" (a future cutoff).
+     */
+    private function parseRetentionDays(mixed $days): int
+    {
+        $parsed = is_string($days) || is_int($days) ? filter_var($days, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]) : false;
+        if ($parsed === false) {
+            throw new BadRequestHttpException('older_than_days must be a non-negative integer.');
+        }
+
+        return $parsed;
     }
 
     #[Route('/{id}/delete', name: 'nowo_http_log_admin_delete', requirements: ['id' => '\\d+'], methods: ['POST'])]

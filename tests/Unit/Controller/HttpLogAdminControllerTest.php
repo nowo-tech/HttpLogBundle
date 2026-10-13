@@ -14,6 +14,7 @@ use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
 use Nowo\HttpLogBundle\Service\ExportHttpLogService;
 use Nowo\HttpLogBundle\Service\PurgeHttpLogService;
 use Nowo\HttpLogBundle\View\AdminChrome;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
@@ -30,6 +31,7 @@ use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\MessageBusInterface;
@@ -447,6 +449,41 @@ final class HttpLogAdminControllerTest extends TestCase
         $response = $controller->purge($request);
 
         self::assertSame('/admin/http-log', $response->headers->get('Location'));
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function invalidRetentionDaysProvider(): iterable
+    {
+        yield 'negative' => ['-5'];
+        yield 'decimal' => ['1.5'];
+        yield 'non-numeric' => ['abc'];
+        yield 'numeric prefix' => ['5 days'];
+    }
+
+    #[Test]
+    #[DataProvider('invalidRetentionDaysProvider')]
+    public function purgeRejectsInvalidRetentionDays(string $days): void
+    {
+        $request = Request::create('/admin/http-log/purge', 'POST', [
+            '_token'          => 'valid-token',
+            'older_than_days' => $days,
+        ]);
+
+        $purgeService = $this->createMock(PurgeHttpLogService::class);
+        $purgeService->expects(self::never())->method('purgeByRetention');
+
+        $controller = $this->createController(
+            request: $request,
+            purgeService: $purgeService,
+            allowUnauthenticated: true,
+            csrfValid: true,
+        );
+
+        $this->expectException(BadRequestHttpException::class);
+
+        $controller->purge($request);
     }
 
     #[Test]
