@@ -31,7 +31,9 @@ From **1.3.1** — security - redact before truncation, redact form bodies, fail
 composer update nowo-tech/http-log-bundle
 ```
 
-- No breaking changes. No application upgrade steps.
+- **Behaviour change:** `security.access_roles: []` used to grant access to everyone (including anonymous users); it now denies everyone. Set roles, or use `allow_unauthenticated: true` / a custom `access_checker` to open the admin UI on purpose.
+- Bodies are now redacted before truncation; form-urlencoded and multipart text fields are redacted by key, and JSON-looking bodies that cannot be parsed are stored as `[REDACTED-UNPARSEABLE]`. Default redacted keys now include `_password`, `_token` and `_csrf_token`, so some stored bodies will differ.
+- A negative or non-integer `older_than_days` on purge now returns HTTP 400 (the purge command rejects negative `--days`).
 
 ## To 1.3.1
 
