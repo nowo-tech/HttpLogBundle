@@ -252,6 +252,7 @@ final class NowoHttpLogExtensionTest extends TestCase
         self::assertSame('bootstrap', $merged['css_framework']);
         self::assertArrayHasKey('http_log', $merged['profiles']);
         self::assertSame('NowoHttpLogBundle', $merged['profiles']['http_log']['translation_domain']);
+        self::assertTrue($merged['profiles']['http_log']['convention_requires_translation']);
     }
 
     #[Test]

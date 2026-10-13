@@ -28,6 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Admin filter form no longer renders raw FormKit convention keys: the seeded FormKit profile `http_log` now sets `convention_requires_translation: true`, so `http_log_filter.<field>.help` / `.placeholder` are only applied when the host translates them (previously every filter field showed e.g. `http_log_filter.method.help` under the input and as its placeholder). With FormKit 2.9+ the optional `method` / body-type selects also no longer carry a meaningless `placeholder` attribute; they keep their empty "any" option.
+
+### Changed
+
+- Requires `nowo-tech/form-kit-bundle` **^2.10** (was ^2.0) for `convention_requires_translation` and the 2.9 ChoiceType placeholder semantics.
+- Tests: admin golden files pin the bundle chrome only (filter rows rendered through a label-only stub theme); the real filter widgets are asserted as invariants, so FormKit / Symfony Form markup changes no longer break the goldens.
+
 ## [1.5.1] - 2026-10-13
 
 ### Fixed

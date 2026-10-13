@@ -6,7 +6,7 @@
     "require": {
         "doctrine/doctrine-bundle": "^3.0",
         "doctrine/orm": "^3.0",
-        "nowo-tech/form-kit-bundle": "^2.0",
+        "nowo-tech/form-kit-bundle": "^2.10",
         "nowo-tech/http-log-bundle": "@dev",
         "php": ">=8.4",
         "symfony/console": "^8.0",

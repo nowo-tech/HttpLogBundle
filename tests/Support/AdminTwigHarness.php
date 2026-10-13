@@ -53,21 +53,36 @@ final class AdminTwigHarness
 {
     public const FIXTURES_DIR = __DIR__ . '/../Fixtures';
 
+    /**
+     * Form theme that renders every form_row as label-only stub, so golden files pin the bundle chrome and not
+     * the widget markup owned by Symfony Form / FormKit (asserted separately as invariants).
+     */
+    public const GOLDEN_FORM_ROW_THEME = 'golden_form_rows.html.twig';
+
     private readonly FormFactoryInterface $formFactory;
+
+    private readonly Translator $translator;
 
     public function __construct()
     {
+        $this->translator = new Translator('en');
+        $this->translator->addLoader('yaml', new YamlFileLoader());
+        $this->translator->addResource('yaml', dirname(__DIR__, 2) . '/src/Resources/translations/NowoHttpLogBundle.en.yaml', 'en', 'NowoHttpLogBundle');
+
         $filterType = new HttpLogFilterType();
+        // Mirrors the http_log profile seeded by NowoHttpLogExtension::prependFormKitDefaults().
         $filterType->setFormOptionsMerger(new FormOptionsMerger(
             [
                 'http_log' => [
-                    'translation_domain' => 'NowoHttpLogBundle',
-                    'defaults'           => ['attr' => [], 'row_attr' => []],
-                    'field_types'        => [],
+                    'translation_domain'              => 'NowoHttpLogBundle',
+                    'convention_requires_translation' => true,
+                    'defaults'                        => ['attr' => [], 'row_attr' => []],
+                    'field_types'                     => [],
                 ],
             ],
             'http_log',
             new ConstraintDefinitionFactory(),
+            translator: $this->translator,
         ));
 
         $this->formFactory = (new FormFactoryBuilder())
@@ -86,7 +101,7 @@ final class AdminTwigHarness
     /**
      * @param array<string, mixed> $globals
      */
-    public function createEnvironment(array $globals = []): Environment
+    public function createEnvironment(array $globals = [], bool $stubFormRows = false): Environment
     {
         $root   = dirname(__DIR__, 2);
         $views  = $root . '/src/Resources/views';
@@ -100,10 +115,7 @@ final class AdminTwigHarness
 
         $twig = new Environment($loader, ['cache' => false, 'strict_variables' => false, 'autoescape' => 'html']);
 
-        $translator = new Translator('en');
-        $translator->addLoader('yaml', new YamlFileLoader());
-        $translator->addResource('yaml', $root . '/src/Resources/translations/NowoHttpLogBundle.en.yaml', 'en', 'NowoHttpLogBundle');
-        $twig->addExtension(new TranslationExtension($translator));
+        $twig->addExtension(new TranslationExtension($this->translator));
 
         $routes = new RouteCollection();
         $routes->add('nowo_http_log_admin_index', new Route('/admin/http-log'));
@@ -120,7 +132,7 @@ final class AdminTwigHarness
 
         $twig->addExtension(new FormExtension());
         $twig->addRuntimeLoader(new FactoryRuntimeLoader([
-            FormRenderer::class => static fn (): FormRenderer => new FormRenderer(new TwigRendererEngine(['form_div_layout.html.twig'], $twig)),
+            FormRenderer::class => static fn (): FormRenderer => new FormRenderer(new TwigRendererEngine($stubFormRows ? ['form_div_layout.html.twig', self::GOLDEN_FORM_ROW_THEME] : ['form_div_layout.html.twig'], $twig)),
         ]));
 
         $request = Request::create('/admin/http-log');

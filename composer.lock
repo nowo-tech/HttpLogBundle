@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "fe3754aefeb3706f131cc11d18979720",
+    "content-hash": "b07b41c99e7b66857464bf73b1b27d04",
     "packages": [
         {
             "name": "doctrine/collections",
@@ -937,16 +937,16 @@
         },
         {
             "name": "nowo-tech/form-kit-bundle",
-            "version": "v2.8.0",
+            "version": "v2.11.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/FormKitBundle.git",
-                "reference": "2fa1f1215e5d511afea6eed0ecd47052679b1924"
+                "reference": "520461e5effe951f09430f69efcbe76f0eed4684"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/FormKitBundle/zipball/2fa1f1215e5d511afea6eed0ecd47052679b1924",
-                "reference": "2fa1f1215e5d511afea6eed0ecd47052679b1924",
+                "url": "https://api.github.com/repos/nowo-tech/FormKitBundle/zipball/520461e5effe951f09430f69efcbe76f0eed4684",
+                "reference": "520461e5effe951f09430f69efcbe76f0eed4684",
                 "shasum": ""
             },
             "require": {
@@ -1042,7 +1042,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-10-12T17:46:51+00:00"
+            "time": "2026-10-13T13:55:40+00:00"
         },
         {
             "name": "nowo-tech/ui-kit-bundle",

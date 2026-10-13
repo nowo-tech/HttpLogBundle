@@ -113,7 +113,10 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                 'http_log' => [
                     'alias'              => 'http_log',
                     'translation_domain' => 'NowoHttpLogBundle',
-                    'defaults'           => [
+                    // Filter fields have no {form}.{field}.help / .placeholder translations: only apply the
+                    // convention keys when the host translates them, never render the raw keys.
+                    'convention_requires_translation' => true,
+                    'defaults'                        => [
                         'attr'     => ['class' => 'nowo-ui-input form-control'],
                         'row_attr' => ['class' => 'mb-2'],
                     ],

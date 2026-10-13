@@ -1,0 +1,4 @@
+{# Golden-file stub: pins which rows the bundle templates render (and their labels), not the widget markup. #}
+{%- block form_row -%}
+<div data-golden-form-row="{{ name }}">{{- form_label(form) -}}</div>
+{%- endblock form_row -%}

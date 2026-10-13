@@ -18,7 +18,9 @@ use function substr_count;
  * Spec 002 — admin chrome hooks render with a real Twig environment (forms, routing, translations, UiKit).
  *
  * Golden files under tests/Fixtures/golden were rendered by the 1.2.0 templates (pagination hrefs then updated for the
- * FR-CHR-013 filter fix): the default output must otherwise stay whitespace-equivalent.
+ * FR-CHR-013 filter fix): the default output must otherwise stay whitespace-equivalent. Filter form rows are rendered
+ * through a label-only stub theme there (widget markup belongs to Symfony Form / FormKit); the real filter widgets are
+ * pinned by {@see filterFormRendersTranslatedFieldsWithoutRawConventionKeys()}.
  */
 final class AdminChromeRenderTest extends TestCase
 {
@@ -45,12 +47,47 @@ final class AdminChromeRenderTest extends TestCase
     public function defaultOutputIsUnchanged(string $case, bool $passDefaults): void
     {
         $extra = $passDefaults ? ['nowo_http_log_ui' => AdminChrome::DEFAULTS] : [];
-        $html  = $this->renderCase($this->harness->createEnvironment(), $case, $extra);
+        $html  = $this->renderCase($this->harness->createEnvironment(stubFormRows: true), $case, $extra);
 
         self::assertSame(
             AdminTwigHarness::normalize((string) file_get_contents(AdminTwigHarness::FIXTURES_DIR . '/golden/' . $case . '.html')),
             AdminTwigHarness::normalize($html),
         );
+    }
+
+    #[Test]
+    public function filterFormRendersTranslatedFieldsWithoutRawConventionKeys(): void
+    {
+        $html = $this->renderIndex([]);
+
+        $fields = [
+            'method'          => 'Method',
+            'routeName'       => 'Route name',
+            'statusCode'      => 'Status code',
+            'clientIp'        => 'Client IP',
+            'path'            => 'Path',
+            'bodyContentType' => 'Body type',
+            'createdFrom'     => 'Created from',
+            'createdTo'       => 'Created to',
+            'q'               => 'Search',
+        ];
+        foreach ($fields as $field => $label) {
+            self::assertStringContainsString('<label for="http_log_filter_' . $field . '">' . $label . '</label>', $html);
+            self::assertStringContainsString('name="http_log_filter[' . $field . ']"', $html);
+        }
+
+        // Optional selects keep an empty "any" option and never carry an HTML placeholder attribute.
+        foreach (['method', 'bodyContentType'] as $select) {
+            self::assertMatchesRegularExpression('#<select id="http_log_filter_' . $select . '" name="http_log_filter\[' . $select . '\]"[^>]*>\s*<option value=""\s*>\s*</option>#', $html);
+            self::assertDoesNotMatchRegularExpression('#<select id="http_log_filter_' . $select . '"[^>]*placeholder=#', $html);
+        }
+        self::assertStringContainsString('<option value="OPTIONS">OPTIONS</option>', $html);
+        self::assertStringContainsString('<option value="json">json</option>', $html);
+        self::assertStringContainsString('type="datetime-local" id="http_log_filter_createdFrom"', $html);
+
+        // No untranslated FormKit convention keys (help / placeholder) leak into the UI.
+        self::assertStringNotContainsString('http_log_filter.', $html);
+        self::assertStringNotContainsString('aria-describedby="http_log_filter_', $html);
     }
 
     #[Test]

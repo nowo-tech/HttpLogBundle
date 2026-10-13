@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "ff1da3e2fbb692fe2288f94bf7ba3f80",
+    "content-hash": "a129710d3278ef0d3b5716e0dccaf0a6",
     "packages": [
         {
             "name": "doctrine/collections",
@@ -930,16 +930,16 @@
         },
         {
             "name": "nowo-tech/form-kit-bundle",
-            "version": "v2.8.1",
+            "version": "v2.11.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/FormKitBundle.git",
-                "reference": "cbf6f8d5939426850f9975d99156179b25f152d1"
+                "reference": "520461e5effe951f09430f69efcbe76f0eed4684"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/FormKitBundle/zipball/cbf6f8d5939426850f9975d99156179b25f152d1",
-                "reference": "cbf6f8d5939426850f9975d99156179b25f152d1",
+                "url": "https://api.github.com/repos/nowo-tech/FormKitBundle/zipball/520461e5effe951f09430f69efcbe76f0eed4684",
+                "reference": "520461e5effe951f09430f69efcbe76f0eed4684",
                 "shasum": ""
             },
             "require": {
@@ -1035,7 +1035,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-10-13T10:22:54+00:00"
+            "time": "2026-10-13T13:55:40+00:00"
         },
         {
             "name": "nowo-tech/http-log-bundle",
@@ -1043,12 +1043,12 @@
             "dist": {
                 "type": "path",
                 "url": "/var/http-log-bundle",
-                "reference": "275740ab5233da0e2dbda8ea2f659c9700a90416"
+                "reference": "260155af021f69f51233dabe9d4c9b4a8c22dad2"
             },
             "require": {
                 "doctrine/doctrine-bundle": "^2.10 || ^3.0",
                 "doctrine/orm": "^3.7",
-                "nowo-tech/form-kit-bundle": "^2.0",
+                "nowo-tech/form-kit-bundle": "^2.10",
                 "nowo-tech/ui-kit-bundle": "^1.4",
                 "php": ">=8.2 <8.6",
                 "psr/clock": "^1.0",

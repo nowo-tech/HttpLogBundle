@@ -22,7 +22,7 @@ Install **Http Log Bundle** in a Symfony 7.4 or 8 application with Doctrine ORM 
 | PHP | 8.2 – 8.5 |
 | Symfony | 7.4+ or 8.0+ |
 | Doctrine ORM | 2.15+ or 3.x |
-| FormKitBundle | `nowo-tech/form-kit-bundle` ^2.0 (pulled transitively; admin forms / profile `http_log`) |
+| FormKitBundle | `nowo-tech/form-kit-bundle` ^2.10 (pulled transitively; admin forms / profile `http_log`) |
 | UiKitBundle | `nowo-tech/ui-kit-bundle` ^1.4 (pulled transitively; admin macros + `nowo-ui.css`) |
 | twig/extra-bundle + twig/string-extra | ^3.12 (REQ-TWIG-004; pulled transitively) |
 | symfony/messenger | Recommended when `async: true` (default) |
