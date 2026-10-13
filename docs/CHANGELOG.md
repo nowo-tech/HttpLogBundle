@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.3.1] - 2026-10-13](#131---2026-10-13)
 - [[1.3.0] - 2026-10-13](#130---2026-10-13)
 - [[1.2.0] - 2026-10-09](#120---2026-10-09)
 - [[1.1.7] - 2026-09-27](#117---2026-09-27)
@@ -23,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.0.0] - 2026-08-03](#100---2026-08-03)
 
 ## [Unreleased]
+
+## [1.3.1] - 2026-10-13
+
+### Changed
+
+- Repository: `.twig-cs-fixer.cache` is now git-ignored.
+
+[1.3.1]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.3.1
 
 ## [1.3.0] - 2026-10-13
 

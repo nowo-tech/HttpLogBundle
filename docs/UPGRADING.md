@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.3.1](#to-131)
 - [To 1.3.0](#to-130)
 - [To 1.2.0](#to-120)
 - [To 1.1.7](#to-117)
@@ -20,6 +21,16 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 - [1.0.0](#100)
 
 ## Unreleased
+
+## To 1.3.1
+
+From **1.3.0** — dependency refresh and repository maintenance.
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
+
+- No breaking changes. No application upgrade steps.
 
 ## To 1.3.0
 
@@ -65,7 +76,6 @@ php bin/console cache:clear
 ```
 
 - No application upgrade steps for require-dev Igor tooling (REQ-CS-008). Consumers do not pull `igor-php/igor-php` transitively.
-
 
 ## 1.1.6
 
