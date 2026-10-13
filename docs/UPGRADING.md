@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.5.0](#to-150)
 - [To 1.4.0](#to-140)
 - [To 1.3.1](#to-131)
 - [To 1.3.0](#to-130)
@@ -22,6 +23,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 - [1.0.0](#100)
 
 ## Unreleased
+
+## To 1.5.0
+
+From **1.4.0** — fixes - findOneBy field whitelist, path_prefix/export.formats/icon_set wired, Symfony >=7.4.
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 - **Symfony 7.4+:** the minimum Symfony version is now 7.4 (7.0–7.3 are end of life and were never really tested).
 - **Admin route prefix:** `web_ui.path_prefix` now moves the admin routes. If you set it to something other than `/admin/http-log` while keeping the UI there, either remove the key or update your `access_control` / links to the new path. If you import the routes with your own `prefix:`, it is added in front of `path_prefix`.

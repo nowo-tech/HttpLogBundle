@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.5.0] - 2026-10-13](#150---2026-10-13)
 - [[1.4.0] - 2026-10-13](#140---2026-10-13)
 - [[1.3.1] - 2026-10-13](#131---2026-10-13)
 - [[1.3.0] - 2026-10-13](#130---2026-10-13)
@@ -26,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-13
+
 ### Security
 
 - `HttpLogEntryRepository::findOneBy()` no longer interpolates criteria / order-by keys into DQL: field names are checked against the entity metadata and unknown ones throw `InvalidArgumentException` (a caller-controlled key such as `id = 1 OR 1 = 1 OR e.id` could rewrite the query). `null` criteria now use `IS NULL` and list values `IN (...)`, like Doctrine's own repository.
@@ -39,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Requirements: Symfony `^7.4 || ^8.0` (was `^7.0`); CI no longer runs a 7.0 cell (it resolved to 7.4 anyway).
+
+[1.5.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.5.0
 
 ## [1.4.0] - 2026-10-13
 
