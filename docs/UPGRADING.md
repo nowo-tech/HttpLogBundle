@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.6.0](#to-160)
 - [To 1.5.1](#to-151)
 - [To 1.5.0](#to-150)
 - [To 1.4.0](#to-140)
@@ -32,6 +33,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.6.0
+
+From **1.5.1** — no raw FormKit convention keys in the admin filter (requires form-kit ^2.10)
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 - **FormKit ^2.10 required:** run `composer update nowo-tech/http-log-bundle nowo-tech/form-kit-bundle --with-dependencies`.
 - **Filter form help / placeholder:** the seeded `http_log` FormKit profile sets `convention_requires_translation: true`, so the filter fields only show `http_log_filter.<field>.help` / `.placeholder` texts you actually translate (domain `NowoHttpLogBundle`); the raw keys are no longer displayed. If you define your own `nowo_form_kit.profiles.http_log`, nothing is seeded: add `convention_requires_translation: true` (or `auto_help: false` / `auto_placeholder: false`) there to get the same result.
