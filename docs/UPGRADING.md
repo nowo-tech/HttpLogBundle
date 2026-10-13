@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.5.1](#to-151)
 - [To 1.5.0](#to-150)
 - [To 1.4.0](#to-140)
 - [To 1.3.1](#to-131)
@@ -31,6 +32,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.5.1
+
+From **1.5.0** — requests under the admin web_ui.path_prefix are never recorded.
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 - **Admin UI path always ignored:** while `web_ui.enabled` is true, requests under `web_ui.path_prefix` (segment-aware) are never recorded, even if the prefix is not listed in `ignore_path_prefixes`. Adding it there manually is no longer needed (harmless if kept). If you deliberately logged admin UI traffic (by overriding both `ignore_path_prefixes` and `ignore_routes`), that traffic is no longer recorded.
 
