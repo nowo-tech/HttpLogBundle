@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.7.0](#to-170)
 - [To 1.6.0](#to-160)
 - [To 1.5.1](#to-151)
 - [To 1.5.0](#to-150)
@@ -33,6 +34,17 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.7.0
+
+From **1.6.0** — kit asset paths ignored by default; keyset batch purge. No action required.
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
+
+- **Kit ignore paths (`ignore_default_path_prefixes`, default `true`):** requests under `/_nowo/` (HotReloadBundle), `/sw.js` and `/manifest.webmanifest` (PwaBundle) are no longer recorded. They are *merged* with `ignore_path_prefixes` instead of being added to its default list on purpose: Symfony replaces a list default as soon as the host sets the key, so changing the default would have reached only hosts without their own list. With the toggle, every host gets them, and a host that already lists its own prefixes keeps every entry it had (the default of `ignore_path_prefixes` is still `['/admin/http-log']`). You can now remove `/_nowo/`, `/sw.js` and `/manifest.webmanifest` from your `ignore_path_prefixes` (keeping them is harmless: duplicates are removed). To keep recording them, set `ignore_default_path_prefixes: false`.
+- **Keyset purge (`retention.purge_batch_size`, default `1000`):** `nowo:http-log:purge`, the admin purge and `PurgeHttpLogMessage` delete at most that many rows per statement. Counts and messages are unchanged. Lower it on busy MySQL primaries / replicas, raise it for faster purges on small instances. If you call `HttpLogEntryRepository::deleteOlderThan()` yourself, it now takes an optional `int $batchSize` (default `1000`, `< 1` throws). The filtered admin purge now uses the same size (was a fixed 500).
 
 ## To 1.6.0
 

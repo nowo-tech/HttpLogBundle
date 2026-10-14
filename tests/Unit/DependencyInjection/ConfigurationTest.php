@@ -29,7 +29,10 @@ final class ConfigurationTest extends TestCase
         self::assertFalse($config['capture']['response_body_by_type']['html']);
         self::assertSame(65536, $config['capture']['max_body_bytes']);
         self::assertContains('Authorization', $config['redaction']['headers']);
+        self::assertSame(['/admin/http-log'], $config['ignore_path_prefixes']);
+        self::assertTrue($config['ignore_default_path_prefixes']);
         self::assertSame(30, $config['retention']['days']);
+        self::assertSame(1000, $config['retention']['purge_batch_size']);
         self::assertSame(['csv', 'json'], $config['export']['formats']);
         self::assertTrue($config['web_ui']['enabled']);
         self::assertSame('/admin/http-log', $config['web_ui']['path_prefix']);
@@ -55,6 +58,15 @@ final class ConfigurationTest extends TestCase
         self::assertNull($config['retention']['days']);
         self::assertSame('/logs', $config['web_ui']['path_prefix']);
         self::assertSame(CssFramework::Tailwind->value, $config['web_ui']['css_framework']);
+    }
+
+    public function testRejectsNonPositivePurgeBatchSize(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+
+        (new Processor())->processConfiguration(new Configuration(), [[
+            'retention' => ['purge_batch_size' => 0],
+        ]]);
     }
 
     public function testRejectsInvalidPathPrefix(): void

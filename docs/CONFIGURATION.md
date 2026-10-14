@@ -32,6 +32,7 @@ nowo_http_log:
         - 'nowo_http_log_*'
     ignore_path_prefixes:                 # Skip paths starting with these prefixes
         - '/admin/http-log'
+    ignore_default_path_prefixes: true    # Also skip /_nowo/ (HotReload), /sw.js and /manifest.webmanifest (PWA)
     ignore_unrouted: false                # true: skip requests no route matched (scanner 404s such as /wp-login.php)
     capture:
         request_headers: true
@@ -69,6 +70,7 @@ nowo_http_log:
             - '*._csrf_token'
     retention:
         days: 30                          # null = keep forever
+        purge_batch_size: 1000            # Rows deleted per statement (keyset batches by id)
     export:
         formats:
             - csv
@@ -110,7 +112,8 @@ nowo_http_log:
 | `sampling_rate` | float | `1.0` | Random sampling; `1.0` logs every eligible request. |
 | `track_sub_requests` | bool | `false` | Include sub-requests in capture. |
 | `ignore_routes` | list | see YAML | Route name patterns skipped (`fnmatch`). |
-| `ignore_path_prefixes` | list | `[/admin/http-log]` | Path prefixes excluded from capture. `web_ui.path_prefix` is always excluded as well while the web UI is enabled. |
+| `ignore_path_prefixes` | list | `[/admin/http-log]` | Path prefixes excluded from capture (plain `str_starts_with`). `web_ui.path_prefix` is always excluded as well while the web UI is enabled. Setting this list replaces the default `[/admin/http-log]` (Symfony list semantics) but never removes the kit defaults below. |
+| `ignore_default_path_prefixes` | bool | `true` | Merges the kit-internal prefixes `/_nowo/` (HotReloadBundle client / shared worker), `/sw.js` and `/manifest.webmanifest` (PwaBundle) into `ignore_path_prefixes` (host entries first, duplicates removed). `false` uses only your `ignore_path_prefixes`. Since 1.7.0. |
 | `ignore_unrouted` | bool | `false` | When `true`, skip requests no route matched (no `_route`, e.g. scanner 404s on `/wp-login.php`, `/.env`). |
 
 ## capture
@@ -152,6 +155,7 @@ Body redaction is skipped entirely when both `query_params` and `json_paths` are
 | Key | Default | Description |
 | --- | --- | --- |
 | `days` | `30` | Entries older than N days are eligible for purge. `null` disables automatic retention cutoff. |
+| `purge_batch_size` | `1000` | Rows deleted per statement by every purge (retention / `--days`, admin UI, `PurgeHttpLogMessage`). The retention purge walks ids in keyset batches (`id > :afterId ORDER BY id LIMIT n`, then `DELETE … WHERE id IN (…)`) until a short batch, so a large log is never deleted in one table-locking, binlog-filling statement. Must be `>= 1`. Since 1.7.0. |
 
 Use `nowo:http-log:purge` or the admin UI to purge.
 

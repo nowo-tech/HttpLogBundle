@@ -316,6 +316,10 @@ php bin/console nowo:http-log:purge --dry-run
 
 Async purge uses `PurgeHttpLogMessage`.
 
+Every purge deletes in batches of `retention.purge_batch_size` rows (default `1000`, keyset on the id), so purging
+a large table does not hold one long lock or write one huge binlog event. The returned / printed count is the total
+number of rows deleted.
+
 ## Ignoring routes and paths
 
 Skip profiler, admin, or internal routes:
@@ -332,6 +336,10 @@ nowo_http_log:
 ```
 
 Route patterns use `fnmatch` (case-insensitive). The admin UI path is ignored by default so browsing logs does not flood the table.
+
+Kit-internal requests are skipped as well while `ignore_default_path_prefixes` is `true` (default): `/_nowo/`
+(HotReloadBundle client and shared worker), `/sw.js` and `/manifest.webmanifest` (PwaBundle). They are merged with your
+`ignore_path_prefixes`, so you do not need to list them; set `ignore_default_path_prefixes: false` to record them.
 
 ## CLI commands
 

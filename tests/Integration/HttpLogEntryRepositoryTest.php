@@ -162,6 +162,43 @@ final class HttpLogEntryRepositoryTest extends TestCase
     }
 
     #[Test]
+    public function deleteOlderThanDeletesInKeysetBatches(): void
+    {
+        $keep = [];
+        for ($i = 0; $i < 7; ++$i) {
+            $this->persistEntry('GET', 'old.route', 200, '10.0.0.1', '/old/' . $i, 'json', new DateTimeImmutable('2026-07-01T12:00:00+00:00'));
+            if ($i % 3 === 0) {
+                $keep[] = $this->persistEntry('GET', 'new.route', 200, '10.0.0.1', '/new/' . $i, 'json', new DateTimeImmutable('2026-08-02T12:00:00+00:00'));
+            }
+        }
+
+        $before = new DateTimeImmutable('2026-08-01T00:00:00+00:00');
+
+        // 7 old rows, batches of 3: 3 + 3 + 1 (short batch stops the loop).
+        self::assertSame(7, $this->repository->deleteOlderThan($before, 3));
+        $this->entityManager->clear();
+        self::assertSame(3, $this->repository->countAll());
+        self::assertSame(0, $this->repository->deleteOlderThan($before, 3));
+
+        // Exact multiple of the batch size: the last full batch is followed by one empty select.
+        for ($i = 0; $i < 4; ++$i) {
+            $this->persistEntry('GET', 'old.route', 200, '10.0.0.1', '/old2/' . $i, 'json', new DateTimeImmutable('2026-07-01T12:00:00+00:00'));
+        }
+        self::assertSame(4, $this->repository->deleteOlderThan($before, 2));
+        self::assertSame(3, $this->repository->deleteOlderThan(new DateTimeImmutable('2026-09-01T00:00:00+00:00')));
+        self::assertSame(0, $this->repository->countAll());
+        self::assertCount(3, $keep);
+    }
+
+    #[Test]
+    public function deleteOlderThanRejectsNonPositiveBatchSize(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        $this->repository->deleteOlderThan(new DateTimeImmutable(), 0);
+    }
+
+    #[Test]
     public function findOneByAndDetachAllUseResolvedEntityManager(): void
     {
         $entry = $this->persistEntry(

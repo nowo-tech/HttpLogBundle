@@ -77,7 +77,7 @@ final class PurgeHttpLogServiceTest extends TestCase
         $repository = $this->createMock(HttpLogEntryRepository::class);
         $repository->expects(self::once())
             ->method('deleteOlderThan')
-            ->with($before)
+            ->with($before, 1000)
             ->willReturn(3);
 
         $service = new PurgeHttpLogService(
@@ -147,7 +147,7 @@ final class PurgeHttpLogServiceTest extends TestCase
         $repository->expects(self::never())->method('findFiltered');
         $repository->expects(self::exactly(2))
             ->method('findIdsFiltered')
-            ->with(['method' => 'DELETE'], 500)
+            ->with(['method' => 'DELETE'], 1000)
             ->willReturnOnConsecutiveCalls([41], []);
         $repository->expects(self::exactly(2))
             ->method('deleteByIds')
@@ -160,6 +160,42 @@ final class PurgeHttpLogServiceTest extends TestCase
         );
 
         self::assertSame(1, $service->purgeByCriteria(['method' => 'DELETE']));
+    }
+
+    #[Test]
+    public function purgeUsesConfiguredBatchSize(): void
+    {
+        $before     = new DateTimeImmutable('2026-01-01T00:00:00+00:00');
+        $repository = $this->createMock(HttpLogEntryRepository::class);
+        $repository->expects(self::once())
+            ->method('deleteOlderThan')
+            ->with($before, 250)
+            ->willReturn(4);
+        $repository->expects(self::once())
+            ->method('findIdsFiltered')
+            ->with(['method' => 'GET'], 250)
+            ->willReturn([]);
+        $repository->method('deleteByIds')->willReturn(0);
+
+        $service = new PurgeHttpLogService($repository, $this->createClock(), ['days' => 30, 'purge_batch_size' => 250]);
+
+        self::assertSame(4, $service->purgeOlderThan($before));
+        self::assertSame(0, $service->purgeByCriteria(['method' => 'GET']));
+    }
+
+    #[Test]
+    public function purgeFallsBackToDefaultBatchSizeForInvalidValue(): void
+    {
+        $before     = new DateTimeImmutable('2026-01-01T00:00:00+00:00');
+        $repository = $this->createMock(HttpLogEntryRepository::class);
+        $repository->expects(self::once())
+            ->method('deleteOlderThan')
+            ->with($before, 1000)
+            ->willReturn(0);
+
+        $service = new PurgeHttpLogService($repository, $this->createClock(), ['purge_batch_size' => 0]);
+
+        self::assertSame(0, $service->purgeOlderThan($before));
     }
 
     private function createClock(): ClockInterface

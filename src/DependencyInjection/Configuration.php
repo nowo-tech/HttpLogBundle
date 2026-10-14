@@ -28,6 +28,16 @@ final class Configuration implements ConfigurationInterface
 {
     public const ALIAS = 'nowo_http_log';
 
+    /**
+     * Kit-internal paths merged into `ignore_path_prefixes` while `ignore_default_path_prefixes` is true:
+     * HotReloadBundle client / shared worker (`/_nowo/`), PwaBundle service worker and manifest.
+     *
+     * @var list<string>
+     */
+    public const DEFAULT_IGNORE_PATH_PREFIXES = ['/_nowo/', '/sw.js', '/manifest.webmanifest'];
+
+    public const DEFAULT_PURGE_BATCH_SIZE = 1000;
+
     public function getConfigTreeBuilder(): TreeBuilder
     {
         $treeBuilder = new TreeBuilder(self::ALIAS);
@@ -55,6 +65,10 @@ final class Configuration implements ConfigurationInterface
                 ->arrayNode('ignore_path_prefixes')
                     ->scalarPrototype()->end()
                     ->defaultValue(['/admin/http-log'])
+                ->end()
+                ->booleanNode('ignore_default_path_prefixes')
+                    ->info('Also skip the kit-internal paths /_nowo/ (HotReload), /sw.js and /manifest.webmanifest (PWA), merged with ignore_path_prefixes.')
+                    ->defaultTrue()
                 ->end()
                 ->booleanNode('ignore_unrouted')
                     ->info('Skip requests no route matched (unrouted 404s: scanners probing /wp-login.php, /.env…).')
@@ -113,6 +127,11 @@ final class Configuration implements ConfigurationInterface
                                 ->ifTrue(static fn (mixed $v): bool => $v !== null && (!is_int($v) || $v < 0))
                                 ->thenInvalid('Retention days must be a non-negative integer or null')
                             ->end()
+                        ->end()
+                        ->integerNode('purge_batch_size')
+                            ->info('Rows deleted per statement by the purge (keyset batches by id), so a large log does not lock the table or flood the binlog.')
+                            ->defaultValue(self::DEFAULT_PURGE_BATCH_SIZE)
+                            ->min(1)
                         ->end()
                     ->end()
                 ->end()

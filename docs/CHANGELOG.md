@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.7.0] - 2026-10-14](#170---2026-10-14)
 - [[1.6.0] - 2026-10-13](#160---2026-10-13)
 - [[1.5.1] - 2026-10-13](#151---2026-10-13)
 - [[1.5.0] - 2026-10-13](#150---2026-10-13)
@@ -28,6 +29,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.0.0] - 2026-08-03](#100---2026-08-03)
 
 ## [Unreleased]
+
+## [1.7.0] - 2026-10-14
+
+Kit ignore paths and keyset purge (spec [003](../specs/003-kit-ignore-paths-keyset-purge/spec.md)).
+
+### Added
+
+- `ignore_default_path_prefixes` (default `true`): the kit-internal paths `/_nowo/` (HotReloadBundle client / shared worker), `/sw.js` and `/manifest.webmanifest` (PwaBundle) are skipped by default, merged with `ignore_path_prefixes` (host entries first, duplicates removed). Set it to `false` to record them.
+- `retention.purge_batch_size` (default `1000`, min `1`): rows deleted per statement by the purge.
+
+### Changed
+
+- `HttpLogEntryRepository::deleteOlderThan()` deletes in keyset batches (`id > :afterId ORDER BY id LIMIT n`, then `DELETE … WHERE id IN (…)`, until a short batch) instead of one unbounded `DELETE`, so purging a large log no longer locks the table or writes one huge binlog event. New optional argument `int $batchSize = 1000`; the return value (rows deleted) and the purge command / message output are unchanged.
+- The criteria purge (admin UI with filters) uses `retention.purge_batch_size` for its id batches (was a fixed 500).
+
+[1.7.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.7.0
 
 ## [1.6.0] - 2026-10-13
 

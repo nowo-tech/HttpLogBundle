@@ -6,9 +6,11 @@ namespace Nowo\HttpLogBundle\Service;
 
 use DateTimeImmutable;
 use InvalidArgumentException;
+use Nowo\HttpLogBundle\DependencyInjection\Configuration;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Psr\Clock\ClockInterface;
 
+use function is_int;
 use function sprintf;
 
 /**
@@ -16,8 +18,6 @@ use function sprintf;
  */
 final class PurgeHttpLogService
 {
-    private const BATCH_SIZE = 500;
-
     /**
      * @param array<string, mixed> $retentionConfig
      */
@@ -53,7 +53,7 @@ final class PurgeHttpLogService
             ]);
         }
 
-        return $this->repository->deleteOlderThan($before);
+        return $this->repository->deleteOlderThan($before, $this->batchSize());
     }
 
     /** @param array<string, mixed> $criteria */
@@ -66,10 +66,17 @@ final class PurgeHttpLogService
         $total = 0;
 
         do {
-            $ids = $this->repository->findIdsFiltered($criteria, self::BATCH_SIZE);
+            $ids = $this->repository->findIdsFiltered($criteria, $this->batchSize());
             $total += $this->repository->deleteByIds($ids);
         } while ($ids !== []);
 
         return $total;
+    }
+
+    private function batchSize(): int
+    {
+        $size = $this->retentionConfig['purge_batch_size'] ?? Configuration::DEFAULT_PURGE_BATCH_SIZE;
+
+        return is_int($size) && $size > 0 ? $size : Configuration::DEFAULT_PURGE_BATCH_SIZE;
     }
 }

@@ -84,13 +84,13 @@ As a maintainer, I run the Symfony 8 FrankenPHP demo and CI smoke checks to veri
 | ID | Requirement |
 | --- | --- |
 | FR-EXP-001 | Export filtered rows to CSV or JSON (UI, CLI, or async Messenger) up to configured sync limits |
-| FR-PUR-001 | Purge entries older than `retention.days` via CLI, UI, or async handler |
+| FR-PUR-001 | Purge entries older than `retention.days` via CLI, UI, or async handler, in keyset batches of `retention.purge_batch_size` (1.7.0, spec [003](../003-kit-ignore-paths-keyset-purge/spec.md)) |
 
 ### Filtering (`FR-IGN-*`)
 
 | ID | Requirement |
 | --- | --- |
-| FR-IGN-001 | Skip capture when `ignore_routes` or `ignore_path_prefixes` match |
+| FR-IGN-001 | Skip capture when `ignore_routes` or `ignore_path_prefixes` match (plus the kit defaults while `ignore_default_path_prefixes` is true, 1.7.0, spec [003](../003-kit-ignore-paths-keyset-purge/spec.md)) |
 | FR-IGN-002 | When `ignore_unrouted` is `true`, skip capture for requests without a matched `_route` (unrouted 404s); default `false` keeps logging them |
 
 ### Configuration & DI (`FR-CFG-*`, `FR-DI-*`, `FR-BUNDLE-*`)

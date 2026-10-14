@@ -65,6 +65,52 @@ final class NowoHttpLogExtensionTest extends TestCase
     }
 
     #[Test]
+    public function loadMergesKitDefaultIgnorePathPrefixesByDefault(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.environment', 'test');
+
+        (new NowoHttpLogExtension())->load([['security' => ['allow_unauthenticated' => true]]], $container);
+
+        self::assertSame(
+            ['/admin/http-log', '/_nowo/', '/sw.js', '/manifest.webmanifest'],
+            $container->getParameter('nowo_http_log.ignore_path_prefixes'),
+        );
+    }
+
+    #[Test]
+    public function loadKeepsHostIgnorePathPrefixesAndAddsMissingKitDefaults(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.environment', 'test');
+
+        (new NowoHttpLogExtension())->load([[
+            'security'             => ['allow_unauthenticated' => true],
+            'ignore_path_prefixes' => ['/api', '/sw.js'],
+        ]], $container);
+
+        self::assertSame(
+            ['/api', '/sw.js', '/_nowo/', '/manifest.webmanifest'],
+            $container->getParameter('nowo_http_log.ignore_path_prefixes'),
+        );
+    }
+
+    #[Test]
+    public function loadUsesOnlyHostIgnorePathPrefixesWhenKitDefaultsDisabled(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.environment', 'test');
+
+        (new NowoHttpLogExtension())->load([[
+            'security'                     => ['allow_unauthenticated' => true],
+            'ignore_path_prefixes'         => ['/api'],
+            'ignore_default_path_prefixes' => false,
+        ]], $container);
+
+        self::assertSame(['/api'], $container->getParameter('nowo_http_log.ignore_path_prefixes'));
+    }
+
+    #[Test]
     public function loadExposesEscapedAdminChromeParameter(): void
     {
         $container = new ContainerBuilder();

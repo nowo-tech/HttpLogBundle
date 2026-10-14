@@ -19,6 +19,7 @@ use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 
 use function array_key_exists;
 use function array_map;
+use function array_merge;
 use function array_unique;
 use function array_values;
 use function is_array;
@@ -210,7 +211,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         $container->setParameter($alias . '.sampling_rate', $config['sampling_rate']);
         $container->setParameter($alias . '.track_sub_requests', $config['track_sub_requests']);
         $container->setParameter($alias . '.ignore_routes', $config['ignore_routes']);
-        $container->setParameter($alias . '.ignore_path_prefixes', $config['ignore_path_prefixes']);
+        $container->setParameter($alias . '.ignore_path_prefixes', $this->resolveIgnorePathPrefixes($config['ignore_path_prefixes'], $config['ignore_default_path_prefixes']));
         $container->setParameter($alias . '.ignore_unrouted', $config['ignore_unrouted']);
         $container->setParameter($alias . '.capture', $config['capture']);
         $container->setParameter($alias . '.redaction', $config['redaction']);
@@ -243,6 +244,22 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
     /**
      * Escape "%" so container parameter resolution keeps literal values (e.g. "w-[50%]").
      */
+    /**
+     * Host list first, then the kit defaults it does not already contain (`ignore_default_path_prefixes`).
+     *
+     * @param list<string> $prefixes
+     *
+     * @return list<string>
+     */
+    private function resolveIgnorePathPrefixes(array $prefixes, bool $withKitDefaults): array
+    {
+        if ($withKitDefaults) {
+            $prefixes = array_merge($prefixes, Configuration::DEFAULT_IGNORE_PATH_PREFIXES);
+        }
+
+        return array_values(array_unique($prefixes));
+    }
+
     private static function escapeParameterValue(mixed $value): mixed
     {
         if (is_string($value)) {

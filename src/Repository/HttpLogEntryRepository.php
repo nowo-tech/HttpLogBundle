@@ -13,6 +13,7 @@ use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 use InvalidArgumentException;
 use LogicException;
+use Nowo\HttpLogBundle\DependencyInjection\Configuration;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use SortDirection;
 
@@ -20,6 +21,7 @@ use function array_key_exists;
 use function array_keys;
 use function array_map;
 use function array_values;
+use function count;
 use function is_array;
 use function is_string;
 use function sprintf;
@@ -166,14 +168,45 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
         }
     }
 
-    public function deleteOlderThan(DateTimeImmutable $before): int
+    /**
+     * Deletes entries created before `$before` in keyset batches: select up to `$batchSize` ids greater than
+     * the last one seen (ordered by id, platform limit), delete that id list, repeat until a short batch.
+     * Each statement stays small, so a large log is never locked or written to the binlog in one go.
+     *
+     * @return int Rows deleted
+     */
+    public function deleteOlderThan(DateTimeImmutable $before, int $batchSize = Configuration::DEFAULT_PURGE_BATCH_SIZE): int
     {
-        return (int) $this->createQueryBuilder('e')
-            ->delete()
-            ->where('e.createdAt < :before')
-            ->setParameter('before', $before)
-            ->getQuery()
-            ->execute();
+        if ($batchSize < 1) {
+            throw new InvalidArgumentException(sprintf('The purge batch size must be a positive integer, got %d.', $batchSize));
+        }
+
+        $total   = 0;
+        $afterId = 0;
+
+        do {
+            /** @var list<int|string> $rows */
+            $rows = $this->createQueryBuilder('e')
+                ->select('e.id')
+                ->where('e.createdAt < :before')
+                ->andWhere('e.id > :afterId')
+                ->setParameter('before', $before)
+                ->setParameter('afterId', $afterId)
+                ->orderBy('e.id', SortDirection::Ascending)
+                ->setMaxResults($batchSize)
+                ->getQuery()
+                ->getSingleColumnResult();
+
+            $ids = array_map(intval(...), $rows);
+            if ($ids === []) {
+                break;
+            }
+
+            $total += $this->deleteByIds($ids);
+            $afterId = $ids[count($ids) - 1];
+        } while (count($ids) === $batchSize);
+
+        return $total;
     }
 
     /** @param list<int> $ids */

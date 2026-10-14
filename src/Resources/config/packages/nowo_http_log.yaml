@@ -11,6 +11,8 @@ nowo_http_log:
         - 'nowo_http_log_*'
     ignore_path_prefixes:
         - '/admin/http-log'
+    # Also skip /_nowo/ (HotReload), /sw.js and /manifest.webmanifest (PWA); merged with the list above.
+    ignore_default_path_prefixes: true
     capture:
         request_headers: true
         request_body: false
@@ -47,6 +49,7 @@ nowo_http_log:
             - '*._csrf_token'
     retention:
         days: 30
+        purge_batch_size: 1000
     export:
         formats:
             - csv
