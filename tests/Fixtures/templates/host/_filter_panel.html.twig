@@ -1,0 +1,4 @@
+{# 1.x thin fork of the filter partial: replaces the whole panel (BC hook nowo_http_log_filter_panel). #}
+{% extends '@!NowoHttpLogBundle/admin/_filter.html.twig' %}
+
+{% block nowo_http_log_filter_panel %}<div class="host-filter-panel">{{ form(filterForm) }}</div>{% endblock %}

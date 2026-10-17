@@ -1,156 +1,41 @@
-{% extends '@NowoHttpLogBundle/admin/base.html.twig' %}
-{% import '@NowoUiKitBundle/macros/ui.html.twig' as ui %}
-{% import '@NowoHttpLogBundle/admin/_macros.html.twig' as chrome %}
-{% set _css_fw = nowo_http_log_css_framework|default('bootstrap5') %}
-{% set _ui = nowo_http_log_ui|default(constant('Nowo\\HttpLogBundle\\View\\AdminChrome::DEFAULTS')) %}
-{% set _cls = _ui.css_classes %}
-{% set _attrs = _ui.attributes|default({}) %}
 {#
-  Chrome hooks (spec 002): override the nowo_http_log_* blocks in a template that extends
-  '@!NowoHttpLogBundle/admin/index.html.twig' (or set web_ui.templates.index), restyle via
-  web_ui.css_classes / web_ui.attributes, swap partials via web_ui.templates.
+  HTTP log list (REQ-UI-003): UiKit list scaffold. Variable: page (Nowo\UiKitBundle\View\ListPage), criteria (active
+  filter criteria). Header actions (export CSV / JSON, purge with the UiKit confirm dialog), filters, table frame,
+  row actions, pagination and empty state come from the scaffold; this template fills only the row cells.
+
+  Override: a template that extends '@!NowoHttpLogBundle/admin/index.html.twig' (web_ui.templates.index) and overrides
+  nowo_ui_list_row (or another scaffold data block). Restyle through nowo_ui_kit.theme (slots), never here.
 #}
+{% extends '@NowoUiKit/page/list.html.twig' %}
 
-{% block title %}{{ 'admin.index.title'|trans({}, 'NowoHttpLogBundle') }} — {{ parent() }}{% endblock %}
-
-{% block nowo_ui_content %}
-    {% block nowo_http_log_page_header %}{% block nowo_http_log_intro %}{% endblock %}{% endblock %}
-    {% block nowo_http_log_filter %}
-    {{ include(_ui.templates.filter) }}
-    {% endblock %}
-
-    {% set _results_wrapper = _cls.results or _attrs.results|default({}) is not empty %}
-    {% if _results_wrapper %}<div{{ chrome.class_attr(_cls.results) }}{{ chrome.attrs(_attrs.results|default({})) }}>{% endif %}
-    {% block nowo_http_log_toolbar %}
-    <div{{ chrome.class_attr(_cls.toolbar) }}{{ chrome.attrs(_attrs.toolbar|default({})) }}>
-        {% block nowo_http_log_summary %}
-        <p{{ chrome.class_attr(_cls.summary) }}>{{ 'admin.index.total'|trans({'%count%': total}, 'NowoHttpLogBundle') }}</p>
-        {% endblock %}
-        {% if not _ui.header_actions_in_layout %}
-        {% block nowo_http_log_header_actions %}
-        <div{{ chrome.class_attr(_cls.actions) }}>
-            {% block nowo_http_log_action_export_csv %}
-            {% if exportCsvForm|default(null) %}
-            {{ form_start(exportCsvForm, {attr: (_cls.action_form ? {class: _cls.action_form} : {})}) }}
-                {{ form_rest(exportCsvForm) }}
-                <button type="submit" class="{{ _cls.btn_export ?? ui.btn('secondary', 'sm', _css_fw) }} nowo-ui-btn-export">{{ 'admin.action.export_csv'|trans({}, 'NowoHttpLogBundle') }}</button>
-            {{ form_end(exportCsvForm, {render_rest: false}) }}
-            {% endif %}
-            {% endblock %}
-
-            {% set _spaced_form_class = [_cls.action_form, _cls.action_form_gap]|filter(c => c is not null and c|trim != '')|join(' ') %}
-            {% block nowo_http_log_action_export_json %}
-            {% if exportJsonForm|default(null) %}
-            {{ form_start(exportJsonForm, {attr: (_spaced_form_class ? {class: _spaced_form_class} : {})}) }}
-                {{ form_rest(exportJsonForm) }}
-                <button type="submit" class="{{ _cls.btn_export ?? ui.btn('secondary', 'sm', _css_fw) }} nowo-ui-btn-export">{{ 'admin.action.export_json'|trans({}, 'NowoHttpLogBundle') }}</button>
-            {{ form_end(exportJsonForm, {render_rest: false}) }}
-            {% endif %}
-            {% endblock %}
-
-            {% block nowo_http_log_action_purge %}
-            {% set _purge_message = 'admin.purge.confirm'|trans({}, 'NowoHttpLogBundle') %}
-            {% set _purge_attr = _spaced_form_class ? {class: _spaced_form_class} : {} %}
-            {% if _ui.confirm_attributes is empty %}
-                {% set _purge_attr = _purge_attr|merge({onsubmit: "return confirm('#{_purge_message|e('js')}');"}) %}
-            {% else %}
-                {% for _name, _value in _ui.confirm_attributes %}
-                    {% set _purge_attr = _purge_attr|merge({(_name): _value|replace({'{message}': _purge_message})}) %}
-                {% endfor %}
-            {% endif %}
-            {{ form_start(purgeForm, {attr: _purge_attr}) }}
-                {{ form_rest(purgeForm) }}
-                <button type="submit" class="{{ _cls.btn_purge ?? ui.btn('danger', 'sm', _css_fw) }} nowo-ui-btn-purge">{{ 'admin.action.purge'|trans({}, 'NowoHttpLogBundle') }}</button>
-            {{ form_end(purgeForm, {render_rest: false}) }}
-            {% endblock %}
-        </div>
-        {% endblock %}
-        {% endif %}
-    </div>
-    {% endblock %}
-
-    {% block nowo_http_log_table %}
-    <div{{ chrome.class_attr(_cls.table_wrapper) }}{{ chrome.attrs(_attrs.table_wrapper|default({})) }}>
-        <table{{ chrome.class_attr(_cls.table) }}{{ chrome.attrs(_attrs.table|default({})) }}>
-            {% block nowo_http_log_table_head %}
-            <thead>
-                <tr{{ chrome.class_attr(_cls.table_head_row) }}>
-                    <th{{ chrome.class_attr(_cls.table_head_cell) }}>{{ 'admin.column.id'|trans({}, 'NowoHttpLogBundle') }}</th>
-                    <th{{ chrome.class_attr(_cls.table_head_cell) }}>{{ 'admin.column.created_at'|trans({}, 'NowoHttpLogBundle') }}</th>
-                    <th{{ chrome.class_attr(_cls.table_head_cell) }}>{{ 'admin.column.method'|trans({}, 'NowoHttpLogBundle') }}</th>
-                    <th{{ chrome.class_attr(_cls.table_head_cell) }}>{{ 'admin.column.path'|trans({}, 'NowoHttpLogBundle') }}</th>
-                    <th{{ chrome.class_attr(_cls.table_head_cell) }}>{{ 'admin.column.status'|trans({}, 'NowoHttpLogBundle') }}</th>
-                    <th{{ chrome.class_attr(_cls.table_head_cell) }}>{{ 'admin.column.duration'|trans({}, 'NowoHttpLogBundle') }}</th>
-                    <th{{ chrome.class_attr(_cls.table_head_cell) }}>{{ 'admin.column.client_ip'|trans({}, 'NowoHttpLogBundle') }}</th>
-                    <th{{ chrome.class_attr(_cls.table_head_cell) }}></th>
-                </tr>
-            </thead>
-            {% endblock %}
-            <tbody>
-                {% for entry in entries %}
-                    {% block nowo_http_log_table_row %}
-                    <tr{{ chrome.class_attr(_cls.table_row) }}>
-                        <td{{ chrome.class_attr(_cls.table_cell) }}>{{ entry.id }}</td>
-                        <td{{ chrome.class_attr(_cls.table_cell) }}>{{ entry.createdAt|date('Y-m-d H:i:s') }}</td>
-                        <td{{ chrome.class_attr(_cls.table_cell) }}><span{{ chrome.class_attr(_cls.method_badge) }}>{{ entry.method }}</span></td>
-                        <td{{ chrome.class_attr([_cls.table_cell, _cls.path_cell]) }} style="max-width: 20rem;">{{ entry.path }}</td>
-                        <td{{ chrome.class_attr(_cls.table_cell) }}>{{ entry.statusCode }}</td>
-                        <td{{ chrome.class_attr(_cls.table_cell) }}>{{ entry.durationMs|number_format(1) }} ms</td>
-                        <td{{ chrome.class_attr(_cls.table_cell) }}>{{ entry.clientIp }}</td>
-                        <td{{ chrome.class_attr(_cls.table_cell) }}>
-                            {% block nowo_http_log_row_actions %}
-                            {% if _ui.ui_kit_row_actions %}
-                                {{ include('@NowoUiKitBundle/partials/_row_actions.html.twig', {
-                                    actions: [{
-                                        kind: 'view',
-                                        href: path('nowo_http_log_admin_show', {id: entry.id}),
-                                        label: 'admin.action.view'|trans({}, 'NowoHttpLogBundle'),
-                                    }],
-                                    framework: _css_fw,
-                                }, false) }}
-                            {% else %}
-                            <div class="{{ _cls.row_actions ?? ui.row_actions(_css_fw) }}">
-                                <a href="{{ path('nowo_http_log_admin_show', {id: entry.id}) }}" class="{{ _cls.btn_view ?? ui.btn('secondary', 'sm', _css_fw) }} nowo-ui-btn-view">
-                                    {{ 'admin.action.view'|trans({}, 'NowoHttpLogBundle') }}
-                                </a>
-                            </div>
-                            {% endif %}
-                            {% endblock %}
-                        </td>
-                    </tr>
-                    {% endblock %}
-                {% else %}
-                    {% block nowo_http_log_empty_state %}
-                    <tr>
-                        <td colspan="8"{{ chrome.class_attr(_cls.empty_cell) }}>{{ 'admin.index.empty'|trans({}, 'NowoHttpLogBundle') }}</td>
-                    </tr>
-                    {% endblock %}
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% endblock %}
-
-    {% block nowo_http_log_pagination %}
-    {# Active criteria in the shape the GET filter form reads (http_log_filter[field]=…), so page N keeps the filters. #}
-    {% set _filter_values = {} %}
-    {% for _key, _value in criteria %}
-        {% set _filter_values = _filter_values|merge({(_key): _value.timestamp is defined ? _value|date('Y-m-d\\TH:i') : _value}) %}
-    {% endfor %}
-    {% set _query = _filter_values is empty ? {} : {(filterForm.vars.full_name|default('http_log_filter')): _filter_values} %}
-    {% set _total_pages = total > 0 ? (total / pageSize)|round(0, 'ceil') : 1 %}
-    {{ include(_ui.templates.pagination, {
-        pagination: {page: page, per_page: pageSize, total: total, total_pages: _total_pages},
-        pages: _total_pages,
-        page_size: pageSize,
-        item_count: entries|length,
-        route: 'nowo_http_log_admin_index',
-        route_params: {},
-        query: _query,
-        nav_label: 'admin.index.title',
-        nav_trans_domain: 'NowoHttpLogBundle',
-        framework: _css_fw,
-    }) }}
-    {% endblock %}
-    {% if _results_wrapper %}</div>{% endif %}
+{% block nowo_ui_list_row %}
+    {%- set _b = page.bundle -%}
+    {%- set _cell = nowo_ui_class('table_cell', _b) -%}
+    {%- set _status = row.statusCode|default(0) -%}
+    {%- set _status_slot = _status >= 500 ? 'badge_danger' : (_status >= 400 ? 'badge_warning' : (_status >= 300 ? 'badge_info' : 'badge_success')) -%}
+    <td class="{{ _cell }} nowo-ui-cell--start" data-label="{{ 'admin.column.id'|trans({}, 'NowoHttpLogBundle') }}">
+        <a href="{{ path('nowo_http_log_admin_show', {id: row.id}) }}">{{ row.id }}</a>
+    </td>
+    <td class="{{ _cell }} nowo-ui-cell--start" data-label="{{ 'admin.column.created_at'|trans({}, 'NowoHttpLogBundle') }}" data-nowo-ui-priority="2">
+        <time datetime="{{ row.createdAt|date('c') }}">{{ row.createdAt|date('Y-m-d H:i:s') }}</time>
+    </td>
+    <td class="{{ _cell }} nowo-ui-cell--start" data-label="{{ 'admin.column.method'|trans({}, 'NowoHttpLogBundle') }}">
+        <span class="{{ nowo_ui_class('badge_neutral', _b) }} nowo-http-log-method">{{ row.method }}</span>
+    </td>
+    <td class="{{ _cell }} nowo-ui-cell--start nowo-http-log-path" data-label="{{ 'admin.column.path'|trans({}, 'NowoHttpLogBundle') }}">
+        <code>{{ row.path }}</code>
+    </td>
+    <td class="{{ _cell }} nowo-ui-cell--start" data-label="{{ 'admin.column.status'|trans({}, 'NowoHttpLogBundle') }}">
+        {%- if row.statusCode is not null -%}
+            <span class="{{ nowo_ui_class(_status_slot, _b) }} nowo-http-log-status">{{ row.statusCode }}</span>
+        {%- else -%}
+            <span class="{{ nowo_ui_class('muted', _b) }}">—</span>
+        {%- endif -%}
+    </td>
+    <td class="{{ _cell }} nowo-ui-cell--end" data-label="{{ 'admin.column.duration'|trans({}, 'NowoHttpLogBundle') }}" data-nowo-ui-priority="2">
+        {{ row.durationMs is null ? '—' : row.durationMs|number_format(1) ~ ' ms' }}
+    </td>
+    <td class="{{ _cell }}{{ row.clientIp ? '' : ' ' ~ nowo_ui_class('table_cell_muted', _b) }} nowo-ui-cell--start" data-label="{{ 'admin.column.client_ip'|trans({}, 'NowoHttpLogBundle') }}" data-nowo-ui-priority="3">
+        {{ row.clientIp ?: '—' }}
+    </td>
 {% endblock %}

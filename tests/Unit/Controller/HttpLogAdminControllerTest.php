@@ -13,7 +13,10 @@ use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
 use Nowo\HttpLogBundle\Service\ExportHttpLogService;
 use Nowo\HttpLogBundle\Service\PurgeHttpLogService;
-use Nowo\HttpLogBundle\View\AdminChrome;
+use Nowo\UiKitBundle\View\Action;
+use Nowo\UiKitBundle\View\Confirm;
+use Nowo\UiKitBundle\View\ListPage;
+use Nowo\UiKitBundle\View\ShowPage;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -42,6 +45,8 @@ use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Twig\Environment;
 
+use function count;
+
 final class HttpLogAdminControllerTest extends TestCase
 {
     #[Test]
@@ -68,10 +73,14 @@ final class HttpLogAdminControllerTest extends TestCase
             ->method('render')
             ->with(
                 '@NowoHttpLogBundle/admin/index.html.twig',
-                self::callback(static fn (array $parameters): bool => $parameters['entries'] === [$entry]
-                    && $parameters['total'] === 1
-                    && $parameters['page'] === 2
-                    && $parameters['pageSize'] === 20
+                self::callback(static fn (array $parameters): bool => $parameters['page'] instanceof ListPage
+                    && $parameters['page']->rows === [$entry]
+                    && $parameters['page']->pagination?->total === 1
+                    && $parameters['page']->pagination->page === 2
+                    && $parameters['page']->pagination->perPage === 20
+                    && $parameters['page']->bundle === 'NowoHttpLogBundle'
+                    && $parameters['page']->layout === null
+                    && $parameters['page']->filtersClearHref === null
                     && $parameters['criteria'] === []),
             )
             ->willReturn('index');
@@ -178,7 +187,9 @@ final class HttpLogAdminControllerTest extends TestCase
             ->with(
                 '@NowoHttpLogBundle/admin/show.html.twig',
                 self::callback(static fn (array $parameters): bool => $parameters['entry'] === $entry
-                    && $parameters['deleteForm'] instanceof FormView),
+                    && $parameters['page'] instanceof ShowPage
+                    && $parameters['page']->header->actions[1]->href === '/admin/http-log'
+                    && $parameters['page']->header->actions[1]->visible),
             )
             ->willReturn('show');
 
@@ -194,27 +205,30 @@ final class HttpLogAdminControllerTest extends TestCase
     }
 
     #[Test]
-    public function showRendersConfiguredTemplateWithAdminChrome(): void
+    public function showRendersConfiguredTemplateWithLayoutAndPageAttributes(): void
     {
         $entry      = $this->createEntry(7);
         $repository = $this->createMock(HttpLogEntryRepository::class);
         $repository->method('find')->willReturn($entry);
 
-        $adminUi = AdminChrome::fromWebUi([
-            'templates'   => ['show' => 'host/http_log/show.html.twig'],
-            'css_classes' => ['show' => 'panel'],
-        ]);
+        $webUi = [
+            'layout_template' => 'layouts/admin.html.twig',
+            'templates'       => ['show' => 'host/http_log/show.html.twig'],
+            'attributes'      => ['show' => ['data-host' => 'show']],
+        ];
 
         $twig = $this->createMock(Environment::class);
         $twig->expects(self::once())
             ->method('render')
             ->with(
                 'host/http_log/show.html.twig',
-                self::callback(static fn (array $parameters): bool => $parameters['nowo_http_log_ui'] === $adminUi),
+                self::callback(static fn (array $parameters): bool => $parameters['page'] instanceof ShowPage
+                    && $parameters['page']->layout === 'layouts/admin.html.twig'
+                    && $parameters['page']->attributes === ['data-testid' => 'http-log-show', 'data-host' => 'show']),
             )
             ->willReturn('show');
 
-        $controller = $this->createController(repository: $repository, twig: $twig, adminUi: $adminUi);
+        $controller = $this->createController(repository: $repository, twig: $twig, webUi: $webUi);
 
         self::assertSame('show', $controller->show(7)->getContent());
     }
@@ -234,7 +248,7 @@ final class HttpLogAdminControllerTest extends TestCase
         $twig = $this->createMock(Environment::class);
         $twig->expects(self::once())
             ->method('render')
-            ->with('@NowoHttpLogBundle/admin/index.html.twig', self::callback(static fn (array $parameters): bool => isset($parameters['nowo_http_log_ui'])))
+            ->with('@NowoHttpLogBundle/admin/index.html.twig', self::callback(static fn (array $parameters): bool => $parameters['page'] instanceof ListPage))
             ->willReturn('index');
 
         $controller = $this->createController(
@@ -242,7 +256,7 @@ final class HttpLogAdminControllerTest extends TestCase
             repository: $repository,
             formFactory: $this->createIndexFormFactory($form),
             twig: $twig,
-            adminUi: ['templates' => 'invalid'],
+            webUi: ['templates' => 'invalid', 'layout_template' => ''],
         );
 
         self::assertSame('index', $controller->index($request)->getContent());
@@ -357,8 +371,11 @@ final class HttpLogAdminControllerTest extends TestCase
             ->method('render')
             ->with(
                 '@NowoHttpLogBundle/admin/index.html.twig',
-                self::callback(static fn (array $parameters): bool => $parameters['exportCsvForm'] === null
-                    && $parameters['exportJsonForm'] instanceof FormView),
+                self::callback(static fn (array $parameters): bool => $parameters['page'] instanceof ListPage
+                    && count($parameters['page']->header->actions) === 2
+                    && $parameters['page']->header->actions[0]->kind === 'export'
+                    && str_contains((string) $parameters['page']->header->actions[0]->href, 'format=json')
+                    && $parameters['page']->header->actions[1]->confirm instanceof Confirm),
             )
             ->willReturn('index');
 
@@ -372,6 +389,65 @@ final class HttpLogAdminControllerTest extends TestCase
         );
 
         self::assertSame('index', $controller->index($request)->getContent());
+    }
+
+    #[Test]
+    public function indexHidesHeaderActionsTheUserMayNotUse(): void
+    {
+        $request = Request::create('/admin/http-log', 'GET');
+
+        $form = $this->createMock(FormInterface::class);
+        $form->method('isSubmitted')->willReturn(false);
+        $form->method('createView')->willReturn(new FormView());
+
+        $repository = $this->createMock(HttpLogEntryRepository::class);
+        $repository->method('findFiltered')->willReturn(['items' => [], 'total' => 0]);
+
+        $accessChecker = $this->createMock(HttpLogAccessCheckerInterface::class);
+        $accessChecker->method('canAccessAdmin')->willReturn(true);
+        $accessChecker->method('canExport')->willReturn(false);
+        $accessChecker->method('canPurge')->willReturn(false);
+
+        $twig = $this->createMock(Environment::class);
+        $twig->expects(self::once())
+            ->method('render')
+            ->with(
+                '@NowoHttpLogBundle/admin/index.html.twig',
+                self::callback(static fn (array $parameters): bool => $parameters['page'] instanceof ListPage
+                    && count($parameters['page']->header->actions) === 3
+                    && array_filter($parameters['page']->header->actions, static fn (Action $action): bool => $action->visible) === []),
+            )
+            ->willReturn('index');
+
+        $controller = $this->createController(
+            request: $request,
+            repository: $repository,
+            accessChecker: $accessChecker,
+            formFactory: $this->createIndexFormFactory($form),
+            twig: $twig,
+            allowUnauthenticated: false,
+        );
+
+        self::assertSame('index', $controller->index($request)->getContent());
+    }
+
+    #[Test]
+    public function exportReadsFormatAndCriteriaFromTheActionUrl(): void
+    {
+        $request = Request::create('/admin/http-log/export?format=json&method=POST&statusCode=201', 'POST', ['_token' => 'valid-token']);
+
+        $exportService = $this->createMock(ExportHttpLogService::class);
+        $exportService->expects(self::once())
+            ->method('countForCriteria')
+            ->with(['method' => 'POST', 'statusCode' => '201'])
+            ->willReturn(1);
+        $exportService->expects(self::once())->method('exportToString')->willReturn('[]');
+
+        $controller = $this->createController(request: $request, exportService: $exportService, csrfValid: true);
+        $response   = $controller->export($request);
+
+        self::assertSame('application/json', $response->headers->get('Content-Type'));
+        self::assertSame('attachment; filename="http-log-export.json"', $response->headers->get('Content-Disposition'));
     }
 
     #[Test]
@@ -706,7 +782,7 @@ final class HttpLogAdminControllerTest extends TestCase
         bool $csrfValid = true,
         int $maxSyncExportRows = 10,
         int $pageSize = 20,
-        array $adminUi = AdminChrome::DEFAULTS,
+        array $webUi = [],
         ?TranslatorInterface $translator = null,
         array $exportFormats = ['csv', 'json'],
     ): HttpLogAdminController {
@@ -745,7 +821,7 @@ final class HttpLogAdminControllerTest extends TestCase
             $allowUnauthenticated,
             $maxSyncExportRows,
             $pageSize,
-            $adminUi,
+            $webUi,
             $translator,
             $exportFormats,
         );

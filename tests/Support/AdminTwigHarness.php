@@ -8,10 +8,9 @@ use DateTimeImmutable;
 use Nowo\FormKitBundle\Form\Constraint\ConstraintDefinitionFactory;
 use Nowo\FormKitBundle\Form\FormOptionsMerger;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
-use Nowo\HttpLogBundle\Form\HttpLogDeleteType;
-use Nowo\HttpLogBundle\Form\HttpLogExportType;
 use Nowo\HttpLogBundle\Form\HttpLogFilterType;
-use Nowo\HttpLogBundle\Form\HttpLogPurgeType;
+use Nowo\UiKitBundle\Theme\Theme;
+use Nowo\UiKitBundle\Twig\ThemeExtension;
 use ReflectionClass;
 use ReflectionProperty;
 use Symfony\Bridge\Twig\AppVariable;
@@ -41,33 +40,34 @@ use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Component\Translation\Loader\YamlFileLoader;
 use Symfony\Component\Translation\Translator;
 use Twig\Environment;
+use Twig\Extra\String\StringExtension;
 use Twig\Loader\FilesystemLoader;
 use Twig\RuntimeLoader\FactoryRuntimeLoader;
 
 use function dirname;
 
 /**
- * Builds a real Twig environment (forms, routing, translations, UiKit macros) for admin template render tests.
+ * Builds a real Twig environment (forms, routing, translations, UiKit scaffolds and theme) for admin page render tests.
  */
 final class AdminTwigHarness
 {
     public const FIXTURES_DIR = __DIR__ . '/../Fixtures';
 
-    /**
-     * Form theme that renders every form_row as label-only stub, so golden files pin the bundle chrome and not
-     * the widget markup owned by Symfony Form / FormKit (asserted separately as invariants).
-     */
-    public const GOLDEN_FORM_ROW_THEME = 'golden_form_rows.html.twig';
+    /** Host layout bridge of the fixtures (renders every UiKit canonical block). */
+    public const HOST_LAYOUT = 'host/layout.html.twig';
 
     private readonly FormFactoryInterface $formFactory;
 
     private readonly Translator $translator;
+
+    private readonly UrlGenerator $router;
 
     public function __construct()
     {
         $this->translator = new Translator('en');
         $this->translator->addLoader('yaml', new YamlFileLoader());
         $this->translator->addResource('yaml', dirname(__DIR__, 2) . '/src/Resources/translations/NowoHttpLogBundle.en.yaml', 'en', 'NowoHttpLogBundle');
+        $this->translator->addResource('yaml', dirname(__DIR__, 2) . '/vendor/nowo-tech/ui-kit-bundle/src/Resources/translations/NowoUiKitBundle.en.yaml', 'en', 'NowoUiKitBundle');
 
         $filterType = new HttpLogFilterType();
         // Mirrors the http_log profile seeded by NowoHttpLogExtension::prependFormKitDefaults().
@@ -90,6 +90,20 @@ final class AdminTwigHarness
             ->addExtension(new CsrfExtension($this->csrfTokenManager()))
             ->addType($filterType)
             ->getFormFactory();
+
+        $routes = new RouteCollection();
+        $routes->add('nowo_http_log_admin_index', new Route('/admin/http-log'));
+        $routes->add('nowo_http_log_admin_show', new Route('/admin/http-log/{id}'));
+        $routes->add('nowo_http_log_admin_export', new Route('/admin/http-log/export'));
+        $routes->add('nowo_http_log_admin_purge', new Route('/admin/http-log/purge'));
+        $routes->add('nowo_http_log_admin_delete', new Route('/admin/http-log/{id}/delete'));
+        $this->router = new UrlGenerator($routes, new RequestContext());
+    }
+
+    /** URL generator with the admin routes (what the controller's router generates). */
+    public function router(): UrlGenerator
+    {
+        return $this->router;
     }
 
     /** Real form factory (HttpFoundation + CSRF, FormKit-backed filter type) shared with the controller in functional tests. */
@@ -99,93 +113,69 @@ final class AdminTwigHarness
     }
 
     /**
+     * Real Twig environment: bundle views, UiKit (scaffolds, partials, ThemeExtension with the given theme), Symfony
+     * Form, routing, translations and the fixture host layout as nowo_ui_kit.layouts.admin.
+     *
      * @param array<string, mixed> $globals
+     * @param array<string, mixed> $theme processed nowo_ui_kit.theme config
      */
-    public function createEnvironment(array $globals = [], bool $stubFormRows = false): Environment
+    public function createEnvironment(array $globals = [], array $theme = [], string $framework = 'bootstrap5', ?RequestStack $requestStack = null): Environment
     {
         $root   = dirname(__DIR__, 2);
         $views  = $root . '/src/Resources/views';
+        $uiKit  = $root . '/vendor/nowo-tech/ui-kit-bundle/src/Resources/views';
         $loader = new FilesystemLoader();
         $loader->addPath(self::FIXTURES_DIR . '/templates');
         $loader->addPath($views, 'NowoHttpLogBundle');
         $loader->addPath($views, '!NowoHttpLogBundle');
-        $loader->addPath($root . '/vendor/nowo-tech/ui-kit-bundle/src/Resources/views', 'NowoUiKitBundle');
+        $loader->addPath($uiKit, 'NowoUiKitBundle');
+        $loader->addPath($uiKit, 'NowoUiKit');
         $formExtensionFile = (new ReflectionClass(FormExtension::class))->getFileName();
         $loader->addPath(dirname((string) $formExtensionFile, 2) . '/Resources/views/Form');
 
-        $twig = new Environment($loader, ['cache' => false, 'strict_variables' => false, 'autoescape' => 'html']);
+        $twig = new Environment($loader, ['cache' => false, 'strict_variables' => true, 'autoescape' => 'html']);
 
         $twig->addExtension(new TranslationExtension($this->translator));
-
-        $routes = new RouteCollection();
-        $routes->add('nowo_http_log_admin_index', new Route('/admin/http-log'));
-        $routes->add('nowo_http_log_admin_show', new Route('/admin/http-log/{id}'));
-        $routes->add('nowo_http_log_admin_export', new Route('/admin/http-log/export'));
-        $routes->add('nowo_http_log_admin_purge', new Route('/admin/http-log/purge'));
-        $routes->add('nowo_http_log_admin_delete', new Route('/admin/http-log/{id}/delete'));
-        $twig->addExtension(new RoutingExtension(new UrlGenerator($routes, new RequestContext())));
-
+        $twig->addExtension(new RoutingExtension($this->router));
         $twig->addExtension(new AssetExtension(new Packages(
             new PathPackage('/', new EmptyVersionStrategy()),
             ['nowo_ui_kit' => new PathPackage('/bundles/nowouikit', new EmptyVersionStrategy())],
         )));
-
         $twig->addExtension(new FormExtension());
+        $twig->addExtension(new StringExtension());
         $twig->addRuntimeLoader(new FactoryRuntimeLoader([
-            FormRenderer::class => static fn (): FormRenderer => new FormRenderer(new TwigRendererEngine($stubFormRows ? ['form_div_layout.html.twig', self::GOLDEN_FORM_ROW_THEME] : ['form_div_layout.html.twig'], $twig)),
+            FormRenderer::class => static fn (): FormRenderer => new FormRenderer(new TwigRendererEngine(['form_div_layout.html.twig'], $twig)),
         ]));
 
-        $request = Request::create('/admin/http-log');
-        $request->setSession(new Session(new MockArraySessionStorage()));
-        $requestStack = new RequestStack();
-        $requestStack->push($request);
+        if (!$requestStack instanceof RequestStack) {
+            $request = Request::create('/admin/http-log');
+            $request->setSession(new Session(new MockArraySessionStorage()));
+            $requestStack = new RequestStack();
+            $requestStack->push($request);
+        }
+        $twig->addExtension(new ThemeExtension(
+            Theme::fromConfig($framework, $theme),
+            ['admin' => self::HOST_LAYOUT, 'guest' => self::HOST_LAYOUT],
+            ['breadcrumb_kit' => false, 'collection' => null],
+            $this->translator,
+            $requestStack,
+        ));
+
         $app = new AppVariable();
         $app->setRequestStack($requestStack);
+        $app->setEnvironment('test');
+        $app->setDebug(false);
         $twig->addGlobal('app', $app);
+        $twig->addGlobal('nowo_ui_kit_css_framework', $framework);
+        $twig->addGlobal('nowo_ui_kit_icon_set', 'bootstrap-icons');
+        $twig->addGlobal('nowo_ui_kit_row_actions_display', 'icon');
+        $twig->addGlobal('nowo_ui_kit_release_check', ['enabled' => false, 'current_version' => '']);
 
         foreach ($globals as $name => $value) {
             $twig->addGlobal($name, $value);
         }
 
         return $twig;
-    }
-
-    /**
-     * Context the controller passes to admin/index.html.twig.
-     *
-     * @param list<HttpLogEntry> $entries
-     * @param array<string, mixed> $extra
-     *
-     * @return array<string, mixed>
-     */
-    public function indexContext(array $entries, int $total, int $page = 1, int $pageSize = 2, array $extra = []): array
-    {
-        return [
-            'filterForm'     => $this->formFactory->create(HttpLogFilterType::class)->createView(),
-            'exportCsvForm'  => $this->formFactory->create(HttpLogExportType::class, null, ['action' => '/admin/http-log/export', 'format' => 'csv'])->createView(),
-            'exportJsonForm' => $this->formFactory->create(HttpLogExportType::class, null, ['action' => '/admin/http-log/export', 'format' => 'json'])->createView(),
-            'purgeForm'      => $this->formFactory->create(HttpLogPurgeType::class, null, ['action' => '/admin/http-log/purge'])->createView(),
-            'entries'        => $entries,
-            'total'          => $total,
-            'page'           => $page,
-            'pageSize'       => $pageSize,
-            'criteria'       => ['method' => 'GET', 'createdFrom' => new DateTimeImmutable('2026-08-01T09:30:00+00:00')],
-        ] + $extra;
-    }
-
-    /**
-     * Context the controller passes to admin/show.html.twig.
-     *
-     * @param array<string, mixed> $extra
-     *
-     * @return array<string, mixed>
-     */
-    public function showContext(HttpLogEntry $entry, array $extra = []): array
-    {
-        return [
-            'entry'      => $entry,
-            'deleteForm' => $this->formFactory->create(HttpLogDeleteType::class, null, ['action' => '/admin/http-log/' . $entry->getId() . '/delete'])->createView(),
-        ] + $extra;
     }
 
     public static function entry(int $id, bool $full = false): HttpLogEntry
@@ -218,18 +208,6 @@ final class AdminTwigHarness
         (new ReflectionProperty(HttpLogEntry::class, 'id'))->setValue($entry, $id);
 
         return $entry;
-    }
-
-    /**
-     * Whitespace-insensitive HTML: collapse runs of whitespace and drop whitespace between tags.
-     */
-    public static function normalize(string $html): string
-    {
-        $html = (string) preg_replace('/\s+/', ' ', $html);
-        $html = (string) preg_replace('/>\s+</', '><', $html);
-        $html = (string) preg_replace('/\s+>/', '>', $html);
-
-        return trim($html);
     }
 
     private function csrfTokenManager(): CsrfTokenManagerInterface

@@ -1,0 +1,7 @@
+{# 2.0 page_header theme partial override that renders the header actions itself (like the UiKit demo host). #}
+<header class="host-header">
+    <h1>{{ header.title|nowo_ui_trans }}</h1>
+    {% for action in actions|default(header.actions) %}
+        {{ include(nowo_ui_partial('action', bundle|default(null)), {action: action, context: 'toolbar', bundle: bundle|default(null)}, false) }}
+    {% endfor %}
+</header>

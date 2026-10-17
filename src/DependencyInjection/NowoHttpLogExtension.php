@@ -61,18 +61,10 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
             $config = $this->processConfiguration(new Configuration(), $configs);
 
             if ($config['web_ui']['enabled'] && $container->hasExtension('twig')) {
-                // Escape leading "@" so DI does not treat Twig logical names as service refs.
-                $layoutTemplate = $config['web_ui']['layout_template'];
-                if (is_string($layoutTemplate) && str_starts_with($layoutTemplate, '@')) {
-                    $layoutTemplate = '@' . $layoutTemplate;
-                }
-
                 $container->prependExtensionConfig('twig', [
                     'globals' => [
-                        'nowo_http_log_layout_template' => $layoutTemplate,
-                        'nowo_http_log_css_framework'   => $config['web_ui']['css_framework'],
-                        'nowo_http_log_path_prefix'     => $config['web_ui']['path_prefix'],
-                        'nowo_http_log_page_size'       => $config['web_ui']['page_size'],
+                        'nowo_http_log_path_prefix' => $config['web_ui']['path_prefix'],
+                        'nowo_http_log_page_size'   => $config['web_ui']['page_size'],
                     ],
                 ]);
             }
@@ -117,14 +109,14 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                     // Filter fields have no {form}.{field}.help / .placeholder translations: only apply the
                     // convention keys when the host translates them, never render the raw keys.
                     'convention_requires_translation' => true,
-                    'defaults'                        => [
-                        'attr'     => ['class' => 'nowo-ui-input form-control'],
-                        'row_attr' => ['class' => 'mb-2'],
+                    // Rows sit in the UiKit filter row (filters_field slot): no spacing utilities on the rows.
+                    'defaults' => [
+                        'attr' => ['class' => 'nowo-ui-input form-control'],
                     ],
                     'field_types' => [
                         'checkbox' => [
                             'attr'     => ['class' => 'form-check-input'],
-                            'row_attr' => ['class' => 'form-check mb-2'],
+                            'row_attr' => ['class' => 'form-check'],
                         ],
                         'choice' => [
                             'attr' => ['class' => 'form-select'],
@@ -149,9 +141,11 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
     }
 
     /**
-     * When UiKit is installed, seed nowo_ui_kit.css_framework / icon_set from web_ui
-     * so kit macros resolve the same stack. Does not override keys the host already set.
-     * web_ui.icon_set defaults to bootstrap-icons.
+     * When UiKit is installed:
+     * - seed nowo_ui_kit.css_framework / icon_set from the deprecated web_ui keys, only when the host set them here
+     *   and not in nowo_ui_kit (the defaults of both bundles are the same: bootstrap5 / bootstrap-icons);
+     * - bridge the deprecated 1.x chrome keys into nowo_ui_kit.theme.bundles.NowoHttpLogBundle (prepended, so the
+     *   host's own nowo_ui_kit config still wins).
      */
     private function prependUiKitDefaults(ContainerBuilder $container): void
     {
@@ -170,23 +164,37 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
             }
         }
 
-        if ($hostHasCssFramework && $hostHasIconSet) {
-            return;
-        }
+        $rawConfigs = $container->getExtensionConfig(Configuration::ALIAS);
+        $setHere    = static function (string $key) use ($rawConfigs): bool {
+            foreach ($rawConfigs as $cfg) {
+                if (is_array($cfg['web_ui'] ?? null) && array_key_exists($key, $cfg['web_ui'])) {
+                    return true;
+                }
+            }
 
-        $config = $this->processConfiguration(new Configuration(), $container->getExtensionConfig(Configuration::ALIAS));
+            return false;
+        };
+
+        $config = $this->processConfiguration(new Configuration(), $rawConfigs);
         /** @var array<string, mixed> $webUi */
         $webUi    = $config['web_ui'];
         $defaults = [];
 
-        if (!$hostHasCssFramework) {
-            $defaults['css_framework'] = (string) ($webUi['css_framework'] ?? 'bootstrap5');
+        if (!$hostHasCssFramework && $setHere('css_framework')) {
+            $defaults['css_framework'] = (string) $webUi['css_framework'];
         }
-        if (!$hostHasIconSet) {
+        if (!$hostHasIconSet && $setHere('icon_set')) {
             $defaults['icon_set'] = (string) $webUi['icon_set'];
         }
 
-        $container->prependExtensionConfig('nowo_ui_kit', $defaults);
+        $theme = LegacyThemeBridge::themeException($webUi);
+        if ($theme !== []) {
+            $defaults['theme'] = ['bundles' => [LegacyThemeBridge::BUNDLE => $theme]];
+        }
+
+        if ($defaults !== []) {
+            $container->prependExtensionConfig('nowo_ui_kit', $defaults);
+        }
     }
 
     public function load(array $configs, ContainerBuilder $container): void

@@ -1,6 +1,19 @@
-{# Beacon-like layout bridge (web_ui.layout_template): hands the page header actions to the host header slot. #}
-{% extends 'host/base.html.twig' %}
-
-{% set host_header_actions %}{% if block('nowo_http_log_header_actions') is defined %}{{ block('nowo_http_log_header_actions') }}{% endif %}{% endset %}
-
-{% block body %}{% block nowo_ui_content %}{% endblock %}{% endblock %}
+{# Host layout bridge (nowo_ui_kit.layouts.admin / web_ui.layout_template): renders every UiKit canonical block. #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>{% block nowo_ui_document_title %}{% endblock %} · Host</title>
+    {% block nowo_ui_head %}{% endblock %}
+    {% block nowo_ui_styles %}<link rel="stylesheet" href="{{ asset('css/nowo-ui.css', 'nowo_ui_kit') }}">{% endblock %}
+</head>
+<body>
+<nav class="host-nav">{% block nowo_ui_navigation %}{% endblock %}</nav>
+<main class="host-main" id="nowo-ui-content"{% if nowo_ui_bundle|default(null) %} data-nowo-ui-bundle="{{ nowo_ui_bundle }}"{% endif %}>
+    {% block nowo_ui_page_header %}{% endblock %}
+    {% block nowo_ui_flashes %}{{ include(nowo_ui_partial('flashes', nowo_ui_bundle|default(null)), {bundle: nowo_ui_bundle|default(null)}) }}{% endblock %}
+    {% block nowo_ui_content %}{% endblock %}
+</main>
+{% block nowo_ui_modals %}{% endblock %}
+{% block nowo_ui_scripts %}{% endblock %}
+</body>
+</html>

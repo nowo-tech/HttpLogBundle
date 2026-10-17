@@ -52,4 +52,14 @@ final class AdminChromeTest extends TestCase
         self::assertSame(AdminChrome::DEFAULT_TEMPLATES, $chrome['templates']);
         self::assertSame(AdminChrome::DEFAULT_CSS_CLASSES, $chrome['css_classes']);
     }
+
+    #[Test]
+    public function fromWebUiKeepsDefaultTemplatesForUnsetDeprecatedPartials(): void
+    {
+        $chrome = AdminChrome::fromWebUi(['templates' => ['index' => 'host/index.html.twig', 'filter' => null, 'pagination' => null]]);
+
+        self::assertSame('host/index.html.twig', $chrome['templates']['index']);
+        self::assertSame(AdminChrome::DEFAULT_TEMPLATES['filter'], $chrome['templates']['filter']);
+        self::assertSame(AdminChrome::DEFAULT_TEMPLATES['pagination'], $chrome['templates']['pagination']);
+    }
 }

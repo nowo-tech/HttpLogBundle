@@ -60,7 +60,7 @@ services:
             $allowUnauthenticated: '%nowo_http_log.security.allow_unauthenticated%'
             $maxSyncExportRows: '%nowo_http_log.export.max_sync_rows%'
             $pageSize: '%nowo_http_log.web_ui.page_size%'
-            $adminUi: '%nowo_http_log.web_ui.chrome%'
+            $webUi: '%nowo_http_log.web_ui%'
             $exportFormats: '%nowo_http_log.export.formats%'
         tags: ['controller.service_arguments']
 

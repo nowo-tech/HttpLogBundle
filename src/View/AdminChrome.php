@@ -4,26 +4,34 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\View;
 
+use Nowo\HttpLogBundle\DependencyInjection\LegacyThemeBridge;
+
+use function array_filter;
 use function array_intersect_key;
 use function array_replace;
 use function is_array;
 
 /**
+ * @deprecated since 1.8, removed in 2.0: the admin pages render through the UiKit page contract (REQ-UI-003) and the
+ *             1.x keys are bridged into nowo_ui_kit.theme.bundles.NowoHttpLogBundle
+ *             ({@see LegacyThemeBridge}). Only the deprecated
+ *             `nowo_http_log.web_ui.chrome` container parameter is still built from it.
+ *
  * Admin chrome hooks (spec 002): default template paths, CSS class map and presentation switches.
  *
  * Single source of truth for the `web_ui.templates`, `web_ui.css_classes`, `web_ui.ui_kit_stylesheet`,
  * `web_ui.attributes`, `web_ui.header_actions_in_layout`, `web_ui.confirm_attributes` and `web_ui.ui_kit_row_actions`
- * defaults. The controller passes the resolved array to Twig as `nowo_http_log_ui`; the bundle
- * templates fall back to {@see self::DEFAULTS} when the variable is missing.
+ * defaults of the 1.x chrome — still the defaults of those deprecated configuration nodes.
  */
 final class AdminChrome
 {
     /** Template paths the controller renders / the pages include. */
     public const DEFAULT_TEMPLATES = [
-        'index'      => '@NowoHttpLogBundle/admin/index.html.twig',
-        'show'       => '@NowoHttpLogBundle/admin/show.html.twig',
-        'filter'     => '@NowoHttpLogBundle/admin/_filter.html.twig',
-        'pagination' => '@NowoHttpLogBundle/admin/_pagination.html.twig',
+        'index'  => '@NowoHttpLogBundle/admin/index.html.twig',
+        'show'   => '@NowoHttpLogBundle/admin/show.html.twig',
+        'filter' => '@NowoHttpLogBundle/admin/_filter.html.twig',
+        // 1.8: the local pagination partial is gone; the list scaffold renders the UiKit one.
+        'pagination' => '@NowoUiKitBundle/partials/_pagination.html.twig',
     ];
 
     /**
@@ -116,7 +124,7 @@ final class AdminChrome
         $chrome = array_replace(self::DEFAULTS, array_intersect_key($webUi, self::DEFAULTS));
 
         foreach (['templates' => self::DEFAULT_TEMPLATES, 'css_classes' => self::DEFAULT_CSS_CLASSES] as $key => $defaults) {
-            $chrome[$key] = array_replace($defaults, is_array($chrome[$key]) ? $chrome[$key] : []);
+            $chrome[$key] = array_replace($defaults, array_filter(is_array($chrome[$key]) ? $chrome[$key] : [], static fn (mixed $v): bool => $v !== null || $key === 'css_classes'));
         }
 
         return $chrome;

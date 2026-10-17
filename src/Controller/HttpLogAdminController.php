@@ -7,6 +7,7 @@ namespace Nowo\HttpLogBundle\Controller;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
+use Nowo\HttpLogBundle\DependencyInjection\Configuration;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Enum\ExportFormat;
 use Nowo\HttpLogBundle\Form\AbstractHttpLogActionType;
@@ -19,7 +20,7 @@ use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
 use Nowo\HttpLogBundle\Service\ExportHttpLogService;
 use Nowo\HttpLogBundle\Service\PurgeHttpLogService;
-use Nowo\HttpLogBundle\View\AdminChrome;
+use Nowo\HttpLogBundle\View\AdminPages;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -28,6 +29,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -73,8 +75,8 @@ final class HttpLogAdminController extends AbstractController
         private readonly bool $allowUnauthenticated,
         private readonly int $maxSyncExportRows,
         private readonly int $pageSize,
-        /** @var array<string, mixed> Resolved admin chrome ({@see AdminChrome::fromWebUi()}). */
-        private readonly array $adminUi = AdminChrome::DEFAULTS,
+        /** @var array<string, mixed> Processed `web_ui` configuration (layout_template, templates, deprecated attributes). */
+        private readonly array $webUi = [],
         private readonly ?TranslatorInterface $translator = null,
         /** @var list<string> Allowed export formats (export.formats). */
         private readonly array $exportFormats = ['csv', 'json'],
@@ -97,19 +99,30 @@ final class HttpLogAdminController extends AbstractController
         $page           = max(1, $request->query->getInt('page', 1));
         $result         = $this->repository->findFiltered($criteria, $page, $this->pageSize);
 
+        $exportForms = [];
+        foreach ([ExportFormat::Csv, ExportFormat::Json] as $format) {
+            $exportForm = $this->exportFormView($format, $criteriaParams);
+            if ($exportForm instanceof FormView) {
+                $exportForms[$format->value] = $exportForm;
+            }
+        }
+
         $response = $this->render($this->template('index'), [
-            'filterForm'     => $filterForm->createView(),
-            'exportCsvForm'  => $this->exportFormView(ExportFormat::Csv, $criteriaParams),
-            'exportJsonForm' => $this->exportFormView(ExportFormat::Json, $criteriaParams),
-            'purgeForm'      => $this->createForm(HttpLogPurgeType::class, null, [
-                'action' => $this->generateUrl('nowo_http_log_admin_purge'),
-            ])->createView(),
-            'entries'          => $result['items'],
-            'total'            => $result['total'],
-            'page'             => $page,
-            'pageSize'         => $this->pageSize,
-            'criteria'         => $criteria,
-            'nowo_http_log_ui' => $this->adminUi,
+            'page' => $this->pages()->listPage(
+                $result['items'],
+                $result['total'],
+                $page,
+                $this->pageSize,
+                $filterForm->createView(),
+                $exportForms,
+                $this->createForm(HttpLogPurgeType::class, null, [
+                    'action' => $this->generateUrl('nowo_http_log_admin_purge'),
+                ])->createView(),
+                $criteria !== [],
+                $this->canExport(),
+                $this->canPurge(),
+            ),
+            'criteria' => $criteria,
         ]);
         $this->repository->detachAll($result['items']);
 
@@ -126,16 +139,26 @@ final class HttpLogAdminController extends AbstractController
             throw $this->createNotFoundException();
         }
 
+        $deleteForm = $this->createForm(HttpLogDeleteType::class, null, [
+            'action' => $this->generateUrl('nowo_http_log_admin_delete', ['id' => $entry->getId()]),
+        ])->createView();
+
         $response = $this->render($this->template('show'), [
-            'entry'      => $entry,
-            'deleteForm' => $this->createForm(HttpLogDeleteType::class, null, [
-                'action' => $this->generateUrl('nowo_http_log_admin_delete', ['id' => $entry->getId()]),
-            ])->createView(),
-            'nowo_http_log_ui' => $this->adminUi,
+            'page'  => $this->pages()->showPage($entry, $deleteForm, $this->canPurge()),
+            'entry' => $entry,
         ]);
         $this->repository->detachAll([$entry]);
 
         return $response;
+    }
+
+    /** View-model builder of the admin pages (per call: no state kept between requests). */
+    private function pages(): AdminPages
+    {
+        /** @var UrlGeneratorInterface $router */
+        $router = $this->container->get('router');
+
+        return new AdminPages($router, $this->webUi);
     }
 
     #[Route('/export', name: 'nowo_http_log_admin_export', methods: ['POST'])]
@@ -145,9 +168,9 @@ final class HttpLogAdminController extends AbstractController
 
         $data = $this->validateActionForm($request, HttpLogExportType::class, [
             'criteria' => $this->rawCriteriaFromRequest($request),
-            'format'   => (string) $request->request->get('format', ExportFormat::Csv->value),
+            'format'   => (string) ($this->input($request, 'format') ?? ExportFormat::Csv->value),
         ]);
-        $formatValue = (string) ($data['format'] ?? ExportFormat::Csv->value);
+        $formatValue = (string) ($data['format'] ?? $this->input($request, 'format') ?? ExportFormat::Csv->value);
         $format      = ExportFormat::tryFrom($formatValue) ?? ExportFormat::Csv;
         if (!$this->isExportFormatAllowed($format)) {
             throw new BadRequestHttpException(sprintf('Export format "%s" is not enabled (nowo_http_log.export.formats).', $format->value));
@@ -243,14 +266,14 @@ final class HttpLogAdminController extends AbstractController
     }
 
     /**
-     * Template path from web_ui.templates (spec 002), falling back to the bundle default.
+     * Page template from web_ui.templates.<page> (index, show), falling back to the bundle default.
      */
     private function template(string $name): string
     {
-        $templates = $this->adminUi['templates'] ?? [];
+        $templates = $this->webUi['templates'] ?? [];
         $template  = is_array($templates) ? ($templates[$name] ?? null) : null;
 
-        return is_string($template) && $template !== '' ? $template : AdminChrome::DEFAULT_TEMPLATES[$name];
+        return is_string($template) && $template !== '' ? $template : Configuration::PAGE_TEMPLATES[$name];
     }
 
     /**
@@ -265,6 +288,18 @@ final class HttpLogAdminController extends AbstractController
         }
 
         return $this->translator->trans($key, $parameters, 'NowoHttpLogBundle');
+    }
+
+    /** Export actions are shown only to users who may export (the export route enforces it anyway). */
+    private function canExport(): bool
+    {
+        return $this->allowUnauthenticated || $this->accessChecker->canExport($this->getUser());
+    }
+
+    /** Purge / delete actions are shown only to users who may purge (the routes enforce it anyway). */
+    private function canPurge(): bool
+    {
+        return $this->allowUnauthenticated || $this->accessChecker->canPurge($this->getUser());
     }
 
     private function denyUnlessGrantedAdmin(): void
@@ -322,12 +357,21 @@ final class HttpLogAdminController extends AbstractController
         return $this->normalizeCriteria($form->getData());
     }
 
+    /**
+     * POST field, else query parameter: the admin export action carries the format and the criteria in its URL
+     * (only the CSRF token is posted), 1.x forms post them as hidden fields.
+     */
+    private function input(Request $request, string $key): bool|float|int|string|null
+    {
+        return $request->request->get($key) ?? $request->query->get($key);
+    }
+
     /** @return array<string, mixed> */
     private function criteriaFromRequest(Request $request): array
     {
         $criteria = [];
         foreach (self::CRITERIA_FIELDS as $key) {
-            $value = $request->request->get($key);
+            $value = $this->input($request, $key);
             if ($value !== null && $value !== '') {
                 if (in_array($key, ['createdFrom', 'createdTo'], true)) {
                     $criteria[$key] = $this->parseDateCriteria($value);
@@ -345,7 +389,7 @@ final class HttpLogAdminController extends AbstractController
     {
         $criteria = [];
         foreach (self::CRITERIA_FIELDS as $key) {
-            $value = $request->request->get($key);
+            $value = $this->input($request, $key);
             if ($value !== null && $value !== '') {
                 $criteria[$key] = $value;
             }

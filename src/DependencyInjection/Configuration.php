@@ -15,6 +15,7 @@ use function array_diff;
 use function array_keys;
 use function array_map;
 use function implode;
+use function is_array;
 use function is_int;
 use function is_string;
 use function rtrim;
@@ -37,6 +38,18 @@ final class Configuration implements ConfigurationInterface
     public const DEFAULT_IGNORE_PATH_PREFIXES = ['/_nowo/', '/sw.js', '/manifest.webmanifest'];
 
     public const DEFAULT_PURGE_BATCH_SIZE = 1000;
+
+    /** Composer package name used in configuration deprecations. */
+    public const PACKAGE = 'nowo-tech/http-log-bundle';
+
+    /** The 1.x default `web_ui.layout_template` (removed CDN layout); normalized to null = UiKit layout. */
+    public const LEGACY_LAYOUT_TEMPLATE = '@NowoHttpLogBundle/layout.html.twig';
+
+    /** Pages the controller renders (`web_ui.templates.<page>`). */
+    public const PAGE_TEMPLATES = [
+        'index' => '@NowoHttpLogBundle/admin/index.html.twig',
+        'show'  => '@NowoHttpLogBundle/admin/show.html.twig',
+    ];
 
     public function getConfigTreeBuilder(): TreeBuilder
     {
@@ -151,6 +164,15 @@ final class Configuration implements ConfigurationInterface
                 ->end()
                 ->arrayNode('web_ui')
                     ->addDefaultsIfNotSet()
+                    ->beforeNormalization()
+                        // The 1.x default layout (Bootstrap from a CDN) is gone: that value now means the UiKit layout.
+                        ->ifTrue(static fn (mixed $v): bool => is_array($v) && ($v['layout_template'] ?? null) === self::LEGACY_LAYOUT_TEMPLATE)
+                        ->then(static function (array $v): array {
+                            $v['layout_template'] = null;
+
+                            return $v;
+                        })
+                    ->end()
                     ->children()
                         ->booleanNode('enabled')->defaultTrue()->end()
                         ->scalarNode('path_prefix')
@@ -165,14 +187,18 @@ final class Configuration implements ConfigurationInterface
                             ->end()
                         ->end()
                         ->scalarNode('icon_set')
-                            ->info('Icon set seeded into nowo_ui_kit.icon_set when UiKit is installed and the host did not set it (e.g. bootstrap-icons, tabler-icons).')
+                            ->info('Deprecated: set nowo_ui_kit.icon_set. When set here (and not in nowo_ui_kit) it is still seeded into UiKit.')
+                            ->setDeprecated(self::PACKAGE, '1.8', 'The "%path%.%node%" option is deprecated, set "nowo_ui_kit.icon_set" instead.')
                             ->defaultValue('bootstrap-icons')
                             ->cannotBeEmpty()
                         ->end()
                         ->scalarNode('layout_template')
-                            ->defaultValue('@NowoHttpLogBundle/layout.html.twig')
+                            ->info('Layout the admin pages extend. null (default) = the UiKit admin layout (nowo_ui_kit.layouts.admin).')
+                            ->defaultNull()
                         ->end()
                         ->enumNode('css_framework')
+                            ->info('Deprecated: set nowo_ui_kit.css_framework. When set here (and not in nowo_ui_kit) it is still seeded into UiKit.')
+                            ->setDeprecated(self::PACKAGE, '1.8', 'The "%path%.%node%" option is deprecated, set "nowo_ui_kit.css_framework" instead.')
                             ->values(array_map(static fn (CssFramework $f): string => $f->value, CssFramework::cases()))
                             ->defaultValue(CssFramework::Bootstrap5->value)
                         ->end()
@@ -183,7 +209,8 @@ final class Configuration implements ConfigurationInterface
                         ->append($this->templatesNode())
                         ->append($this->cssClassesNode())
                         ->arrayNode('attributes')
-                            ->info('Extra HTML attributes per chrome element (e.g. results: { data-testid: http-log-results }).')
+                            ->info('Deprecated: extra HTML attributes per 1.x chrome element, bridged into nowo_ui_kit.theme.bundles.NowoHttpLogBundle.attributes (see UPGRADING).')
+                            ->setDeprecated(self::PACKAGE, '1.8', 'The "%path%.%node%" option is deprecated, use "nowo_ui_kit.theme.bundles.NowoHttpLogBundle.attributes" instead.')
                             ->useAttributeAsKey('element')
                             ->normalizeKeys(false)
                             ->arrayPrototype()
@@ -198,22 +225,26 @@ final class Configuration implements ConfigurationInterface
                             ->end()
                         ->end()
                         ->booleanNode('ui_kit_stylesheet')
-                            ->info('Append UiKit nowo-ui.css from admin/base.html.twig. Disable when the host layout ships its own admin CSS.')
+                            ->info('Deprecated, no effect: the UiKit layout (or the host layout) loads nowo-ui.css.')
+                            ->setDeprecated(self::PACKAGE, '1.8', 'The "%path%.%node%" option is deprecated and has no effect: the admin layout loads nowo-ui.css.')
                             ->defaultTrue()
                         ->end()
                         ->booleanNode('header_actions_in_layout')
-                            ->info('When true, pages skip the inline header actions (export/purge, back link); the layout renders {{ block(\'nowo_http_log_header_actions\') }}.')
+                            ->info('Deprecated, no effect: header actions are part of the page header the layout renders (nowo_ui_page_header).')
+                            ->setDeprecated(self::PACKAGE, '1.8', 'The "%path%.%node%" option is deprecated and has no effect: header actions render in the page header (nowo_ui_page_header block).')
                             ->defaultFalse()
                         ->end()
                         ->arrayNode('confirm_attributes')
-                            ->info('Form attributes replacing the inline onsubmit confirm() on purge/delete forms (CSP-friendly). "{message}" is replaced by the translated prompt.')
+                            ->info('Deprecated, no effect: purge / delete open the UiKit confirm dialog (no inline confirm()).')
+                            ->setDeprecated(self::PACKAGE, '1.8', 'The "%path%.%node%" option is deprecated and has no effect: purge and delete use the UiKit confirm dialog.')
                             ->useAttributeAsKey('name')
                             ->normalizeKeys(false)
                             ->scalarPrototype()->end()
                             ->defaultValue([])
                         ->end()
                         ->booleanNode('ui_kit_row_actions')
-                            ->info('Render list row actions with @NowoUiKitBundle/partials/_row_actions.html.twig (honours nowo_ui_kit.row_actions_display; UiKit >= 1.6).')
+                            ->info('Deprecated, no effect: row actions always render through the UiKit row_actions partial (nowo_ui_kit.row_actions_display).')
+                            ->setDeprecated(self::PACKAGE, '1.8', 'The "%path%.%node%" option is deprecated and has no effect: row actions always use the UiKit row_actions partial.')
                             ->defaultFalse()
                         ->end()
                     ->end()
@@ -238,13 +269,24 @@ final class Configuration implements ConfigurationInterface
     {
         $node     = (new TreeBuilder('templates'))->getRootNode();
         $children = $node
-            ->info('Twig templates the admin controller renders / the pages include.')
+            ->info('Twig templates of the admin pages (index, show). filter / pagination are deprecated (UiKit theme partials).')
             ->addDefaultsIfNotSet()
             ->children();
 
-        foreach (AdminChrome::DEFAULT_TEMPLATES as $key => $default) {
+        foreach (self::PAGE_TEMPLATES as $key => $default) {
             $children->scalarNode($key)->defaultValue($default)->cannotBeEmpty()->end();
         }
+
+        $children->scalarNode('filter')
+            ->info('Deprecated: bridged to nowo_ui_kit.theme.bundles.NowoHttpLogBundle.partials.list_filters.')
+            ->setDeprecated(self::PACKAGE, '1.8', 'The "%path%.%node%" option is deprecated, use "nowo_ui_kit.theme.bundles.NowoHttpLogBundle.partials.list_filters" instead.')
+            ->defaultNull()
+        ->end();
+        $children->scalarNode('pagination')
+            ->info('Deprecated: bridged to nowo_ui_kit.theme.bundles.NowoHttpLogBundle.partials.pagination.')
+            ->setDeprecated(self::PACKAGE, '1.8', 'The "%path%.%node%" option is deprecated, use "nowo_ui_kit.theme.bundles.NowoHttpLogBundle.partials.pagination" instead.')
+            ->defaultNull()
+        ->end();
 
         return $node;
     }
@@ -253,7 +295,8 @@ final class Configuration implements ConfigurationInterface
     {
         $node     = (new TreeBuilder('css_classes'))->getRootNode();
         $children = $node
-            ->info('CSS class map for the admin chrome. null = UiKit macro for css_framework; "" = no class attribute / wrapper.')
+            ->info('Deprecated: 1.x class map, bridged into nowo_ui_kit.theme.bundles.NowoHttpLogBundle.classes (see UPGRADING).')
+            ->setDeprecated(self::PACKAGE, '1.8', 'The "%path%.%node%" option is deprecated, use "nowo_ui_kit.theme.bundles.NowoHttpLogBundle.classes" instead.')
             ->addDefaultsIfNotSet()
             ->children();
 

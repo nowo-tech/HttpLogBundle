@@ -19,14 +19,13 @@ use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 use Symfony\Component\Messenger\MessageBusInterface;
-use Symfony\Component\Routing\RouterInterface;
 
 use function html_entity_decode;
 use function preg_match;
 
 /**
- * Spec 002 FR-CHR-013 (fixed in 1.3.0): pagination links carry the active filters in the shape the GET
- * filter form reads (http_log_filter[field]=…), so page 2 is still filtered.
+ * Spec 002 FR-CHR-013 (fixed in 1.3.0), UiKit pagination since 1.8: pagination links carry the active filters in
+ * the shape the GET filter form reads (http_log_filter[field]=…), so page 2 is still filtered.
  *
  * Real controller + real filter form + real Twig templates; only the repository is a test double.
  */
@@ -52,7 +51,7 @@ final class PaginationKeepsFiltersTest extends TestCase
         ]);
         $html = (string) $this->controller($harness, $repository, $first)->index($first)->getContent();
 
-        self::assertSame(1, preg_match('#<a class="page-link" href="([^"]+)">&raquo;</a>#', $html, $match));
+        self::assertSame(1, preg_match('#<a class="[^"]*nowo-ui-pagination__link[^"]*" href="([^"]+)" aria-label="Next">#', $html, $match));
         $nextUrl = html_entity_decode($match[1]);
         self::assertStringContainsString('http_log_filter[method]=POST', urldecode($nextUrl));
         self::assertStringContainsString('page=2', $nextUrl);
@@ -76,14 +75,11 @@ final class PaginationKeepsFiltersTest extends TestCase
         $requestStack = new RequestStack();
         $requestStack->push($request);
 
-        $router = $this->createMock(RouterInterface::class);
-        $router->method('generate')->willReturn('/admin/http-log/action');
-
         $container = new ContainerBuilder();
         $container->set('request_stack', $requestStack);
         $container->set('form.factory', $harness->formFactory());
-        $container->set('twig', $harness->createEnvironment());
-        $container->set('router', $router);
+        $container->set('twig', $harness->createEnvironment(requestStack: $requestStack));
+        $container->set('router', $harness->router());
 
         $controller = new HttpLogAdminController(
             $repository,

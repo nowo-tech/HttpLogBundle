@@ -203,36 +203,11 @@ final class NowoHttpLogExtensionTest extends TestCase
         self::assertSame([
             [
                 'globals' => [
-                    'nowo_http_log_layout_template' => 'base.html.twig',
-                    'nowo_http_log_css_framework'   => 'bootstrap5',
-                    'nowo_http_log_path_prefix'     => '/http-log',
-                    'nowo_http_log_page_size'       => 75,
+                    'nowo_http_log_path_prefix' => '/http-log',
+                    'nowo_http_log_page_size'   => 75,
                 ],
             ],
         ], $container->getExtensionConfig('twig'));
-    }
-
-    #[Test]
-    public function prependEscapesAtSignInLayoutTemplateForDependencyInjection(): void
-    {
-        $container = new ContainerBuilder();
-        $container->registerExtension($this->createExtension('twig'));
-        $container->registerExtension(new NowoHttpLogExtension());
-        $container->loadFromExtension('nowo_http_log', [
-            'security' => ['allow_unauthenticated' => true],
-            'web_ui'   => [
-                'enabled'         => true,
-                'layout_template' => '@NowoHttpLogBundle/layout.html.twig',
-            ],
-        ]);
-
-        (new NowoHttpLogExtension())->prepend($container);
-
-        $twigConfig = $container->getExtensionConfig('twig');
-        self::assertSame(
-            '@@NowoHttpLogBundle/layout.html.twig',
-            $twigConfig[0]['globals']['nowo_http_log_layout_template'],
-        );
     }
 
     #[Test]
@@ -343,7 +318,7 @@ final class NowoHttpLogExtensionTest extends TestCase
         self::assertNotEmpty($configs);
         $merged = array_replace_recursive(...array_reverse($configs));
         self::assertSame('tailwind', $merged['css_framework']);
-        self::assertSame('bootstrap-icons', $merged['icon_set']);
+        self::assertArrayNotHasKey('icon_set', $merged, 'icon_set is seeded only when set in nowo_http_log.web_ui');
     }
 
     #[Test]
@@ -389,7 +364,7 @@ final class NowoHttpLogExtensionTest extends TestCase
     }
 
     #[Test]
-    public function prependSeedsOnlyMissingUiKitIconSet(): void
+    public function prependSeedsNothingTheHostDidNotSetInWebUi(): void
     {
         $container = new ContainerBuilder();
         $container->registerExtension($this->createExtension('nowo_ui_kit'));
@@ -404,9 +379,40 @@ final class NowoHttpLogExtensionTest extends TestCase
         (new NowoHttpLogExtension())->prepend($container);
 
         $configs = $container->getExtensionConfig('nowo_ui_kit');
-        $merged  = array_replace_recursive(...array_reverse($configs));
-        self::assertSame('bootstrap5', $merged['css_framework']);
-        self::assertSame('bootstrap-icons', $merged['icon_set']);
+        self::assertSame([['css_framework' => 'bootstrap5']], $configs, 'defaults are inherited from nowo_ui_kit (same values)');
+    }
+
+    #[Test]
+    public function prependBridgesTheDeprecatedChromeIntoTheUiKitBundleTheme(): void
+    {
+        $container = new ContainerBuilder();
+        $container->registerExtension($this->createExtension('nowo_ui_kit'));
+        $container->registerExtension(new NowoHttpLogExtension());
+        $container->prependExtensionConfig('nowo_ui_kit', ['css_framework' => 'bootstrap5', 'icon_set' => 'bootstrap-icons']);
+        $container->loadFromExtension('nowo_http_log', [
+            'security' => ['allow_unauthenticated' => true],
+            'web_ui'   => [
+                'css_classes' => ['table' => 'table table-sm table-dark', 'filter' => 'nowo-ui-filter card mb-4'],
+                'attributes'  => ['table' => ['data-testid' => 'http-log-table']],
+                'templates'   => ['pagination' => 'kit/_pagination.html.twig'],
+            ],
+        ]);
+
+        (new NowoHttpLogExtension())->prepend($container);
+
+        $configs = $container->getExtensionConfig('nowo_ui_kit');
+        self::assertCount(2, $configs);
+        self::assertSame([
+            'theme' => [
+                'bundles' => [
+                    'NowoHttpLogBundle' => [
+                        'classes'    => ['table' => 'table table-sm table-dark'],
+                        'attributes' => ['table' => ['data-testid' => 'http-log-table']],
+                        'partials'   => ['pagination' => 'kit/_pagination.html.twig'],
+                    ],
+                ],
+            ],
+        ], $configs[0], 'prepended before the host config, so the host theme still wins; default values bridge nothing');
     }
 
     #[Test]

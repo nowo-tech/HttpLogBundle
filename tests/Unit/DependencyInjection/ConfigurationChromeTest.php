@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\Tests\Unit\DependencyInjection;
 
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
+use Nowo\HttpLogBundle\DependencyInjection\LegacyThemeBridge;
 use Nowo\HttpLogBundle\View\AdminChrome;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\Definition\Processor;
 
 /**
- * Spec 002 — admin chrome hooks configuration.
+ * Spec 002 — admin chrome hooks configuration; deprecated since 1.8 (REQ-UI-003), bridged into the UiKit theme.
  */
 final class ConfigurationChromeTest extends TestCase
 {
@@ -21,7 +24,8 @@ final class ConfigurationChromeTest extends TestCase
     {
         $webUi = $this->process([])['web_ui'];
 
-        self::assertSame(AdminChrome::DEFAULT_TEMPLATES, $webUi['templates']);
+        self::assertSame(Configuration::PAGE_TEMPLATES + ['filter' => null, 'pagination' => null], $webUi['templates']);
+        self::assertNull($webUi['layout_template'], 'null = UiKit admin layout');
         self::assertSame(AdminChrome::DEFAULT_CSS_CLASSES, $webUi['css_classes']);
         self::assertSame([], $webUi['attributes']);
         self::assertTrue($webUi['ui_kit_stylesheet']);
@@ -29,9 +33,47 @@ final class ConfigurationChromeTest extends TestCase
         self::assertSame([], $webUi['confirm_attributes']);
         self::assertFalse($webUi['ui_kit_row_actions']);
         self::assertSame(AdminChrome::DEFAULTS, AdminChrome::fromWebUi($webUi));
+        self::assertSame([], LegacyThemeBridge::themeException($webUi), 'defaults bridge nothing');
     }
 
     #[Test]
+    public function legacyBundleLayoutMeansTheUiKitLayout(): void
+    {
+        self::assertNull($this->process(['layout_template' => Configuration::LEGACY_LAYOUT_TEMPLATE])['web_ui']['layout_template']);
+        self::assertSame('layouts/admin.html.twig', $this->process(['layout_template' => 'layouts/admin.html.twig'])['web_ui']['layout_template']);
+    }
+
+    /**
+     * @param array<string, mixed> $webUi
+     */
+    #[Test]
+    #[IgnoreDeprecations]
+    #[DataProvider('deprecatedKeys')]
+    public function deprecatedKeysTriggerADeprecation(array $webUi, string $message): void
+    {
+        $this->expectUserDeprecationMessageMatches($message);
+        $this->process($webUi);
+    }
+
+    /**
+     * @return iterable<string, array{array<string, mixed>, string}>
+     */
+    public static function deprecatedKeys(): iterable
+    {
+        yield 'css_framework' => [['css_framework' => 'tailwind'], '/"nowo_http_log\\.web_ui\\.css_framework" option is deprecated, set "nowo_ui_kit\\.css_framework"/'];
+        yield 'icon_set' => [['icon_set' => 'tabler-icons'], '/web_ui\\.icon_set" option is deprecated, set "nowo_ui_kit\\.icon_set"/'];
+        yield 'css_classes' => [['css_classes' => ['table' => 'x']], '/web_ui\\.css_classes" option is deprecated, use "nowo_ui_kit\\.theme\\.bundles\\.NowoHttpLogBundle\\.classes"/'];
+        yield 'attributes' => [['attributes' => ['table' => ['data-x' => '1']]], '/web_ui\\.attributes" option is deprecated/'];
+        yield 'templates.filter' => [['templates' => ['filter' => 'x.html.twig']], '/templates\\.filter" option is deprecated, use "nowo_ui_kit\\.theme\\.bundles\\.NowoHttpLogBundle\\.partials\\.list_filters"/'];
+        yield 'templates.pagination' => [['templates' => ['pagination' => 'x.html.twig']], '/templates\\.pagination" option is deprecated/'];
+        yield 'ui_kit_stylesheet' => [['ui_kit_stylesheet' => false], '/web_ui\\.ui_kit_stylesheet" option is deprecated and has no effect/'];
+        yield 'header_actions_in_layout' => [['header_actions_in_layout' => true], '/web_ui\\.header_actions_in_layout" option is deprecated and has no effect/'];
+        yield 'confirm_attributes' => [['confirm_attributes' => ['data-x' => '1']], '/web_ui\\.confirm_attributes" option is deprecated and has no effect/'];
+        yield 'ui_kit_row_actions' => [['ui_kit_row_actions' => true], '/web_ui\\.ui_kit_row_actions" option is deprecated and has no effect/'];
+    }
+
+    #[Test]
+    #[IgnoreDeprecations]
     public function acceptsOverridesAndKeepsDashedAttributeNames(): void
     {
         $webUi = $this->process([
@@ -51,7 +93,7 @@ final class ConfigurationChromeTest extends TestCase
         ])['web_ui'];
 
         self::assertSame('kit/_pagination.html.twig', $webUi['templates']['pagination']);
-        self::assertSame(AdminChrome::DEFAULT_TEMPLATES['filter'], $webUi['templates']['filter']);
+        self::assertNull($webUi['templates']['filter']);
         self::assertSame('data-table w-full', $webUi['css_classes']['table']);
         self::assertSame('btn-danger', $webUi['css_classes']['btn_purge']);
         self::assertSame(['data-testid' => 'http-log-results'], $webUi['attributes']['results']);
@@ -63,6 +105,7 @@ final class ConfigurationChromeTest extends TestCase
     }
 
     #[Test]
+    #[IgnoreDeprecations]
     public function rejectsUnknownCssClassKey(): void
     {
         $this->expectException(InvalidConfigurationException::class);
@@ -70,6 +113,7 @@ final class ConfigurationChromeTest extends TestCase
     }
 
     #[Test]
+    #[IgnoreDeprecations]
     public function rejectsUnknownAttributeTarget(): void
     {
         $this->expectException(InvalidConfigurationException::class);

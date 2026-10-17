@@ -1,1 +1,2 @@
-<p class="host-pagination" data-page="{{ pagination.page }}" data-pages="{{ pages }}" data-total-pages="{{ pagination.total_pages }}" data-per-page="{{ pagination.per_page }}" data-route="{{ route }}" data-query="{{ query|json_encode }}" data-items="{{ item_count }}" data-nav="{{ nav_label|trans({}, nav_trans_domain) }}"></p>
+{# 1.x web_ui.templates.pagination override (bridged to theme.bundles.NowoHttpLogBundle.partials.pagination): reads the UiKit pagination input. #}
+<p class="host-pagination" data-page="{{ pagination.page }}" data-total-pages="{{ pagination.total_pages }}" data-per-page="{{ pagination.per_page }}" data-route="{{ route }}" data-query="{{ query|json_encode }}" data-items="{{ item_count }}"></p>
