@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b07b41c99e7b66857464bf73b1b27d04",
+    "content-hash": "3f3adfc350a7760d167da08136183e53",
     "packages": [
         {
             "name": "doctrine/collections",
@@ -1046,27 +1046,27 @@
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v1.13.0",
+            "version": "v2.0.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "5967fecc861554b37843a4c85f1ea131583d38c4"
+                "reference": "dcbc49cf8a6b2ea29adfec8304c3b6d1d5e3de41"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/5967fecc861554b37843a4c85f1ea131583d38c4",
-                "reference": "5967fecc861554b37843a4c85f1ea131583d38c4",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/dcbc49cf8a6b2ea29adfec8304c3b6d1d5e3de41",
+                "reference": "dcbc49cf8a6b2ea29adfec8304c3b6d1d5e3de41",
                 "shasum": ""
             },
             "require": {
                 "php": ">=8.2 <8.6",
-                "symfony/asset": "^6.0 || ^7.0 || ^8.0",
-                "symfony/config": "^6.0 || ^7.0 || ^8.0",
-                "symfony/dependency-injection": "^6.0 || ^7.0 || ^8.0",
-                "symfony/framework-bundle": "^6.0 || ^7.0 || ^8.0",
-                "symfony/http-kernel": "^6.0 || ^7.0 || ^8.0",
-                "symfony/translation": "^6.0 || ^7.0 || ^8.0",
-                "symfony/twig-bundle": "^6.0 || ^7.0 || ^8.0",
+                "symfony/asset": "^7.4 || ^8.0",
+                "symfony/config": "^7.4 || ^8.0",
+                "symfony/dependency-injection": "^7.4 || ^8.0",
+                "symfony/framework-bundle": "^7.4 || ^8.0",
+                "symfony/http-kernel": "^7.4 || ^8.0",
+                "symfony/translation": "^7.4 || ^8.0",
+                "symfony/twig-bundle": "^7.4 || ^8.0",
                 "twig/extra-bundle": "^3.12",
                 "twig/string-extra": "^3.12",
                 "twig/twig": "^3.8"
@@ -1081,13 +1081,18 @@
                 "phpstan/phpstan-symfony": "^2.0",
                 "phpunit/phpunit": "^10.5 || ^11.0",
                 "rector/rector": "^2.0",
-                "symfony/http-client": "^6.0 || ^7.0 || ^8.0",
-                "symfony/yaml": "^6.0 || ^7.0 || ^8.0",
+                "symfony/form": "^7.4 || ^8.0",
+                "symfony/http-client": "^7.4 || ^8.0",
+                "symfony/validator": "^7.4 || ^8.0",
+                "symfony/yaml": "^7.4 || ^8.0",
                 "vincentlanglet/twig-cs-fixer": "^3.0"
             },
             "suggest": {
+                "phpunit/phpunit": "UI bundles: require-dev, to run Nowo\\UiKitBundle\\Test\\PageContractTestCase (REQ-UI-003 contract test)",
+                "symfony/form": "For the optional AppearanceType / AppearancePaletteType forms (appearance SPI)",
                 "symfony/http-client": "For the optional release_check feature (GitHub release-version dialog)",
-                "symfony/ux-icons": "For icon_set: ux_icon in row actions and icons"
+                "symfony/ux-icons": "For icon_set: ux_icon in row actions and icons",
+                "symfony/validator": "Colour validation in the optional appearance forms"
             },
             "type": "symfony-bundle",
             "autoload": {
@@ -1129,7 +1134,7 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-10-13T05:16:11+00:00"
+            "time": "2026-10-17T08:05:35+00:00"
         },
         {
             "name": "psr/cache",
