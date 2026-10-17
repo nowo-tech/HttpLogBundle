@@ -11,7 +11,7 @@ All options live under the root key `nowo_http_log` (alias `nowo_http_log`).
 - [retention](#retention)
 - [export](#export)
 - [web_ui](#web_ui)
-  - [Admin chrome hooks (1.3.0)](#admin-chrome-hooks-130)
+  - [Deprecated 1.x chrome keys](#deprecated-1x-chrome-keys)
 - [security](#security)
 - [Messenger retry and failure transport](#messenger-retry-and-failure-transport)
 - [Environment-specific examples](#environment-specific-examples)
@@ -79,22 +79,14 @@ nowo_http_log:
     web_ui:
         enabled: true
         path_prefix: /admin/http-log      # Route prefix of the admin UI; must start with /
-        icon_set: bootstrap-icons         # Seeds nowo_ui_kit.icon_set when UiKit is installed and unset
-        layout_template: '@NowoHttpLogBundle/layout.html.twig'
-        css_framework: bootstrap5         # bootstrap5 | tailwind | foundation | custom
+        layout_template: null             # null = UiKit admin layout (nowo_ui_kit.layouts.admin)
         page_size: 50
-        # Admin chrome hooks (1.3.0) — defaults reproduce the 1.2.0 markup
-        templates:
+        templates:                        # web_ui.templates.<page>
             index: '@NowoHttpLogBundle/admin/index.html.twig'
             show: '@NowoHttpLogBundle/admin/show.html.twig'
-            filter: '@NowoHttpLogBundle/admin/_filter.html.twig'
-            pagination: '@NowoHttpLogBundle/admin/_pagination.html.twig'
-        css_classes: {}                   # see "Admin chrome hooks" for every key and default
-        attributes: {}                    # e.g. results: { data-testid: http-log-results }
-        ui_kit_stylesheet: true
-        header_actions_in_layout: false
-        confirm_attributes: {}            # e.g. data-confirm-message: '{message}'
-        ui_kit_row_actions: false
+        # Deprecated since 1.8 (removed in 2.0), see "Deprecated 1.x chrome keys":
+        # icon_set, css_framework, templates.filter, templates.pagination, css_classes, attributes,
+        # ui_kit_stylesheet, header_actions_in_layout, confirm_attributes, ui_kit_row_actions
     security:
         access_roles:
             - ROLE_ADMIN
@@ -168,81 +160,51 @@ Use `nowo:http-log:purge` or the admin UI to purge.
 
 ## web_ui
 
+The admin pages follow the UiKit 2.0 page contract (REQ-UI-003): the list renders the `@NowoUiKit/page/list`
+scaffold and the entry page `@NowoUiKit/page/show`, inside the layout configured once for every bundle
+(`nowo_ui_kit.layouts.admin`). CSS stack, icon set, row-action display and every class / attribute come from
+`nowo_ui_kit` (`css_framework`, `icon_set`, `row_actions_display`, `theme`). Page list and data blocks:
+[TEMPLATES.md](TEMPLATES.md).
+
 | Key | Default | Description |
 | --- | --- | --- |
 | `enabled` | `true` | Registers admin routes and Twig templates. |
 | `path_prefix` | `/admin/http-log` | Route prefix of the admin UI (list, detail, export, purge, delete), applied by the router through the `nowo_http_log.web_ui.path_prefix` parameter. A trailing `/` is removed; `/` alone and `%` are rejected. Update your `access_control` rule when you change it. The recorder always skips this prefix (segment-aware: `/ops/logs` and `/ops/logs/…`, not `/ops/logsearch`) while the web UI is enabled, so you do not need to add it to `ignore_path_prefixes`. If you import the routes under an extra `prefix:`, admin requests are still skipped by the default `ignore_routes` entry `nowo_http_log_*`; keep it or add the full path to `ignore_path_prefixes`. |
-| `icon_set` | `bootstrap-icons` | Seeds `nowo_ui_kit.icon_set` when NowoUiKitBundle is installed and the host did not set it. |
-| `layout_template` | bundle layout | Root Twig layout (global `nowo_http_log_layout_template`) extended by `admin/base.html.twig`. Set to your app layout or a one-file bridge. |
-| `css_framework` | `bootstrap5` | UI macro styling (`CssFramework` enum). Also seeds `nowo_ui_kit.css_framework` when the host has not configured UiKit. |
+| `layout_template` | `null` | Layout the scaffolds extend for this bundle only (`page.layout`). `null` = `nowo_ui_kit.layouts.admin`. It must render the UiKit canonical blocks (`nowo_ui_document_title`, `nowo_ui_page_header`, `nowo_ui_flashes`, `nowo_ui_content`, …). The 1.x value `@NowoHttpLogBundle/layout.html.twig` (removed) is read as `null`. |
 | `page_size` | `50` | Pagination size on index. |
-
-Admin pages extend `@NowoHttpLogBundle/admin/base.html.twig`, which extends `web_ui.layout_template` and stacks `stylesheets` / `javascripts` with `{{ parent() }}` (REQ-UI-001). The base shell loads `asset('css/nowo-ui.css', 'nowo_ui_kit')` and uses UiKit macros (`ui.btn`, `ui.flash`, …). Prefer pointing `layout_template` at your project layout (or a thin bridge that maps `nowo_ui_content` into your `body` block) instead of copying list/detail templates. The default `layout.html.twig` is a full HTML document (CDN Bootstrap; no `parent()`). Host layouts should expose `stylesheets` and `javascripts` blocks so the base shell can call `{{ parent() }}`.
+| `templates.index` / `templates.show` | bundle pages | Page templates the controller renders. Point them at a host template that extends `@!NowoHttpLogBundle/admin/<page>.html.twig` and overrides one data block. |
 
 ```yaml
-nowo_http_log:
-    web_ui:
-        layout_template: 'base.html.twig'
-        css_framework: bootstrap5
+nowo_ui_kit:
+    layouts:
+        admin: 'layouts/admin.html.twig'   # once for every UiKit-based bundle
+    theme:
+        bundles:
+            NowoHttpLogBundle:             # exceptions for this bundle only
+                classes: { table: 'data-table data-table--dense' }
 ```
 
 When `enabled: false`, the admin controller is removed from the container.
 
-### Admin chrome hooks (1.3.0)
+### Deprecated 1.x chrome keys
 
-Restyle the admin pages without forking them (spec [002](../specs/002-admin-chrome-hooks/spec.md); usage and the
-Beacon example in [USAGE.md — Customising the admin chrome](USAGE.md#customising-the-admin-chrome)). The controller
-passes the resolved values to Twig as `nowo_http_log_ui`.
+Deprecated in 1.8 and removed in 2.0. Setting one triggers a Symfony deprecation. The class / attribute / partial
+keys are **bridged**: values that differ from the 1.x defaults are prepended into
+`nowo_ui_kit.theme.bundles.NowoHttpLogBundle` (so your own `nowo_ui_kit` config still wins). Mapping tables:
+[UPGRADING.md — Unreleased](UPGRADING.md#unreleased).
 
-| Key | Default | Description |
-| --- | --- | --- |
-| `templates.index` | `@NowoHttpLogBundle/admin/index.html.twig` | Template the list action renders. |
-| `templates.show` | `@NowoHttpLogBundle/admin/show.html.twig` | Template the detail action renders. |
-| `templates.filter` | `@NowoHttpLogBundle/admin/_filter.html.twig` | Filter partial included by the list page. |
-| `templates.pagination` | `@NowoHttpLogBundle/admin/_pagination.html.twig` | Pagination partial (UiKit-compatible contract, see USAGE). |
-| `css_classes.*` | 1.2.0 classes | Class map below. Unknown keys are rejected. |
-| `attributes` | `{}` | Extra HTML attributes per element: `filter`, `filter_form`, `results`, `toolbar`, `table_wrapper`, `table`, `show`, `details`, `delete_form`. Dashed names (`data-testid`) are kept. |
-| `ui_kit_stylesheet` | `true` | `admin/base.html.twig` appends UiKit `nowo-ui.css`. Set `false` when your layout ships the admin CSS. |
-| `header_actions_in_layout` | `false` | Pages skip the inline export / purge buttons and back link; the layout renders `{{ block('nowo_http_log_header_actions') }}` (the bundle layout does it in its header). |
-| `confirm_attributes` | `{}` | Replaces the inline `onsubmit="return confirm(…)"` on purge / delete forms (CSP). `{message}` is replaced by the translated prompt. |
-| `ui_kit_row_actions` | `false` | List row actions via `@NowoUiKitBundle/partials/_row_actions.html.twig` (honours `nowo_ui_kit.row_actions_display`; UiKit >= 1.6). |
-
-`css_classes` keys (`null` = UiKit macro for `css_framework`; `''` = no `class` attribute, and no wrapper element
-for `results` / `show`):
-
-| Key | Default | Element |
-| --- | --- | --- |
-| `filter` | `nowo-ui-filter card mb-4` | Filter panel |
-| `filter_body` | `card-body` | Filter panel body |
-| `filter_form` | `nowo-ui-filter-form row g-2 align-items-end` | Filter `<form>` |
-| `btn_filter` | `null` (`ui.btn('primary')`) | Filter submit (`nowo-ui-btn-filter` always appended) |
-| `results` | `''` | Optional wrapper around toolbar + table + pagination |
-| `toolbar` | `nowo-ui-toolbar d-flex justify-content-between align-items-center mb-3` | Toolbar row |
-| `summary` | `nowo-ui-summary mb-0` | "N entries" |
-| `actions` | `nowo-ui-actions` | Header actions container |
-| `action_form` | `d-inline` | Export / purge forms |
-| `action_form_gap` | `ms-1` | Added to the 2nd and 3rd action forms |
-| `btn_export` | `null` (`ui.btn('secondary', 'sm')`) | Export buttons (`nowo-ui-btn-export`) |
-| `btn_purge` | `null` (`ui.btn('danger', 'sm')`) | Purge button (`nowo-ui-btn-purge`) |
-| `table_wrapper` | `nowo-ui-table-wrap table-responsive` | Table wrapper |
-| `table` | `table table-striped table-sm nowo-ui-table` | `<table>` |
-| `table_head_row` / `table_head_cell` | `''` | `<thead><tr>` / `<th>` |
-| `table_row` / `table_cell` | `''` | `<tbody><tr>` / `<td>` |
-| `method_badge` | `badge bg-secondary` | HTTP method badge |
-| `path_cell` | `text-truncate` | Path `<td>` (added to `table_cell`) |
-| `row_actions` | `null` (`ui.row_actions`) | Row actions container |
-| `btn_view` | `null` (`ui.btn('secondary', 'sm')`) | View link (`nowo-ui-btn-view`) |
-| `empty_cell` | `text-muted` | Empty-state cell |
-| `pagination` / `pagination_list` | `nowo-ui-pagination mt-3` / `pagination` | Default pagination `<nav>` / `<ul>` |
-| `page_item` / `page_link` | `page-item` / `page-link` | Default pagination items |
-| `show` | `''` | Optional wrapper around the detail content |
-| `back` / `back_link` | `nowo-ui-back mb-3` / `''` | Back link paragraph / anchor |
-| `details` | `row nowo-ui-details` | Detail `<dl>` |
-| `detail_term` / `detail_value` | `col-sm-3` / `col-sm-9` | `<dt>` / `<dd>` |
-| `section_title` | `h5 nowo-ui-section-title` | Section `<h2>` |
-| `code` | `nowo-ui-code bg-light p-3` | Headers / body `<pre>` |
-| `delete_form` | `mt-4` | Delete `<form>` |
-| `btn_delete` | `null` (`ui.btn('danger')`) | Delete button (`nowo-ui-btn-delete`) |
+| Key | Replacement |
+| --- | --- |
+| `css_framework` | `nowo_ui_kit.css_framework` (still seeded into UiKit when set here and not there) |
+| `icon_set` | `nowo_ui_kit.icon_set` (still seeded into UiKit when set here and not there) |
+| `templates.filter` | `nowo_ui_kit.theme.bundles.NowoHttpLogBundle.partials.list_filters` (bridged) |
+| `templates.pagination` | `nowo_ui_kit.theme.bundles.NowoHttpLogBundle.partials.pagination` (bridged) |
+| `css_classes.*` | `nowo_ui_kit.theme.bundles.NowoHttpLogBundle.classes.<slot>` (bridged per slot) |
+| `attributes.*` | `nowo_ui_kit.theme.bundles.NowoHttpLogBundle.attributes.<slot>` (bridged); `results` / `show` go on the page root |
+| `ui_kit_stylesheet` | no effect: the admin layout loads `nowo-ui.css` |
+| `header_actions_in_layout` | no effect: header actions are part of the page header (`nowo_ui_page_header` block) |
+| `confirm_attributes` | no effect: purge / delete open the UiKit confirm dialog (no inline `confirm()`) |
+| `ui_kit_row_actions` | no effect: row actions always render through the UiKit `row_actions` partial |
 
 Write a literal `%` in YAML values as `%%` (Symfony container parameters).
 

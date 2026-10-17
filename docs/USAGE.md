@@ -9,7 +9,7 @@ How to capture HTTP traffic, use the admin UI, export, purge, and exclude routes
 - [Redaction](#redaction)
 - [Admin UI](#admin-ui)
 - [Twig template overrides](#twig-template-overrides)
-- [Customising the admin chrome](#customising-the-admin-chrome)
+- [Customising the admin pages](#customising-the-admin-pages)
 - [Translation overrides](#translation-overrides)
 - [Export](#export)
 - [Purge and retention](#purge-and-retention)
@@ -94,9 +94,17 @@ Default URL: **`/admin/http-log`** (configurable via `web_ui.path_prefix`).
 
 Features:
 
-- Paginated list with filters (method, status, route, date range, free text)
-- Detail view with headers and bodies
-- Export and purge actions (subject to access checker)
+- Paginated list with filters (method, status, route, date range, free text) — UiKit list scaffold
+- Detail view with headers and bodies — UiKit show scaffold
+- Export and purge actions (subject to access checker; hidden from users who may not use them); purge and delete
+  confirm in the UiKit dialog
+
+| List | Entry |
+| --- | --- |
+| ![HTTP log list](images/demo/admin-list.webp) | ![HTTP log entry](images/demo/admin-show.webp) |
+
+More: [filtered list](images/demo/admin-list-filtered.webp) · [delete confirm](images/demo/admin-delete-confirm.webp) ·
+[mobile list](images/demo/admin-list-mobile.webp).
 
 Access requires Symfony Security unless `security.allow_unauthenticated: true`. Default roles: `ROLE_ADMIN` (REQ-UI-002).
 
@@ -110,166 +118,72 @@ nowo_http_log:
 
 ## Twig template overrides
 
-Application templates under `templates/bundles/NowoHttpLogBundle/` **always win** over the bundle copy for the same relative path (REQ-TWIG-001). The bundle registers its views **after** Symfony’s override directory so host files take precedence.
+Since **1.8** the admin pages follow the UiKit 2.0 page contract (REQ-UI-003): `admin/index.html.twig` extends the
+UiKit **list** scaffold and `admin/show.html.twig` the **show** scaffold. Header, breadcrumbs, flashes, filter row,
+table frame, row actions, confirm dialogs, pagination and empty state come from UiKit; the bundle templates fill only
+data blocks. Full list: [TEMPLATES.md](TEMPLATES.md).
 
-**Freeze rule:** once you copy a template into your app, that path is **frozen** — vendor updates to the same file will not apply until you delete or manually merge your override.
+Application templates under `templates/bundles/NowoHttpLogBundle/` **always win** over the bundle copy for the same
+relative path (REQ-TWIG-001), and the originals stay reachable as `@!NowoHttpLogBundle/…`. **Freeze rule:** once you
+copy a template into your app, that path is frozen — vendor updates to the same file will not apply until you delete
+or merge your override. Prefer, in this order:
 
-**Procedure**
-
-1. Pick the `<subpath>` from the table below (path relative to the bundle views root).
-2. Create `templates/bundles/NowoHttpLogBundle/<subpath>.html.twig` in your application.
-3. Clear the cache if needed: `php bin/console cache:clear`.
-4. Prefer config (`web_ui.layout_template`, `css_framework`, the 1.3.0 chrome hooks — see [Customising the admin chrome](#customising-the-admin-chrome)) or block-only overrides before forking full pages.
-
-Point `web_ui.layout_template` at your project layout to embed admin pages in host chrome; pages go through `admin/base.html.twig`, which stacks host `stylesheets` / `javascripts` via `{{ parent() }}` and loads UiKit CSS/macros (REQ-UI-001 / REQ-UI-001-kit). See [CONFIGURATION.md — web_ui](CONFIGURATION.md#web_ui).
+1. **Theme** — `nowo_ui_kit.theme` (once for every bundle) or `nowo_ui_kit.theme.bundles.NowoHttpLogBundle`
+   (classes, attributes, partials, tokens for this bundle only). See UiKit `docs/THEME_SLOTS.md`.
+2. **Layout** — `nowo_ui_kit.layouts.admin` (every bundle) or `nowo_http_log.web_ui.layout_template` (this bundle).
+3. **Thin page override** — `web_ui.templates.index|show` pointing at a template that extends
+   `@!NowoHttpLogBundle/admin/<page>.html.twig` and overrides one data block.
+4. **Scaffold override** — `templates/bundles/NowoUiKitBundle/page/list.html.twig` re-skins every bundle list.
 
 | Subpath | Purpose |
 | --- | --- |
-| `layout.html.twig` | Default demo full HTML root (`web_ui.layout_template` default; CDN Bootstrap) |
-| `admin/base.html.twig` | Intermediate shell admin pages extend (points at `web_ui.layout_template`, stacks assets with `parent()`) |
-| `admin/index.html.twig` | Paginated log list, export/purge actions |
-| `admin/show.html.twig` | Single entry detail view |
-| `admin/_filter.html.twig` | Filter form partial on the index page (`web_ui.templates.filter`) |
-| `admin/_pagination.html.twig` | List pagination partial (`web_ui.templates.pagination`, 1.3.0) |
-| `admin/_macros.html.twig` | Chrome helpers `class_attr` / `attrs` (1.3.0) |
+| `admin/index.html.twig` | Log list (`page/list`, data block `nowo_ui_list_row`) |
+| `admin/show.html.twig` | Entry detail (`page/show`, payload blocks `nowo_http_log_section_*` in `nowo_ui_show_after`) |
+| `admin/_filter.html.twig` | **Deprecated** (removed in 2.0): BC partial for `web_ui.templates.filter` overrides |
 
-`admin/index.html.twig` and `admin/show.html.twig` submit actions with Symfony forms (`form_start()` / `form_end()`). If you override those templates, keep the flat `_token` field and the CSRF token ids `http_log_export`, `http_log_purge`, and `http_log_delete` intact.
+Export, purge and delete post the flat `_token` field with the CSRF token ids `http_log_export`, `http_log_purge`
+and `http_log_delete`; export carries `format` and the active criteria in its URL query.
 
-To recover upstream UI after a full-file override, remove the app copy, clear cache, and re-apply only the customisations you still need.
+## Customising the admin pages
 
-## Customising the admin chrome
-
-Since **1.3.0** (spec [002-admin-chrome-hooks](../specs/002-admin-chrome-hooks/spec.md)) you can restyle the admin
-pages without copying them. Use the cheapest level that works:
-
-1. **Config:** CSS class map, attribute map, presentation switches, partial / page template paths (`web_ui.*`, see [CONFIGURATION.md — Admin chrome](CONFIGURATION.md#admin-chrome-hooks-130)).
-2. **Layout bridge:** `web_ui.layout_template` pointing at a one-file bridge into your layout (unchanged since 1.0).
-3. **Thin fork:** a template that extends the bundle page and overrides one or two `nowo_http_log_*` blocks.
-4. **Full fork:** only when the markup itself must differ everywhere (frozen; you lose vendor fixes).
-
-With no `web_ui` chrome keys set, the rendered pages are whitespace-equivalent to 1.2.0 (golden-file tests).
-
-### Blocks
-
-| Template | Blocks (nesting with `>`) |
-| --- | --- |
-| `admin/index.html.twig` | `nowo_http_log_page_header` > `nowo_http_log_intro` (empty by default; the layout renders the title), `nowo_http_log_filter`, `nowo_http_log_toolbar` > `nowo_http_log_summary` + `nowo_http_log_header_actions` > `nowo_http_log_action_export_csv` / `nowo_http_log_action_export_json` / `nowo_http_log_action_purge`, `nowo_http_log_table` > `nowo_http_log_table_head` + `nowo_http_log_table_row` > `nowo_http_log_row_actions`, `nowo_http_log_empty_state`, `nowo_http_log_pagination` |
-| `admin/show.html.twig` | `nowo_http_log_page_header` > `nowo_http_log_intro`, `nowo_http_log_header_actions` (back link), `nowo_http_log_details`, `nowo_http_log_detail_sections` > `nowo_http_log_section_query_params` / `_request_headers` / `_response_headers` / `_request_body` / `_response_body`, `nowo_http_log_delete` |
-| `admin/_filter.html.twig` | `nowo_http_log_filter_panel` > `nowo_http_log_filter_fields` + `nowo_http_log_filter_actions` |
-
-Inside the blocks the page exposes `_ui` (resolved chrome, also passed by the controller as `nowo_http_log_ui`),
-`_cls` (class map), `_css_fw`, the `ui` UiKit macros and the controller variables (`entries`, `entry`, `criteria`,
-the action forms…). `nowo_http_log_table_row` / `nowo_http_log_row_actions` run inside the loop (`entry`, `loop`).
-
-**Thin fork.** The bundle registers its originals under `@!NowoHttpLogBundle`, so an override at the standard path
-can extend the page it replaces:
+**Row cells.** Override `nowo_ui_list_row` (context: `row` = `HttpLogEntry`, `row_key`, `loop`, `page`). Cells use
+`nowo_ui_class('table_cell', page.bundle)` and keep `data-label` (card mode of responsive lists):
 
 ```twig
-{# templates/bundles/NowoHttpLogBundle/admin/index.html.twig #}
+{# templates/admin/http_log/index.html.twig — nowo_http_log.web_ui.templates.index #}
 {% extends '@!NowoHttpLogBundle/admin/index.html.twig' %}
 
-{% block nowo_http_log_empty_state %}
-    <tr><td colspan="8" class="empty">{{ 'admin.index.empty'|trans({}, 'NowoHttpLogBundle') }}</td></tr>
+{% block nowo_ui_list_after %}
+    <p class="{{ nowo_ui_class('muted', page.bundle) }}">{{ 'admin.index.total'|trans({'%count%': page.pagination.total}, 'NowoHttpLogBundle') }}</p>
 {% endblock %}
 ```
 
-Alternatively keep the fork outside `templates/bundles/` and select it with `web_ui.templates.index` (it then extends
-`@NowoHttpLogBundle/admin/index.html.twig`). For the filter, set `web_ui.templates.filter` to a partial that extends
-`@NowoHttpLogBundle/admin/_filter.html.twig` and overrides `nowo_http_log_filter_fields` / `nowo_http_log_filter_actions`.
+**Payload sections.** `admin/show.html.twig` renders query parameters, headers and bodies as cards in
+`nowo_ui_show_after`, one block each: `nowo_http_log_section_query_params`, `_request_headers`, `_response_headers`,
+`_request_body`, `_response_body` (context: `entry`, `page`). Override one with an empty block to hide it.
 
-### Header actions in the host layout
+**Filter row.** Field widths come from `ListPage::filterFields`; restyle through the `filters`, `filters_field` and
+`filters_actions` slots, or override the `nowo_ui_list_filters` block in a page override. The 1.x hooks still work
+until 2.0: `web_ui.templates.filter` is bridged to the bundle theme partial `list_filters`, and its template may extend
+`@!NowoHttpLogBundle/admin/_filter.html.twig` and override `nowo_http_log_filter_panel` (whole region, `filterForm` =
+`page.filters`) or `nowo_http_log_filter_fields` / `nowo_http_log_filter_actions` (form with the UiKit filter slots;
+remaining fields render through `form_end`).
 
-`web_ui.header_actions_in_layout: true` removes the export / purge buttons (list) and the back link (detail) from the
-page body. The bundle `layout.html.twig` then renders them in its header; a host layout or bridge places them itself:
-
-```twig
-{# templates/admin/http_log_layout.html.twig (web_ui.layout_template) #}
-{% extends 'admin/_layout.html.twig' %}
-
-{% set page_header_actions %}
-    {% if block('nowo_http_log_header_actions') is defined %}{{ block('nowo_http_log_header_actions') }}{% endif %}
-{% endset %}
-
-{% block body %}{% block nowo_ui_content %}{% endblock %}{% endblock %}
-```
-
-### Pagination partial contract
-
-`web_ui.templates.pagination` is included with the page context plus `pagination {page, per_page, total, total_pages}`,
-`pages`, `page_size`, `item_count`, `route` (`nowo_http_log_admin_index`), `route_params`, `query` (the active filters
-in the shape the GET filter form reads — `{http_log_filter: {method: 'GET', createdFrom: '2026-08-01T09:30'}}`, empty
-when unfiltered; merge `page` into it to build links), `nav_label` (`admin.index.title`), `nav_trans_domain` (`NowoHttpLogBundle`) and `framework`.
-That matches `@NowoUiKitBundle/partials/_pagination.html.twig`, so you can point the option straight at it or at a
-host adapter. The bundle default only renders when there is more than one page; your partial decides for itself.
+**Pagination.** The UiKit pagination keeps the filters (`http_log_filter[...]`) and sort of the current query across
+pages. `web_ui.templates.pagination` (deprecated) is bridged to the bundle theme partial `pagination` and receives the
+UiKit input (`pagination` = `{page, per_page, total, total_pages, …}`, `pagination_model`, `item_count`, `route`,
+`route_params`, `query`); the 1.x extras `pages`, `page_size`, `nav_label`, `nav_trans_domain` and `framework` are no
+longer passed.
 
 ### Example: Symfony Beacon
 
-Beacon (Administration → HTTP log) forked all three pages in 1.2.0. Classification of the differences:
-
-| Beacon fork | Differences vs 1.2.0 | Kind | Verdict with 1.3.0 |
-| --- | --- | --- | --- |
-| `admin/show.html.twig` | Skips `admin/base` (no `nowo-ui.css` re-append); back link moved to the page header (`kit_admin_header_actions`); `section.panel` wrapper + `data-testid="http-log-show"`; `dl` / `h2` / `pre` without Bootstrap grid / utility classes; `btn-danger` delete; Stimulus `confirm-submit` instead of inline `onsubmit` (CSP); `csrf_action_form()` instead of the controller form | Chrome only | **Delete.** `ui_kit_stylesheet: false`, `header_actions_in_layout: true` + bridge `block()` call, `css_classes` (`show`, `details`, `detail_term: ''`, `detail_value: ''`, `section_title`, `code`, `back`, `back_link`, `btn_delete`), `attributes.show`, `confirm_attributes`. The controller-provided delete form keeps the same CSRF id. |
-| `admin/index.html.twig` | Skips `admin/base`; export / purge moved to the page header; one `section.panel` around summary + table + pagination with `data-testid="http-log-results"`; Tailwind table / header / cell classes; icon row action via UiKit `_action_inner`; Beacon `kit/_pagination.html.twig` (always shown, UiKit contract); Stimulus confirm; criteria scalarised into a flat `query` (which, like 1.2.0, lost the filters on page 2: the form reads `http_log_filter[...]`) | Chrome only (no product behaviour) | **Delete.** Same switches plus `css_classes` (`results`, `toolbar`, `table_wrapper`, `table`, `table_head_cell`, `table_row`, `table_cell`, `method_badge`, `path_cell`, `empty_cell`, `btn_export`, `btn_purge`, `action_form`, `action_form_gap: ''`), `attributes.results`, `ui_kit_row_actions: true`, `templates.pagination: 'kit/_pagination.html.twig'` (the bundle passes it the correct nested `query`, so page 2 stays filtered — fixing Beacon's bug too). Residual cosmetic deltas (muted colour on some cells, `title` on the path cell, visually-hidden label on the actions column): accept, or **shrink** to `{% extends '@!NowoHttpLogBundle/admin/index.html.twig' %}` + `nowo_http_log_table_head` / `nowo_http_log_table_row`. |
-| `admin/_filter.html.twig` | Product filter standard: placeholder-only widgets generated by a `form_row` loop, shared `shared/_filter_actions.html.twig` (Filter + Clear + per-page) and `form/_fields.html.twig`, `role="search"` + `data-testid="http-log-filters"` | Host product convention | **Must stay** (it is Beacon's cross-admin filter standard, not chrome the bundle can express). It keeps working at the same path; optionally move it out of `templates/bundles/` and select it with `templates.filter`. |
-
-Beacon config after the shrink (layout bridge `kit/http_log_admin_layout.html.twig` stays):
-
-```yaml
-# config/packages/nowo_http_log.yaml (Beacon)
-nowo_http_log:
-    web_ui:
-        layout_template: 'kit/http_log_admin_layout.html.twig'
-        css_framework: tailwind
-        ui_kit_stylesheet: false
-        header_actions_in_layout: true
-        ui_kit_row_actions: true
-        templates:
-            pagination: 'kit/_pagination.html.twig'
-        confirm_attributes:
-            data-controller: confirm-submit
-            data-action: 'submit->confirm-submit#confirm'
-            data-confirm-submit-message-value: '{message}'
-        attributes:
-            results: { data-testid: http-log-results }
-            show: { data-testid: http-log-show }
-        css_classes:
-            results: 'panel overflow-x-auto http-log-results'
-            toolbar: 'mb-3 text-sm text-[var(--color-ink)]/70'
-            summary: 'm-0'
-            actions: 'http-log-results__actions inline-flex flex-wrap items-center gap-2'
-            action_form: 'inline'
-            action_form_gap: ''
-            btn_export: 'btn-ghost'
-            btn_purge: 'btn-danger'
-            table_wrapper: ''
-            table: 'data-table w-full text-left text-sm'
-            table_head_row: 'border-b border-[var(--color-sand)] text-[var(--color-ink)]/65'
-            table_head_cell: 'px-2 py-2 font-medium'
-            table_row: 'row-hover border-b border-[var(--color-sand)]/70 last:border-0'
-            table_cell: 'px-2 py-3'
-            method_badge: 'badge bg-[var(--color-sand)] text-[var(--color-ink)]/75'
-            path_cell: 'max-w-xs truncate'
-            empty_cell: 'px-2 py-4 text-[var(--color-ink)]/65'
-            show: 'panel http-log-show'
-            back: 'm-0'
-            back_link: 'btn-ghost no-underline'
-            details: 'http-log-details'
-            detail_term: ''
-            detail_value: ''
-            section_title: 'nowo-ui-section-title'
-            code: 'nowo-ui-code'
-            btn_delete: 'btn-danger'
-```
-
-And the bridge gains one line (the rest of `kit/http_log_admin_layout.html.twig` is unchanged):
-
-```twig
-{% set kit_admin_header_actions %}{% if block('nowo_http_log_header_actions') is defined %}{{ block('nowo_http_log_header_actions') }}{% endif %}{% endset %}
-```
-
-Notes: write a literal `%` in YAML values as `%%` (container parameters); `{message}` is the confirm placeholder
-because `%message%` would be read as a parameter. Keep the CSRF ids `http_log_export`, `http_log_purge`,
-`http_log_delete` and the flat `_token` field if you override the action blocks.
+With 1.8 Beacon deletes its HttpLog page forks and the chrome block of `nowo_http_log.yaml`: its UiKit layout bridge
+(`nowo_ui_kit.layouts.admin`) and theme (`nowo_ui_kit.theme`, Tailwind classes per slot) already style every
+scaffold. Keys it no longer needs: `ui_kit_stylesheet`, `header_actions_in_layout` (header actions are in the page
+header), `confirm_attributes` (UiKit confirm dialog), `ui_kit_row_actions`, `css_classes`, `attributes` (use
+`theme.bundles.NowoHttpLogBundle` for the few HttpLog-only differences, e.g. `classes.table`), `templates.pagination`
+(its `kit/_pagination.html.twig` becomes `theme.partials.pagination` for every bundle). Its product filter partial can
+stay as `theme.bundles.NowoHttpLogBundle.partials.list_filters` (or `web_ui.templates.filter` until 2.0).
 
 ## Translation overrides
 

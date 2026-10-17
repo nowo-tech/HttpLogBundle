@@ -30,6 +30,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Standard page contract (REQ-UI-003, UiKit 2.0). See [UPGRADING — Unreleased](UPGRADING.md#unreleased).
+
+### Added
+
+- `View\AdminPages`: builds the UiKit view models of the admin pages (`ListPage`, `ShowPage`).
+- `DependencyInjection\LegacyThemeBridge`: prepends the deprecated 1.x chrome keys into `nowo_ui_kit.theme.bundles.NowoHttpLogBundle`.
+- `docs/TEMPLATES.md` (pages → scaffolds, data blocks) and the page contract test (`tests/Integration/PageContractTest.php`, UiKit `PageContractTestCase`).
+- Status badges per status class, breadcrumbs on the entry page, responsive (card) list on narrow screens, clear-filters link.
+- Demo: UiKit admin layout bridge, admin smoke test, WebP screenshots in `docs/images/demo/`.
+
+### Changed
+
+- Requires `nowo-tech/ui-kit-bundle` **^2.0**.
+- `admin/index.html.twig` extends `@NowoUiKit/page/list.html.twig` (header actions, filter row, table, row actions, confirm dialog, pagination, empty state from UiKit); `admin/show.html.twig` extends `@NowoUiKit/page/show.html.twig` (summary section, payload cards in `nowo_ui_show_after`).
+- `web_ui.layout_template` defaults to `null` (UiKit admin layout, `nowo_ui_kit.layouts.admin`); the 1.x value `@NowoHttpLogBundle/layout.html.twig` is read as `null`.
+- Purge and delete confirm in the UiKit `<dialog>` (no inline `confirm()`); export / purge / delete are UiKit POST actions with the flat `_token` (same CSRF ids); export sends `format` and the criteria in the URL query (the controller reads POST, then the query).
+- Export / purge / delete actions are hidden from users the access checker denies.
+- The `http_log` FormKit profile no longer adds `mb-2` row classes (filter rows sit in the UiKit filter row).
+- Removed: `layout.html.twig` (Bootstrap CDN), `admin/base.html.twig`, `admin/_pagination.html.twig`, `admin/_macros.html.twig`, the Twig globals `nowo_http_log_layout_template` / `nowo_http_log_css_framework`, the 1.x page blocks other than `nowo_http_log_section_*` / `nowo_http_log_detail_sections` (see UPGRADING "Template contract").
+
+### Deprecated
+
+- `web_ui.css_framework`, `web_ui.icon_set` (use `nowo_ui_kit`; still seeded when set here), `web_ui.templates.filter` / `templates.pagination`, `web_ui.css_classes`, `web_ui.attributes` (bridged into `nowo_ui_kit.theme.bundles.NowoHttpLogBundle`), `web_ui.ui_kit_stylesheet`, `web_ui.header_actions_in_layout`, `web_ui.confirm_attributes`, `web_ui.ui_kit_row_actions` (no effect). Removed in 2.0.
+- `admin/_filter.html.twig` (BC partial for `web_ui.templates.filter` with the `nowo_http_log_filter_*` blocks), `View\AdminChrome` and the `nowo_http_log.web_ui.chrome` parameter.
+
 ## [1.7.0] - 2026-10-14
 
 Kit ignore paths and keyset purge (spec [003](../specs/003-kit-ignore-paths-keyset-purge/spec.md)).

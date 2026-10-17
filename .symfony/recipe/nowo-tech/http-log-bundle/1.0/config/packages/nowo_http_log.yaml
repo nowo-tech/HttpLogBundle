@@ -49,8 +49,8 @@ nowo_http_log:
     web_ui:
         enabled: true
         path_prefix: /admin/http-log
-        layout_template: '@NowoHttpLogBundle/layout.html.twig'
-        css_framework: bootstrap5
+        # null = UiKit admin layout (nowo_ui_kit.layouts.admin); CSS stack / icons / theme come from nowo_ui_kit.
+        layout_template: null
         page_size: 50
     security:
         access_roles:

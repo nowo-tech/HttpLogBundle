@@ -23,12 +23,16 @@ Http Log Bundle captures each HTTP exchange on kernel terminate, classifies resp
 - ✅ Redaction for headers, query parameters, and JSON paths
 - ✅ Doctrine entity `HttpLogEntry` with indexes for filter queries
 - ✅ Secured admin UI (filter, detail, export, purge) — REQ-UI-002
-- ✅ Admin chrome hooks: Twig blocks, CSS class / attribute maps and partial paths so hosts theme the UI without forking pages ([USAGE](docs/USAGE.md#customising-the-admin-chrome))
+- ✅ Admin pages on the UiKit 2.0 page contract (REQ-UI-003): list / show scaffolds, themed once through `nowo_ui_kit.theme` ([TEMPLATES](docs/TEMPLATES.md), [USAGE](docs/USAGE.md#customising-the-admin-pages))
 - ✅ CLI: `nowo:http-log:export`, `nowo:http-log:purge`
 - ✅ Messenger async: persist, export, purge handlers
 - ✅ Ignore routes (`fnmatch`) and path prefixes (admin UI excluded by default)
 - ✅ Symfony Flex recipe and FrankenPHP demo (`demo/symfony8`)
 - ✅ GitHub Spec Kit baseline and 100% coverage target on `src/`
+
+| Admin list | Entry |
+| --- | --- |
+| ![HTTP log list](docs/images/demo/admin-list.webp) | ![HTTP log entry](docs/images/demo/admin-show.webp) |
 
 ## Quick start
 
@@ -69,6 +73,7 @@ make demo-smoke
 - [Configuration](docs/CONFIGURATION.md)
 - [PSR evaluation (REQ-CS-007)](docs/PSR.md)
 - [Usage](docs/USAGE.md)
+- [Templates (page contract)](docs/TEMPLATES.md)
 - [Contributing](docs/CONTRIBUTING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Changelog](docs/CHANGELOG.md)

@@ -5,6 +5,8 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+  - [Template contract](#template-contract)
+  - [Deprecated configuration](#deprecated-configuration)
 - [To 1.7.0](#to-170)
 - [To 1.6.0](#to-160)
 - [To 1.5.1](#to-151)
@@ -34,6 +36,81 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+Standard page contract (REQ-UI-003, UiKit 2.0). Requires `nowo-tech/ui-kit-bundle` **^2.0**. Minor release: every
+1.x key keeps working (deprecated, bridged into the UiKit theme); what changes is the markup of the two admin pages.
+
+```bash
+composer update nowo-tech/http-log-bundle nowo-tech/ui-kit-bundle
+```
+
+1. **Layout.** The pages now extend UiKit scaffolds, which extend `nowo_ui_kit.layouts.admin` (default
+   `@NowoUiKit/layout/admin.html.twig`) — or `nowo_http_log.web_ui.layout_template` when you set it. That layout must
+   render the canonical blocks (`nowo_ui_document_title`, `nowo_ui_head`, `nowo_ui_styles`, `nowo_ui_navigation`,
+   `nowo_ui_page_header`, `nowo_ui_flashes`, `nowo_ui_content`, `nowo_ui_modals`, `nowo_ui_scripts`) and load
+   `nowo-ui.css` + the UiKit scripts (`nowo-ui-confirm.js` opens the purge / delete dialogs). A 1.x bridge that only
+   mapped `nowo_ui_content` loses the page header (title, export / purge / back / delete buttons): add
+   `nowo_ui_page_header` (and the other blocks), see UiKit `docs/PAGE_CONTRACT.md` "Example: host integration".
+   The bundle CDN layout `@NowoHttpLogBundle/layout.html.twig` is gone; that value of `layout_template` is read as
+   `null` (UiKit layout).
+2. **Overrides.** Re-check every `templates/bundles/NowoHttpLogBundle/` file and every `web_ui.templates.*` target
+   against [TEMPLATES.md](TEMPLATES.md) — most can be deleted in favour of `nowo_ui_kit.theme`.
+3. **Config.** Remove the deprecated keys below when convenient (they keep working until 2.0).
+
+### Template contract
+
+What hosts may notice:
+
+| 1.x | 1.8 |
+| --- | --- |
+| `admin/index.html.twig` with its own toolbar, table, `_filter` and `_pagination` | extends `@NowoUiKit/page/list.html.twig`; fills `nowo_ui_list_row` only |
+| `admin/show.html.twig` with back link, `<dl class="row">`, `<pre>` sections, delete form | extends `@NowoUiKit/page/show.html.twig`; summary = `DetailSection`, payload cards in `nowo_ui_show_after` |
+| `layout.html.twig` (Bootstrap CDN), `admin/base.html.twig`, `admin/_pagination.html.twig`, `admin/_macros.html.twig` | **removed** (UiKit layout, scaffold, `pagination` partial, theme slots) |
+| `admin/_filter.html.twig` (always included) | deprecated BC partial, used only through `web_ui.templates.filter` (bridged to the theme partial `list_filters`) |
+| Twig context `filterForm`, `entries`, `total`, `page` (int), `pageSize`, `exportCsvForm`, `exportJsonForm`, `purgeForm`, `deleteForm`, `nowo_http_log_ui` | `page` = `Nowo\UiKitBundle\View\ListPage` / `ShowPage` (+ `criteria` on the list, `entry` on the detail page) |
+| Blocks `nowo_http_log_page_header`, `_intro`, `_filter`, `_toolbar`, `_summary`, `_header_actions`, `_action_export_csv/json`, `_action_purge`, `_table`, `_table_head`, `_table_row`, `_row_actions`, `_empty_state`, `_pagination`, `_details`, `_delete` | removed — use the scaffold data blocks (`nowo_ui_list_row`, `nowo_ui_list_filters`, `nowo_ui_list_after`, `nowo_ui_show_sections`, `nowo_ui_show_after`) or the theme |
+| Blocks `nowo_http_log_detail_sections`, `nowo_http_log_section_*` | kept (inside `nowo_ui_show_after`, context `entry`) |
+| Blocks `nowo_http_log_filter_panel`, `_fields`, `_actions` | kept in the deprecated `admin/_filter.html.twig`; `filterForm` = `page.filters` |
+| Inline `onsubmit="return confirm(…)"` / `confirm_attributes` | UiKit confirm `<dialog>` (no inline JS, CSP-safe) |
+| Export / purge / delete forms (`form_start` + hidden criteria) | UiKit POST actions with the flat `_token` (same CSRF ids `http_log_export`, `http_log_purge`, `http_log_delete`); export sends `format` and the criteria in the URL query (the controller reads POST first, then the query) |
+| Export / purge buttons always shown | hidden for users the access checker denies `canExport` / `canPurge` (the routes still enforce it) |
+| Twig globals `nowo_http_log_layout_template`, `nowo_http_log_css_framework` | removed (`nowo_http_log_path_prefix`, `nowo_http_log_page_size` kept) |
+| Status code as plain text, method badge `badge bg-secondary` | status badges per class (`badge_success` / `_info` / `_warning` / `_danger` slots), method badge slot `badge_neutral` |
+| Pagination "Page N of M" | UiKit pagination (numbered, "Showing x–y of n"); filters kept across pages from the request query |
+
+A pagination override set with `web_ui.templates.pagination` now receives UiKit's pagination input (`pagination`,
+`pagination_model`, `item_count`, `route`, `route_params`, `query`); `pages`, `page_size`, `nav_label`,
+`nav_trans_domain` and `framework` are no longer passed.
+
+### Deprecated configuration
+
+| Key | Replacement | Behaviour until 2.0 |
+| --- | --- | --- |
+| `web_ui.css_framework` | `nowo_ui_kit.css_framework` | seeded into UiKit when set here and not in `nowo_ui_kit` (no longer seeded by default: both default to `bootstrap5`) |
+| `web_ui.icon_set` | `nowo_ui_kit.icon_set` | same (both default to `bootstrap-icons`) |
+| `web_ui.templates.filter` | `nowo_ui_kit.theme.bundles.NowoHttpLogBundle.partials.list_filters` | bridged |
+| `web_ui.templates.pagination` | `nowo_ui_kit.theme.bundles.NowoHttpLogBundle.partials.pagination` | bridged (the 1.x default path is ignored) |
+| `web_ui.css_classes.*` | `nowo_ui_kit.theme.bundles.NowoHttpLogBundle.classes.<slot>` | bridged when the value differs from the 1.x default (mapping below) |
+| `web_ui.attributes.*` | `nowo_ui_kit.theme.bundles.NowoHttpLogBundle.attributes.<slot>` | bridged (`on*` dropped); `results` / `show` go on the page root |
+| `web_ui.ui_kit_stylesheet` | — | no effect (the layout loads `nowo-ui.css`) |
+| `web_ui.header_actions_in_layout` | — | no effect (header actions are in `nowo_ui_page_header`) |
+| `web_ui.confirm_attributes` | — | no effect (UiKit confirm dialog) |
+| `web_ui.ui_kit_row_actions` | `nowo_ui_kit.row_actions_display` | no effect (always the UiKit `row_actions` partial) |
+| `Nowo\HttpLogBundle\View\AdminChrome`, parameter `nowo_http_log.web_ui.chrome` | the UiKit theme | kept, unused by the pages |
+
+`css_classes` → slot: `filter`, `filter_form` → `filters`; `btn_filter` → `btn_primary`; `toolbar` → `toolbar`;
+`summary` → `page_intro`; `btn_export` → `btn_secondary`; `btn_purge`, `btn_delete` → `btn_danger`; `table_wrapper` →
+`table_wrap`; `table`, `table_head_row`, `table_head_cell`, `table_row`, `table_cell` → same name; `method_badge` →
+`badge_neutral`; `row_actions` → `row_actions`; `btn_view` → `action_neutral`; `empty_cell` → `empty`; `pagination` →
+`pagination`; `page_link` → `pagination_link`; `details` → `detail_list`; `detail_term`, `detail_value` → same name;
+`section_title` → `card_title`. No slot (dropped): `filter_body`, `results`, `actions`, `action_form`,
+`action_form_gap`, `path_cell`, `pagination_list`, `page_item`, `show`, `back`, `back_link`, `code`, `delete_form`.
+`attributes` → slot: `filter`, `filter_form` → `filters`; `toolbar`; `table_wrapper` → `table_wrap`; `table`;
+`details` → `detail_list`; `results` / `show` → page root; `delete_form` dropped.
+
+The bridge is prepended to `nowo_ui_kit`, so your own `nowo_ui_kit.theme.bundles.NowoHttpLogBundle` wins. Values that
+were full framework classes (`btn btn-danger`) are usually redundant now: the slot defaults of `nowo_ui_kit.css_framework`
+already carry them — move only the host-specific classes into the theme.
 
 ## To 1.7.0
 
