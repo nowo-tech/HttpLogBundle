@@ -1000,7 +1000,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             token_handler?: Param|string|array{
  *                 id?: scalar|Param|null,
  *                 oidc_user_info?: Param|string|array{
- *                     base_uri?: scalar|Param|null, // Base URI of the userinfo endpoint on the OIDC server, or the OIDC server URI to use the discovery (require "discovery" to be configured).
+ *                     base_uri?: scalar|Param|null, // Base URI of the userinfo endpoint on the OIDC server, or the OIDC server URI to use the discovery (require "discovery" to be configured). The latter must end with a slash when it has a path, as the discovery path is resolved against it as a relative URL.
  *                     discovery?: array{ // Enable the OIDC discovery.
  *                         cache?: array{
  *                             id?: scalar|Param|null, // Cache service id to use to cache the OIDC discovery configuration.
@@ -1338,17 +1338,17 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     web_ui?: array{
  *         enabled?: bool|Param, // Default: true
  *         path_prefix?: scalar|Param|null, // Prefix of the admin UI routes (list, detail, export, purge, delete). // Default: "/admin/http-log"
- *         icon_set?: scalar|Param|null, // Icon set seeded into nowo_ui_kit.icon_set when UiKit is installed and the host did not set it (e.g. bootstrap-icons, tabler-icons). // Default: "bootstrap-icons"
- *         layout_template?: scalar|Param|null, // Default: "@NowoHttpLogBundle/layout.html.twig"
- *         css_framework?: "bootstrap5"|"tailwind"|"foundation"|"custom"|Param, // Default: "bootstrap5"
+ *         icon_set?: scalar|Param|null, // Deprecated: The "nowo_http_log.web_ui.icon_set.icon_set" option is deprecated, set "nowo_ui_kit.icon_set" instead. // Deprecated: set nowo_ui_kit.icon_set. When set here (and not in nowo_ui_kit) it is still seeded into UiKit. // Default: "bootstrap-icons"
+ *         layout_template?: scalar|Param|null, // Layout the admin pages extend. null (default) = the UiKit admin layout (nowo_ui_kit.layouts.admin). // Default: null
+ *         css_framework?: "bootstrap5"|"tailwind"|"foundation"|"custom"|Param, // Deprecated: The "nowo_http_log.web_ui.css_framework.css_framework" option is deprecated, set "nowo_ui_kit.css_framework" instead. // Deprecated: set nowo_ui_kit.css_framework. When set here (and not in nowo_ui_kit) it is still seeded into UiKit. // Default: "bootstrap5"
  *         page_size?: int|Param, // Default: 50
- *         templates?: array{ // Twig templates the admin controller renders / the pages include.
+ *         templates?: array{ // Twig templates of the admin pages (index, show). filter / pagination are deprecated (UiKit theme partials).
  *             index?: scalar|Param|null, // Default: "@NowoHttpLogBundle/admin/index.html.twig"
  *             show?: scalar|Param|null, // Default: "@NowoHttpLogBundle/admin/show.html.twig"
- *             filter?: scalar|Param|null, // Default: "@NowoHttpLogBundle/admin/_filter.html.twig"
- *             pagination?: scalar|Param|null, // Default: "@NowoHttpLogBundle/admin/_pagination.html.twig"
+ *             filter?: scalar|Param|null, // Deprecated: The "nowo_http_log.web_ui.templates.filter.filter" option is deprecated, use "nowo_ui_kit.theme.bundles.NowoHttpLogBundle.partials.list_filters" instead. // Deprecated: bridged to nowo_ui_kit.theme.bundles.NowoHttpLogBundle.partials.list_filters. // Default: null
+ *             pagination?: scalar|Param|null, // Deprecated: The "nowo_http_log.web_ui.templates.pagination.pagination" option is deprecated, use "nowo_ui_kit.theme.bundles.NowoHttpLogBundle.partials.pagination" instead. // Deprecated: bridged to nowo_ui_kit.theme.bundles.NowoHttpLogBundle.partials.pagination. // Default: null
  *         },
- *         css_classes?: array{ // CSS class map for the admin chrome. null = UiKit macro for css_framework; "" = no class attribute / wrapper.
+ *         css_classes?: array{ // Deprecated: The "nowo_http_log.web_ui.css_classes.css_classes" option is deprecated, use "nowo_ui_kit.theme.bundles.NowoHttpLogBundle.classes" instead. // Deprecated: 1.x class map, bridged into nowo_ui_kit.theme.bundles.NowoHttpLogBundle.classes (see UPGRADING).
  *             filter?: scalar|Param|null, // Default: "nowo-ui-filter card mb-4"
  *             filter_body?: scalar|Param|null, // Default: "card-body"
  *             filter_form?: scalar|Param|null, // Default: "nowo-ui-filter-form row g-2 align-items-end"
@@ -1388,10 +1388,11 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             btn_delete?: scalar|Param|null, // Default: null
  *         },
  *         attributes?: array<string, array<string, scalar|Param|null>>,
- *         ui_kit_stylesheet?: bool|Param, // Append UiKit nowo-ui.css from admin/base.html.twig. Disable when the host layout ships its own admin CSS. // Default: true
- *         header_actions_in_layout?: bool|Param, // When true, pages skip the inline header actions (export/purge, back link); the layout renders {{ block('nowo_http_log_header_actions') }}. // Default: false
+ *         ui_kit_stylesheet?: bool|Param, // Deprecated: The "nowo_http_log.web_ui.ui_kit_stylesheet.ui_kit_stylesheet" option is deprecated and has no effect: the admin layout loads nowo-ui.css. // Deprecated, no effect: the UiKit layout (or the host layout) loads nowo-ui.css. // Default: true
+ *         header_actions_in_layout?: bool|Param, // Deprecated: The "nowo_http_log.web_ui.header_actions_in_layout.header_actions_in_layout" option is deprecated and has no effect: header actions render in the page header (nowo_ui_page_header block). // Deprecated, no effect: header actions are part of the page header the layout renders (nowo_ui_page_header). // Default: false
  *         confirm_attributes?: array<string, scalar|Param|null>,
- *         ui_kit_row_actions?: bool|Param, // Render list row actions with @NowoUiKitBundle/partials/_row_actions.html.twig (honours nowo_ui_kit.row_actions_display; UiKit >= 1.6). // Default: false
+ *         ui_kit_row_actions?: bool|Param, // Deprecated: The "nowo_http_log.web_ui.ui_kit_row_actions.ui_kit_row_actions" option is deprecated and has no effect: row actions always use the UiKit row_actions partial. // Deprecated, no effect: row actions always render through the UiKit row_actions partial (nowo_ui_kit.row_actions_display). // Default: false
+ *         ...<string, mixed>
  *     },
  *     security?: array{
  *         access_roles?: list<scalar|Param|null>,
@@ -1411,6 +1412,88 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         cache_ttl?: int|Param, // Seconds to cache the GitHub answer (cache.app). Default 12h. // Default: 43200
  *         default_branch?: scalar|Param|null, // Branch used as compare target when the installed version is already the latest. // Default: "main"
  *         user_agent?: scalar|Param|null, // User-Agent sent to api.github.com. // Default: "nowo-ui-kit-release-check"
+ *     },
+ *     route_links?: array{ // Route (or route prefix) → link map read by nowo_ui_route_link(), e.g. for the page-edge "manual" tab (partials/_edge_tab.html.twig). A prefix matches the route itself or any route starting with "<prefix>_"; the longest prefix wins.
+ *         base_url?: scalar|Param|null, // Prepended to every relative path (paths starting with "/", "//", "http://" or "https://" are used as is). // Default: ""
+ *         default_testid?: scalar|Param|null, // testid returned for entries without their own. // Default: null
+ *         routes?: array<string, Param|string|array{ // Default: []
+ *             path?: scalar|Param|null,
+ *             testid?: scalar|Param|null, // Default: null
+ *         }>,
+ *     },
+ *     appearance?: array{ // Optional site appearance SPI (presets, --nowo-ui-* token emitter, Twig functions). Off by default.
+ *         enabled?: bool|Param, // Default: false
+ *         provider?: scalar|Param|null, // Service id implementing AppearanceProviderInterface (host storage). Null = the config defaults below. // Default: null
+ *         defaults?: array{
+ *             brand_name?: scalar|Param|null, // Default: ""
+ *             brand_eyebrow?: scalar|Param|null, // Default: ""
+ *             preset?: scalar|Param|null, // Preset whose light colours are the default. // Default: "slate"
+ *             preset_dark?: scalar|Param|null, // Preset whose dark colours are the default. // Default: "midnight"
+ *             corner_style?: "sharp"|"soft"|"rounded"|Param, // Default: "soft"
+ *             border_strength?: "subtle"|"medium"|"strong"|Param, // Default: "medium"
+ *             footer_fixed?: bool|Param, // Default: false
+ *         },
+ *         presets?: array<string, array{ // Default: []
+ *             mode?: "light"|"dark"|Param, // Default: "light"
+ *             light?: array{
+ *                 accent?: scalar|Param|null,
+ *                 accent_deep?: scalar|Param|null,
+ *                 danger?: scalar|Param|null,
+ *                 warn?: scalar|Param|null,
+ *                 paper?: scalar|Param|null,
+ *                 ink?: scalar|Param|null,
+ *                 surface?: scalar|Param|null,
+ *             },
+ *             dark?: array{
+ *                 accent?: scalar|Param|null,
+ *                 accent_deep?: scalar|Param|null,
+ *                 danger?: scalar|Param|null,
+ *                 warn?: scalar|Param|null,
+ *                 paper?: scalar|Param|null,
+ *                 ink?: scalar|Param|null,
+ *                 surface?: scalar|Param|null,
+ *             },
+ *         }>,
+ *         builtin_presets?: list<scalar|Param|null>,
+ *         kit_tokens?: bool|Param, // Emit the --nowo-ui-* tokens. False = only the token_aliases are written. // Default: true
+ *         token_aliases?: array<string, list<scalar|Param|null>>,
+ *         selectors?: array{ // Selectors of the three emitted blocks.
+ *             root?: scalar|Param|null, // Default: ":root"
+ *             light?: scalar|Param|null, // Default: ":root, [data-theme=\"light\"]"
+ *             dark?: scalar|Param|null, // Default: "[data-theme=\"dark\"]"
+ *         },
+ *         shadow_rgb_fallback?: scalar|Param|null, // --nowo-ui-shadow-rgb when the light ink colour is not hex ("r g b"). // Default: "15 23 42"
+ *     },
+ *     layouts?: array{ // Layouts the page scaffolds extend (Twig global nowo_ui_layout). Host layouts or one-file bridges must render the canonical nowo_ui_* blocks.
+ *         admin?: scalar|Param|null, // Default: "@NowoUiKit/layout/admin.html.twig"
+ *         guest?: scalar|Param|null, // Default: "@NowoUiKit/layout/guest.html.twig"
+ *     },
+ *     breadcrumbs?: array{ // Page header breadcrumbs: BreadcrumbKit (breadcrumb_render) when installed and enabled here, else the plain trail from PageHeader::breadcrumbs.
+ *         breadcrumb_kit?: bool|Param, // Use BreadcrumbKit when its breadcrumb_render() Twig function exists. // Default: true
+ *         collection?: scalar|Param|null, // BreadcrumbKit collection code (null = its default collection). PageHeader::breadcrumbCollection overrides it. // Default: null
+ *     },
+ *     theme?: array{ // Global theme (REQ-UI-003): semantic slot classes / attributes, partial overrides and --nowo-ui-* tokens, configured once for every bundle.
+ *         framework_defaults?: bool|Param, // false = slots print the semantic nowo-ui-* class and the host classes only (no UiKit framework defaults such as btn / badge / card). Per slot: classes.<slot>: {value: …, framework_defaults: false}. // Default: true
+ *         classes?: array<string, mixed>,
+ *         attributes?: array<string, array<string, mixed>>,
+ *         partials?: array<string, scalar|Param|null>,
+ *         tokens?: array<string, mixed>,
+ *         tokens_dark?: array<string, mixed>,
+ *         confirm_message_in_header?: bool|Param, // Confirm dialogs and the full-page confirm render the message inside the header, under the title (hosts whose dialog header is title + message). View\Confirm::messageInHeader wins when set. // Default: false
+ *         bundles?: array<string, array{ // Default: []
+ *             framework_defaults?: bool|Param, // Override of theme.framework_defaults for this bundle (unset = inherit).
+ *             classes?: array<string, mixed>,
+ *             attributes?: array<string, array<string, mixed>>,
+ *             partials?: array<string, scalar|Param|null>,
+ *             tokens?: array<string, mixed>,
+ *             tokens_dark?: array<string, mixed>,
+ *         }>,
+ *         pages?: array<string, array{ // Default: []
+ *             framework_defaults?: bool|Param, // Override of theme.framework_defaults for this page type (unset = inherit).
+ *             classes?: array<string, mixed>,
+ *             attributes?: array<string, array<string, mixed>>,
+ *             header_actions_in_filters?: bool|Param, // list only: render the page-header actions at the end of the filter row instead of the page header (ListPage::headerActionsInFilters wins when set; unset = false).
+ *         }>,
  *     },
  * }
  * @psalm-type NowoFormKitConfig = array{
