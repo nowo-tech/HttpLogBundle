@@ -39,6 +39,17 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+Requires UiKit **^2.2** (`composer require nowo-tech/ui-kit-bundle:^2.2`). No configuration change. What hosts may
+notice:
+
+- **Entry page tables**: the header / query-parameter tables come from the UiKit `table` partial — same cells
+  (`nowo-http-log-kv__name` / `__value`, `data-nowo-http-log-redacted`), but the `<table>` no longer carries the
+  `nowo-http-log-kv` class and gets `aria-label` (the section title). Overrides of `admin/show.html.twig` that call the
+  `key_values` macro pass a `View\Table` (`payload.tables.<section>`) instead of the rows.
+- **Default theme** (UiKit 2.2): table headers in small uppercase labels, striped rows, subtle badges, the filter
+  row on a grid (fields in source order, the Filter button after the last field), solid red confirm button. Hosts that
+  styled danger confirms through `btn_danger` set `btn_danger_solid` too (UiKit UPGRADING "Template contract (2.2)").
+
 ## To 1.9.0
 
 From **1.8.0**:

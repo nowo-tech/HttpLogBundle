@@ -32,6 +32,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Requires `nowo-tech/ui-kit-bundle` **^2.2** (default-theme polish: table header hierarchy, striped rows, subtle
+  badges, grid filter row, solid destructive confirm button with a close button). See [UPGRADING](UPGRADING.md#unreleased).
+- Entry page: the header / query-parameter tables render through the UiKit 2.2 `table` partial (`View\Table` from
+  `AdminPages::keyValueTable()`, also exposed as `payload.tables`) instead of a hand-written table; the section title
+  is the table's accessible name.
+- Demo: the host layout prints the UiKit runtimes through the UiKit `scripts` partial (the hand-kept list lacked
+  `dialog` and `theme`).
+
+### Fixed
+
+- List: entries logged within the same second are ordered newest id first (stable pages; the order was undefined).
+
 ## [1.9.0] - 2026-10-18
 
 `/_wdt/` and `/_profiler/` ignored by default, entry URL keeps the port; readable entry page (badges, header tables, pretty JSON bodies) and grouped list filters. See [UPGRADING](UPGRADING.md#to-190).
