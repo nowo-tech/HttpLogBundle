@@ -67,9 +67,8 @@ test.describe('http log admin', () => {
     await expect(page.locator('#http_log_filter_method option').first()).toHaveText('Any');
     await expect(page.locator('#http_log_filter_q')).toHaveAttribute('placeholder', /Path, route or IP/);
     await expect(page.locator('#http_log_filter_createdFrom')).toHaveAttribute('type', 'datetime-local');
-    // created from / to share a row
-    const [from, to] = [await page.locator('#http_log_filter_createdFrom').boundingBox(), await page.locator('#http_log_filter_createdTo').boundingBox()];
-    expect(Math.abs((from?.y ?? 0) - (to?.y ?? 100))).toBeLessThan(2);
+    // UiKit 2.2: the filter row is a responsive grid (fields in source order, the actions after the last field)
+    expect(await filters.evaluate((el) => getComputedStyle(el).display)).toBe('grid');
   });
 
   test('profiler / toolbar requests are not recorded by default', async ({ page }) => {
@@ -83,9 +82,13 @@ test.describe('http log admin', () => {
 
   test('entry page: badges, URL with port, header table with redacted cookie, pretty JSON body', async ({ page, request, baseURL }) => {
     await request.post('/api/echo', { data: { pretty: true, id: 7 }, headers: { Cookie: 'session=secret' } });
-    await page.goto('/admin/http-log?http_log_filter%5Bpath%5D=%2Fapi%2Fecho');
-    await page.locator('tbody tr').first().locator('.nowo-ui-action--view').click();
     const show = page.locator('[data-nowo-ui-page="show"]');
+    // the entry is written when the kernel terminates (after the response): retry until the list shows it
+    await expect(async () => {
+      await page.goto('/admin/http-log?http_log_filter%5Bpath%5D=%2Fapi%2Fecho');
+      await page.locator('tbody tr').first().locator('.nowo-ui-action--view').click();
+      await expect(show.locator('#http-log-request-headers tbody tr', { hasText: 'cookie' })).toHaveCount(1, { timeout: 1_000 });
+    }).toPass({ timeout: 10_000 });
     await expect(show.locator('.nowo-http-log-method')).toHaveText('POST');
     await expect(show.locator('.nowo-http-log-status')).toHaveText('200');
     const port = new URL(baseURL ?? 'http://127.0.0.1').port;

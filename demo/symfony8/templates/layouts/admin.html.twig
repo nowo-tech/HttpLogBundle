@@ -28,8 +28,7 @@
 {% endblock %}
 
 {% block javascripts %}
-    {% for _script in ['nowo-ui-modal', 'nowo-ui-confirm', 'nowo-ui-toast', 'nowo-ui-tabs'] %}
-        <script src="{{ asset('js/' ~ _script ~ '.js', 'nowo_ui_kit') }}" defer></script>
-    {% endfor %}
+    {# UiKit 2.2 `scripts` partial: every UiKit runtime (modal, confirm, dialog, toast, tabs, theme), no hand-kept list. #}
+    {% if nowo_ui_scripts_enabled ?? true %}{{ include(nowo_ui_partial('scripts', nowo_ui_bundle|default(null))) }}{% endif %}
     {% block nowo_ui_scripts %}{% endblock %}
 {% endblock %}
