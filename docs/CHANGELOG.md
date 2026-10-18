@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.8.0] - 2026-10-18](#180---2026-10-18)
 - [[1.7.0] - 2026-10-14](#170---2026-10-14)
 - [[1.6.0] - 2026-10-13](#160---2026-10-13)
 - [[1.5.1] - 2026-10-13](#151---2026-10-13)
@@ -30,7 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Standard page contract (REQ-UI-003, UiKit 2.1). See [UPGRADING — Unreleased](UPGRADING.md#unreleased).
+## [1.8.0] - 2026-10-18
+
+Admin pages on the UiKit 2.1 standard page contract (REQ-UI-003): list and show scaffolds, one host theme, deprecated chrome keys bridged into `nowo_ui_kit.theme.bundles`. See [UPGRADING](UPGRADING.md#to-180).
 
 ### Added
 
@@ -55,6 +58,8 @@ Standard page contract (REQ-UI-003, UiKit 2.1). See [UPGRADING — Unreleased](U
 
 - `web_ui.css_framework`, `web_ui.icon_set` (use `nowo_ui_kit`; still seeded when set here), `web_ui.templates.filter` / `templates.pagination`, `web_ui.css_classes`, `web_ui.attributes` (bridged into `nowo_ui_kit.theme.bundles.NowoHttpLogBundle`), `web_ui.ui_kit_stylesheet`, `web_ui.header_actions_in_layout`, `web_ui.confirm_attributes`, `web_ui.ui_kit_row_actions` (no effect). Removed in 2.0.
 - `admin/_filter.html.twig` (BC partial for `web_ui.templates.filter` with the `nowo_http_log_filter_*` blocks), `View\AdminChrome` and the `nowo_http_log.web_ui.chrome` parameter.
+
+[1.8.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.8.0
 
 ## [1.7.0] - 2026-10-14
 

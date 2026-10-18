@@ -191,7 +191,7 @@ When `enabled: false`, the admin controller is removed from the container.
 Deprecated in 1.8 and removed in 2.0. Setting one triggers a Symfony deprecation. The class / attribute / partial
 keys are **bridged**: values that differ from the 1.x defaults are prepended into
 `nowo_ui_kit.theme.bundles.NowoHttpLogBundle` (so your own `nowo_ui_kit` config still wins). Mapping tables:
-[UPGRADING.md — Unreleased](UPGRADING.md#unreleased).
+[UPGRADING.md — To 1.8.0](UPGRADING.md#to-180).
 
 | Key | Replacement |
 | --- | --- |

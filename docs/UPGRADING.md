@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.8.0](#to-180)
   - [Template contract](#template-contract)
   - [Deprecated configuration](#deprecated-configuration)
 - [To 1.7.0](#to-170)
@@ -36,6 +37,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.8.0
+
+From **1.7.0**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 Standard page contract (REQ-UI-003, UiKit 2.1). Requires `nowo-tech/ui-kit-bundle` **^2.1** (2.1 keeps the CSRF
 token of `FormView`-backed header actions when a host `page_header` override renders them, and adds the `code_block`
