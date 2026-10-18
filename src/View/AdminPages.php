@@ -19,6 +19,7 @@ use Nowo\UiKitBundle\View\ListPage;
 use Nowo\UiKitBundle\View\PageHeader;
 use Nowo\UiKitBundle\View\Pagination;
 use Nowo\UiKitBundle\View\ShowPage;
+use Nowo\UiKitBundle\View\Table;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
@@ -207,18 +208,50 @@ final readonly class AdminPages
      *     request_headers: list<array{name: string, value: string, redacted: bool}>,
      *     response_headers: list<array{name: string, value: string, redacted: bool}>,
      *     request_body: string|null,
-     *     response_body: string|null
+     *     response_body: string|null,
+     *     tables: array{query_params: Table, request_headers: Table, response_headers: Table}
      * }
+     *
+     * `tables` (UiKit 2.2): the name / value rows as {@see Table} view models, rendered by the UiKit `table` partial.
      */
     public function payload(HttpLogEntry $entry): array
     {
+        $queryParams     = self::keyValueRows($entry->getQueryParams() ?? []);
+        $requestHeaders  = self::keyValueRows($entry->getRequestHeaders() ?? []);
+        $responseHeaders = self::keyValueRows($entry->getResponseHeaders() ?? []);
+
         return [
-            'query_params'     => self::keyValueRows($entry->getQueryParams() ?? []),
-            'request_headers'  => self::keyValueRows($entry->getRequestHeaders() ?? []),
-            'response_headers' => self::keyValueRows($entry->getResponseHeaders() ?? []),
+            'query_params'     => $queryParams,
+            'request_headers'  => $requestHeaders,
+            'response_headers' => $responseHeaders,
             'request_body'     => self::formatBody($entry->getRequestBody()),
             'response_body'    => self::formatBody($entry->getResponseBody()),
+            'tables'           => [
+                'query_params'     => $this->keyValueTable($queryParams, 'admin.field.query_params'),
+                'request_headers'  => $this->keyValueTable($requestHeaders, 'admin.field.request_headers'),
+                'response_headers' => $this->keyValueTable($responseHeaders, 'admin.field.response_headers'),
+            ],
         ];
+    }
+
+    /**
+     * Name / value table of one payload section (UiKit `table` partial, no card mode: the values wrap). The section
+     * title is the table's accessible name.
+     *
+     * @param list<array{name: string, value: string, redacted: bool}> $rows
+     */
+    public function keyValueTable(array $rows, string $titleKey): Table
+    {
+        return new Table(
+            columns: [
+                new Column('name', $this->label('admin.field.name'), class: 'nowo-http-log-kv__name'),
+                new Column('value', $this->label('admin.field.value'), class: 'nowo-http-log-kv__value'),
+            ],
+            rows: $rows,
+            responsive: 'scroll',
+            bundle: LegacyThemeBridge::BUNDLE,
+            label: $this->label($titleKey),
+        );
     }
 
     /**

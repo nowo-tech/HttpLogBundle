@@ -34,31 +34,20 @@
     {{ _self.section_close() }}
 {% endmacro %}
 
-{# Headers / query parameters: name | value table; redacted values stay redacted (muted placeholder). #}
-{% macro key_values(id, title, rows, bundle) %}
+{# Headers / query parameters: name | value table (UiKit `table` partial, View\Table from AdminPages::keyValueTable());
+   redacted values stay redacted (muted placeholder). #}
+{% macro key_values(id, title, table, bundle) %}
     {{ _self.section_open(id, title, false, bundle) }}
-            <div class="{{ nowo_ui_class('table_wrap', bundle) }}"{{ nowo_ui_attrs('table_wrap', bundle) }}>
-                <table class="{{ nowo_ui_class('table', bundle) }} nowo-http-log-kv"{{ nowo_ui_attrs('table', bundle) }}>
-                    <thead class="{{ nowo_ui_class('table_head', bundle) }}">
-                        <tr class="{{ nowo_ui_class('table_head_row', bundle) }}">
-                            <th scope="col" class="{{ nowo_ui_class('table_head_cell', bundle) }} nowo-http-log-kv__name">{{ 'admin.field.name'|trans({}, 'NowoHttpLogBundle') }}</th>
-                            <th scope="col" class="{{ nowo_ui_class('table_head_cell', bundle) }}">{{ 'admin.field.value'|trans({}, 'NowoHttpLogBundle') }}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in rows %}
-                            <tr class="{{ nowo_ui_class('table_row', bundle) }}">
-                                <th scope="row" class="{{ nowo_ui_class('table_cell', bundle) }} nowo-http-log-kv__name"><code class="{{ nowo_ui_class('code', bundle) }}">{{ row.name }}</code></th>
-                                {% if row.redacted %}
-                                    <td class="{{ nowo_ui_class('table_cell', bundle) }} {{ nowo_ui_class('table_cell_muted', bundle) }}" data-nowo-http-log-redacted>{{ row.value }}</td>
-                                {% else %}
-                                    <td class="{{ nowo_ui_class('table_cell', bundle) }} nowo-http-log-kv__value">{{ row.value }}</td>
-                                {% endif %}
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+            {% embed nowo_ui_partial('table', bundle) with {table: table, bundle: bundle} only %}
+                {% block nowo_ui_table_row %}
+                    <th scope="row" class="{{ nowo_ui_class('table_cell', bundle) }} nowo-ui-cell--start nowo-http-log-kv__name"><code class="{{ nowo_ui_class('code', bundle) }}">{{ row.name }}</code></th>
+                    {%- if row.redacted %}
+                        <td class="{{ nowo_ui_class('table_cell', bundle) }} {{ nowo_ui_class('table_cell_muted', bundle) }} nowo-ui-cell--start" data-nowo-http-log-redacted>{{ row.value }}</td>
+                    {%- else %}
+                        <td class="{{ nowo_ui_class('table_cell', bundle) }} nowo-ui-cell--start nowo-http-log-kv__value">{{ row.value }}</td>
+                    {%- endif %}
+                {% endblock %}
+            {% endembed %}
     {{ _self.section_close() }}
 {% endmacro %}
 
@@ -111,17 +100,17 @@
     {% block nowo_http_log_detail_sections %}
         {% block nowo_http_log_section_query_params %}
             {% if entry.queryParams %}
-                {% if _payload %}{{ _self.key_values('query-params', 'admin.field.query_params', _payload.query_params, _b) }}{% else %}{{ _self.payload('query-params', 'admin.field.query_params', entry.queryParams|json_encode(_json), false, _b) }}{% endif %}
+                {% if _payload.tables is defined %}{{ _self.key_values('query-params', 'admin.field.query_params', _payload.tables.query_params, _b) }}{% else %}{{ _self.payload('query-params', 'admin.field.query_params', entry.queryParams|json_encode(_json), false, _b) }}{% endif %}
             {% endif %}
         {% endblock %}
         {% block nowo_http_log_section_request_headers %}
             {% if entry.requestHeaders %}
-                {% if _payload %}{{ _self.key_values('request-headers', 'admin.field.request_headers', _payload.request_headers, _b) }}{% else %}{{ _self.payload('request-headers', 'admin.field.request_headers', entry.requestHeaders|json_encode(_json), false, _b) }}{% endif %}
+                {% if _payload.tables is defined %}{{ _self.key_values('request-headers', 'admin.field.request_headers', _payload.tables.request_headers, _b) }}{% else %}{{ _self.payload('request-headers', 'admin.field.request_headers', entry.requestHeaders|json_encode(_json), false, _b) }}{% endif %}
             {% endif %}
         {% endblock %}
         {% block nowo_http_log_section_response_headers %}
             {% if entry.responseHeaders %}
-                {% if _payload %}{{ _self.key_values('response-headers', 'admin.field.response_headers', _payload.response_headers, _b) }}{% else %}{{ _self.payload('response-headers', 'admin.field.response_headers', entry.responseHeaders|json_encode(_json), false, _b) }}{% endif %}
+                {% if _payload.tables is defined %}{{ _self.key_values('response-headers', 'admin.field.response_headers', _payload.tables.response_headers, _b) }}{% else %}{{ _self.payload('response-headers', 'admin.field.response_headers', entry.responseHeaders|json_encode(_json), false, _b) }}{% endif %}
             {% endif %}
         {% endblock %}
         {% block nowo_http_log_section_request_body %}

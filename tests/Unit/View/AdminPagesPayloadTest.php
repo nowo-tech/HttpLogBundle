@@ -7,10 +7,15 @@ namespace Nowo\HttpLogBundle\Tests\Unit\View;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Tests\Support\AdminPageFixtures;
 use Nowo\HttpLogBundle\View\AdminPages;
+use Nowo\UiKitBundle\View\Column;
+use Nowo\UiKitBundle\View\Label;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use stdClass;
+
+use function array_keys;
+use function array_map;
 
 /**
  * Display data of the entry page payload sections ({@see AdminPages::payload()}).
@@ -73,5 +78,24 @@ final class AdminPagesPayloadTest extends TestCase
 
         $entry = (new HttpLogEntry())->setResponseBody($body);
         self::assertSame($expected, AdminPageFixtures::pages()->payload($entry)['response_body']);
+    }
+
+    #[Test]
+    public function nameValueRowsAreUiKitTablesWithoutCardModeNamedAfterTheSection(): void
+    {
+        $entry   = (new HttpLogEntry())->setRequestHeaders(['accept' => 'text/html'])->setQueryParams(null);
+        $tables  = AdminPageFixtures::pages()->payload($entry)['tables'];
+        $headers = $tables['request_headers'];
+
+        self::assertSame(['query_params', 'request_headers', 'response_headers'], array_keys($tables));
+        self::assertSame([['name' => 'accept', 'value' => 'text/html', 'redacted' => false]], $headers->rows);
+        self::assertSame([], $tables['query_params']->rows);
+        self::assertSame(['name', 'value'], array_map(static fn (Column $column): string => $column->key, $headers->columns));
+        self::assertSame('nowo-http-log-kv__name', $headers->columns[0]->class);
+        self::assertSame('scroll', $headers->responsive);
+        self::assertSame('NowoHttpLogBundle', $headers->bundle);
+        self::assertInstanceOf(Label::class, $headers->label);
+        self::assertSame('admin.field.request_headers', $headers->label->key);
+        self::assertFalse($headers->hasRowActions());
     }
 }

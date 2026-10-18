@@ -21,6 +21,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 
+use function array_map;
 use function dirname;
 use function sprintf;
 
@@ -111,6 +112,19 @@ final class HttpLogEntryRepositoryTest extends TestCase
         self::assertSame(2, $secondPage['total']);
         self::assertCount(1, $secondPage['items']);
         self::assertSame($olderMatch->getId(), $secondPage['items'][0]->getId());
+    }
+
+    #[Test]
+    public function findFilteredListsEntriesOfTheSameSecondNewestIdFirst(): void
+    {
+        $at     = new DateTimeImmutable('2026-08-03T12:00:00+00:00');
+        $first  = $this->persistEntry('GET', 'r', 200, '10.0.0.1', '/a', 'json', $at);
+        $second = $this->persistEntry('GET', 'r', 200, '10.0.0.1', '/b', 'json', $at);
+        $third  = $this->persistEntry('GET', 'r', 200, '10.0.0.1', '/c', 'json', $at);
+
+        $ids = array_map(static fn (HttpLogEntry $entry): ?int => $entry->getId(), $this->repository->findFiltered([], 1, 10)['items']);
+
+        self::assertSame([$third->getId(), $second->getId(), $first->getId()], $ids);
     }
 
     #[Test]

@@ -112,7 +112,9 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
     public function findFiltered(array $criteria, int $page, int $pageSize): array
     {
         $qb = $this->createQueryBuilder('e')
-            ->orderBy('e.createdAt', SortDirection::Descending);
+            ->orderBy('e.createdAt', SortDirection::Descending)
+            // entries logged within the same second: newest id first (stable pages)
+            ->addOrderBy('e.id', SortDirection::Descending);
 
         $this->applyCriteria($qb, $criteria);
 

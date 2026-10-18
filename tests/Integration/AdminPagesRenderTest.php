@@ -33,9 +33,9 @@ final class AdminPagesRenderTest extends TestCase
         self::assertStringContainsString('7 entries', $html);
         // cells: link, method badge, status badge per class, muted missing client IP
         self::assertStringContainsString('<a href="/admin/http-log/41">41</a>', $html);
-        self::assertStringContainsString('nowo-ui-badge--success badge text-bg-success ms-2 nowo-http-log-status">201<', $html);
-        self::assertStringContainsString('nowo-ui-badge--warning badge text-bg-warning ms-2 nowo-http-log-status">404<', $html);
-        self::assertStringContainsString('nowo-ui-badge--danger badge text-bg-danger ms-2 nowo-http-log-status">500<', $html);
+        self::assertMatchesRegularExpression('#nowo-ui-badge--success [^"]*nowo-http-log-status">201<#', $html);
+        self::assertMatchesRegularExpression('#nowo-ui-badge--warning [^"]*nowo-http-log-status">404<#', $html);
+        self::assertMatchesRegularExpression('#nowo-ui-badge--danger [^"]*nowo-http-log-status">500<#', $html);
         self::assertStringContainsString('nowo-http-log-method">DELETE<', $html);
         self::assertStringContainsString('812.8 ms', $html);
         self::assertStringContainsString('nowo-ui-table__cell--muted', $html);
@@ -104,11 +104,14 @@ final class AdminPagesRenderTest extends TestCase
             self::assertStringContainsString('id="http-log-' . $id . '"', $html);
         }
         // headers / query parameters: name | value tables, list values joined, redacted values stay redacted
-        self::assertSame(3, substr_count($html, 'nowo-http-log-kv"'));
+        // (UiKit 2.2 `table` partial: no card mode, the section title as the accessible name)
+        self::assertSame(3, substr_count($html, 'data-nowo-ui-region="table"'));
+        self::assertStringContainsString('aria-label="Request headers"', $html);
+        self::assertStringNotContainsString('data-nowo-ui-responsive="cards"', $html);
         self::assertStringContainsString('<code class="nowo-ui-code">accept</code></th>', $html);
         self::assertStringContainsString('>application/json, text/plain</td>', $html);
         self::assertMatchesRegularExpression('#data-nowo-http-log-redacted>\[REDACTED\]</td>#', $html);
-        self::assertStringContainsString('<th scope="col" class="nowo-ui-table__head-cell">Value</th>', $html);
+        self::assertMatchesRegularExpression('#<th scope="col" class="nowo-ui-table__head-cell[^"]*nowo-http-log-kv__value"[^>]*>Value</th>#', $html);
         // bodies: UiKit code_block slot + wrap modifier; JSON pretty-printed; the request body is truncated (raw)
         self::assertSame(2, substr_count($html, '<pre class="nowo-ui-code-block border p-3 nowo-ui-code-block--wrap nowo-http-log-code">'));
         self::assertStringContainsString("<code>{\n    &quot;id&quot;: 1\n}</code>", $html);
@@ -130,7 +133,7 @@ final class AdminPagesRenderTest extends TestCase
 
         self::assertSame(5, substr_count($html, 'nowo-http-log-code">'));
         self::assertStringContainsString('<code>{&quot;name&quot;:&quot;x&quot;}</code>', $html);
-        self::assertStringNotContainsString('nowo-http-log-kv"', $html);
+        self::assertStringNotContainsString('nowo-http-log-kv__name', $html);
     }
 
     #[Test]

@@ -13,13 +13,10 @@
   margin: 0;
 }
 
-/* Headers / query parameters: name column sized to the names, values wrap anywhere (user agents, cookies). */
-.nowo-http-log-kv {
-  width: 100%;
-}
-
-.nowo-http-log-kv th,
-.nowo-http-log-kv td {
+/* Headers / query parameters (UiKit `table` partial): name column sized to the names, values wrap anywhere (user
+   agents, cookies). */
+.nowo-http-log-payload th,
+.nowo-http-log-payload td {
   vertical-align: top;
 }
 
