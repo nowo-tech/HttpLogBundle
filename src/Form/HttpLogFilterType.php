@@ -25,12 +25,14 @@ final class HttpLogFilterType extends AbstractType
         // Field order = order in the filter row (REQ-UI-003 list filters): what (search, method, status, client IP),
         // where (path, route, body type), when (created from / to).
         $this->withBuilder($builder, function (): void {
-            $this->addTextField('q', ['required' => false, 'label' => 'filter.q']);
+            $this->addTextField('q', ['required' => false, 'label' => 'filter.q', 'attr' => ['placeholder' => 'filter.q_placeholder']]);
             $this->addChoiceField('method', [
                 'required'    => false,
                 'label'       => 'filter.method',
                 'placeholder' => 'filter.any',
-                'choices'     => [
+                // HTTP methods are literals: not looked up in the bundle domain (REQ: no profiler missing messages).
+                'choice_translation_domain' => false,
+                'choices'                   => [
                     'GET'     => 'GET',
                     'POST'    => 'POST',
                     'PUT'     => 'PUT',
@@ -40,15 +42,17 @@ final class HttpLogFilterType extends AbstractType
                     'OPTIONS' => 'OPTIONS',
                 ],
             ]);
-            $this->addIntegerField('statusCode', ['required' => false, 'label' => 'filter.status_code', 'attr' => ['min' => 100, 'max' => 599]]);
+            $this->addIntegerField('statusCode', ['required' => false, 'label' => 'filter.status_code', 'attr' => ['min' => 100, 'max' => 599, 'placeholder' => 'filter.status_code_placeholder']]);
             $this->addTextField('clientIp', ['required' => false, 'label' => 'filter.client_ip']);
-            $this->addTextField('path', ['required' => false, 'label' => 'filter.path']);
-            $this->addTextField('routeName', ['required' => false, 'label' => 'filter.route_name']);
+            $this->addTextField('path', ['required' => false, 'label' => 'filter.path', 'attr' => ['placeholder' => 'filter.path_placeholder']]);
+            $this->addTextField('routeName', ['required' => false, 'label' => 'filter.route_name', 'attr' => ['placeholder' => 'filter.route_name_placeholder']]);
             $this->addChoiceField('bodyContentType', [
                 'required'    => false,
                 'label'       => 'filter.body_content_type',
                 'placeholder' => 'filter.any',
-                'choices'     => array_combine(
+                // Body types are enum values (json, xml…), not translation keys.
+                'choice_translation_domain' => false,
+                'choices'                   => array_combine(
                     array_map(static fn (BodyContentType $t): string => $t->value, BodyContentType::cases()),
                     array_map(static fn (BodyContentType $t): string => $t->value, BodyContentType::cases()),
                 ),

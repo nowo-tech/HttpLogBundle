@@ -45,6 +45,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - List: entries logged within the same second are ordered newest id first (stable pages; the order was undefined).
+- **Missing / double translations (profiler):** the filter's HTTP method and body-type choices are literals
+  (`choice_translation_domain: false`), no longer looked up in `NowoHttpLogBundle`. The filter placeholders moved from
+  the page model (`FilterField`, translated there and again by the form theme; `404`, `/api/`, `app_` were looked up
+  as messages) to the `HttpLogFilterType` field `attr` as catalogue keys translated once (`filter.q_placeholder`, new
+  `filter.status_code_placeholder`, `filter.path_placeholder`, `filter.route_name_placeholder`, 7 locales). A contract
+  test renders every admin page with a `DataCollectorTranslator` and asserts no missing message.
 
 ## [1.9.0] - 2026-10-18
 

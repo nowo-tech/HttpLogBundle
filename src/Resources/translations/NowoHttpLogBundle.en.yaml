@@ -43,6 +43,9 @@ filter.created_from: Created from
 filter.created_to: Created to
 filter.q: Search
 filter.q_placeholder: 'Path, route or IP'
+filter.status_code_placeholder: '404'
+filter.path_placeholder: '/api/'
+filter.route_name_placeholder: 'app_'
 filter.any: 'Any'
 flash.export_queued: Export queued for background processing.
 flash.purged: 'Purged %count% HTTP log entries.'
