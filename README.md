@@ -12,6 +12,23 @@
 
 This bundle is **FrankenPHP worker mode friendly** (including without kernel reset between requests — see [FRANKENPHP-WORKER-AUDIT.md](docs/FRANKENPHP-WORKER-AUDIT.md)).
 
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/images/demo/admin-list.webp" alt="HTTP Log Entries list: filters (method, route, status, client IP, path, body type, date range, search), rows with method and status badges, duration and client IP, Export CSV / Export JSON / Purge actions, Symfony profiler toolbar" />
+      <br /><sub>Captured traffic — filters, status badges, export and purge</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/images/demo/admin-show.webp" alt="HTTP log entry of a JSON POST: request metadata, redacted request headers, response headers, request and response bodies" />
+      <br /><sub>Entry detail — redacted headers and JSON bodies</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/images/demo/admin-delete-confirm.webp" alt="HTTP log entry with the UiKit delete confirm dialog open" />
+      <br /><sub>Delete through the UiKit confirm dialog</sub>
+    </td>
+  </tr>
+</table>
+
 ## What is this?
 
 Http Log Bundle captures each HTTP exchange on kernel terminate, classifies response bodies (html, json, soap, xml, text, binary, other), applies redaction rules, and persists to Doctrine. Operators browse logs at **`/admin/http-log`**, export filtered results, and purge by retention policy.
@@ -30,9 +47,6 @@ Http Log Bundle captures each HTTP exchange on kernel terminate, classifies resp
 - ✅ Symfony Flex recipe and FrankenPHP demo (`demo/symfony8`)
 - ✅ GitHub Spec Kit baseline and 100% coverage target on `src/`
 
-| Admin list | Entry |
-| --- | --- |
-| ![HTTP log list](docs/images/demo/admin-list.webp) | ![HTTP log entry](docs/images/demo/admin-show.webp) |
 
 ## Quick start
 
@@ -65,6 +79,8 @@ make up
 make test
 make -C demo/symfony8 up
 make demo-smoke
+make -C demo/symfony8 test-e2e          # Playwright e2e (REQ-DEMO-013)
+make -C demo/symfony8 demo-screenshots  # refresh docs/images/demo/*.webp
 ```
 
 ## Documentation

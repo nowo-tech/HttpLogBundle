@@ -103,8 +103,7 @@ Features:
 | --- | --- |
 | ![HTTP log list](images/demo/admin-list.webp) | ![HTTP log entry](images/demo/admin-show.webp) |
 
-More: [filtered list](images/demo/admin-list-filtered.webp) · [delete confirm](images/demo/admin-delete-confirm.webp) ·
-[mobile list](images/demo/admin-list-mobile.webp).
+More: [delete confirm](images/demo/admin-delete-confirm.webp).
 
 Access requires Symfony Security unless `security.allow_unauthenticated: true`. Default roles: `ROLE_ADMIN` (REQ-UI-002).
 
