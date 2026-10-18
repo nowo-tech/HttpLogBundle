@@ -31,6 +31,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+UI polish after the UiKit page-contract migration: readable entry page, grouped filters, WebProfiler requests no longer recorded by default. See [UPGRADING](UPGRADING.md#unreleased).
+
+### Changed
+
+- **Default ignored paths:** `/_wdt/` and `/_profiler/` (Symfony WebProfiler toolbar and profiler) join the kit defaults merged into `ignore_path_prefixes` while `ignore_default_path_prefixes` is `true` (default), so dev traffic of the toolbar no longer floods the log. Set `ignore_default_path_prefixes: false` to record them again (then list the kit paths you still want skipped). The demo drops its explicit `ignore_path_prefixes`.
+- **Entry page:** Method and Status as badges (the list's `badge_neutral` / status slots), request ID, URL and route in the UiKit `code` slot; request / response headers and query parameters as name | value tables (list values joined, redacted values stay `[REDACTED]`, muted); JSON bodies pretty-printed; bodies in a bounded, scrollable code block that wraps long lines (UiKit `nowo-ui-code-block--wrap`) and ends on a whole line. New stylesheet `bundles/nowohttplog/css/nowo-http-log-admin.css` (entry page only; run `assets:install`). Template variable `payload` (`AdminPages::payload()`); without it the 1.8 JSON blocks render.
+- **Filters:** fields ordered search, method, status, client IP / path, route, body type / created from–to, sized for the UiKit filter row; method and body type selects start with "Any"; placeholders for search, status, path and route; created from / to are native date-time pickers (`datetime-local`, minute precision). New translation keys `filter.any`, `filter.q_placeholder`, `admin.field.name`, `admin.field.value` (all 7 locales).
+- **List:** paths use the UiKit `code` slot instead of a bare `<code>`.
+
+### Fixed
+
+- **Entry URL lost the port:** the recorder stored `Request::getHost()`; it now stores `getHttpHost()`, so non-default ports are kept (`http://127.0.0.1:8000/api/echo`). Entries recorded before keep their port-less host.
+
 ## [1.8.0] - 2026-10-18
 
 Admin pages on the UiKit 2.1 standard page contract (REQ-UI-003): list and show scaffolds, one host theme, deprecated chrome keys bridged into `nowo_ui_kit.theme.bundles`. See [UPGRADING](UPGRADING.md#to-180).

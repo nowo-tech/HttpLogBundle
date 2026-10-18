@@ -32,7 +32,7 @@ nowo_http_log:
         - 'nowo_http_log_*'
     ignore_path_prefixes:                 # Skip paths starting with these prefixes
         - '/admin/http-log'
-    ignore_default_path_prefixes: true    # Also skip /_nowo/ (HotReload), /sw.js and /manifest.webmanifest (PWA)
+    ignore_default_path_prefixes: true    # Also skip /_nowo/ (HotReload), /sw.js, /manifest.webmanifest (PWA), /_wdt/, /_profiler/
     ignore_unrouted: false                # true: skip requests no route matched (scanner 404s such as /wp-login.php)
     capture:
         request_headers: true
@@ -105,7 +105,7 @@ nowo_http_log:
 | `track_sub_requests` | bool | `false` | Include sub-requests in capture. |
 | `ignore_routes` | list | see YAML | Route name patterns skipped (`fnmatch`). |
 | `ignore_path_prefixes` | list | `[/admin/http-log]` | Path prefixes excluded from capture (plain `str_starts_with`). `web_ui.path_prefix` is always excluded as well while the web UI is enabled. Setting this list replaces the default `[/admin/http-log]` (Symfony list semantics) but never removes the kit defaults below. |
-| `ignore_default_path_prefixes` | bool | `true` | Merges the kit-internal prefixes `/_nowo/` (HotReloadBundle client / shared worker), `/sw.js` and `/manifest.webmanifest` (PwaBundle) into `ignore_path_prefixes` (host entries first, duplicates removed). `false` uses only your `ignore_path_prefixes`. Since 1.7.0. |
+| `ignore_default_path_prefixes` | bool | `true` | Merges the kit-internal prefixes `/_nowo/` (HotReloadBundle client / shared worker), `/sw.js` and `/manifest.webmanifest` (PwaBundle) and, since 1.9, the Symfony WebProfiler paths `/_wdt/` and `/_profiler/` into `ignore_path_prefixes` (host entries first, duplicates removed). `false` uses only your `ignore_path_prefixes`. Since 1.7.0. |
 | `ignore_unrouted` | bool | `false` | When `true`, skip requests no route matched (no `_route`, e.g. scanner 404s on `/wp-login.php`, `/.env`). |
 
 ## capture

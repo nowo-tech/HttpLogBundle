@@ -254,7 +254,8 @@ nowo_http_log:
 Route patterns use `fnmatch` (case-insensitive). The admin UI path is ignored by default so browsing logs does not flood the table.
 
 Kit-internal requests are skipped as well while `ignore_default_path_prefixes` is `true` (default): `/_nowo/`
-(HotReloadBundle client and shared worker), `/sw.js` and `/manifest.webmanifest` (PwaBundle). They are merged with your
+(HotReloadBundle client and shared worker), `/sw.js` and `/manifest.webmanifest` (PwaBundle), and the Symfony WebProfiler
+toolbar / profiler (`/_wdt/`, `/_profiler/`). They are merged with your
 `ignore_path_prefixes`, so you do not need to list them; set `ignore_default_path_prefixes: false` to record them.
 
 ## CLI commands

@@ -38,6 +38,11 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+- **WebProfiler paths ignored by default (behaviour change):** with `ignore_default_path_prefixes: true` (default) the recorder now also skips `/_wdt/` and `/_profiler/`. You can remove them from your `ignore_path_prefixes` (duplicates are harmless). If you deliberately recorded profiler traffic, set `ignore_default_path_prefixes: false` and list the kit paths you still want skipped (`/_nowo/`, `/sw.js`, `/manifest.webmanifest`).
+- **Host with port:** new entries store the host with its port when the request used a non-default one (`getHttpHost()`). Queries or exports that compare `host` with a bare hostname should use a prefix match (`host LIKE 'example.test%'`).
+- **Entry page template:** `admin/show.html.twig` overrides `nowo_ui_show_sections` (summary with badges / code slot) and expects a `payload` variable (passed by the bundle controller; `AdminPages::payload($entry)`). A host controller rendering the template without it still gets the 1.8 JSON blocks. Overrides of `nowo_http_log_section_*` blocks keep working. Run `assets:install` so `bundles/nowohttplog/css/nowo-http-log-admin.css` is published.
+- **Filter form:** the children of `HttpLogFilterType` are reordered (`q`, `method`, `statusCode`, `clientIp`, `path`, `routeName`, `bodyContentType`, `createdFrom`, `createdTo`); a host `_filter.html.twig` override that renders fields by position should render them by name.
+
 ## To 1.8.0
 
 From **1.7.0**:
