@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3f3adfc350a7760d167da08136183e53",
+    "content-hash": "611483641e07d2cc9f9794629941b43b",
     "packages": [
         {
             "name": "doctrine/collections",
@@ -1046,16 +1046,16 @@
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v2.0.1",
+            "version": "v2.1.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "b9a7073223f8dd4c5fe4b1c101912752c7fe2210"
+                "reference": "f0abbd4536811d0c91e4f91473745f6af9f44cd2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/b9a7073223f8dd4c5fe4b1c101912752c7fe2210",
-                "reference": "b9a7073223f8dd4c5fe4b1c101912752c7fe2210",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/f0abbd4536811d0c91e4f91473745f6af9f44cd2",
+                "reference": "f0abbd4536811d0c91e4f91473745f6af9f44cd2",
                 "shasum": ""
             },
             "require": {
@@ -1134,7 +1134,7 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-10-17T22:24:08+00:00"
+            "time": "2026-10-17T23:39:23+00:00"
         },
         {
             "name": "psr/cache",

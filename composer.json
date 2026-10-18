@@ -36,7 +36,7 @@
         "doctrine/doctrine-bundle": "^2.10 || ^3.0",
         "doctrine/orm": "^3.7",
         "nowo-tech/form-kit-bundle": "^2.10",
-        "nowo-tech/ui-kit-bundle": "^2.0",
+        "nowo-tech/ui-kit-bundle": "^2.1",
         "php": ">=8.2 <8.6",
         "psr/clock": "^1.0",
         "psr/log": "^1 || ^2 || ^3",
