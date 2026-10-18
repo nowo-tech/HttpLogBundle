@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.9.1] - 2026-10-18](#191---2026-10-18)
 - [[1.9.0] - 2026-10-18](#190---2026-10-18)
 - [[1.8.0] - 2026-10-18](#180---2026-10-18)
 - [[1.7.0] - 2026-10-14](#170---2026-10-14)
@@ -32,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-10-18
+
+Requires UiKit ^2.2 (table partial, scripts partial in the demo); filter placeholders and literal choices translated once. See [UPGRADING](UPGRADING.md#to-191).
+
 ### Changed
 
 - Requires `nowo-tech/ui-kit-bundle` **^2.2** (default-theme polish: table header hierarchy, striped rows, subtle
@@ -51,6 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as messages) to the `HttpLogFilterType` field `attr` as catalogue keys translated once (`filter.q_placeholder`, new
   `filter.status_code_placeholder`, `filter.path_placeholder`, `filter.route_name_placeholder`, 7 locales). A contract
   test renders every admin page with a `DataCollectorTranslator` and asserts no missing message.
+
+[1.9.1]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.9.1
 
 ## [1.9.0] - 2026-10-18
 
