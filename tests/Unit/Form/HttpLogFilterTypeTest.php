@@ -15,6 +15,8 @@ use Symfony\Component\Form\Extension\Core\Type\IntegerType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormFactoryBuilder;
 
+use function array_keys;
+
 final class HttpLogFilterTypeTest extends TestCase
 {
     #[Test]
@@ -63,6 +65,24 @@ final class HttpLogFilterTypeTest extends TestCase
         ]);
 
         self::assertTrue($form->isSynchronized());
+    }
+
+    #[Test]
+    public function fieldsAreOrderedForTheFilterRowAndSelectsOfferAnAnyOption(): void
+    {
+        $type = new HttpLogFilterType();
+        $type->setFormOptionsMerger($this->formOptionsMerger());
+
+        $form = (new FormFactoryBuilder())->addType($type)->getFormFactory()->create(HttpLogFilterType::class);
+
+        self::assertSame(
+            ['q', 'method', 'statusCode', 'clientIp', 'path', 'routeName', 'bodyContentType', 'createdFrom', 'createdTo'],
+            array_keys($form->all()),
+        );
+        self::assertSame('filter.any', $form->get('method')->getConfig()->getOption('placeholder'));
+        self::assertSame('filter.any', $form->get('bodyContentType')->getConfig()->getOption('placeholder'));
+        self::assertFalse($form->get('createdFrom')->getConfig()->getOption('with_seconds'));
+        self::assertSame('datetime-local', $form->createView()['createdTo']->vars['type']);
     }
 
     private function formOptionsMerger(): FormOptionsMerger

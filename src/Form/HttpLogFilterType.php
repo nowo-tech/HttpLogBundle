@@ -22,11 +22,15 @@ final class HttpLogFilterType extends AbstractType
 
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
+        // Field order = order in the filter row (REQ-UI-003 list filters): what (search, method, status, client IP),
+        // where (path, route, body type), when (created from / to).
         $this->withBuilder($builder, function (): void {
+            $this->addTextField('q', ['required' => false, 'label' => 'filter.q']);
             $this->addChoiceField('method', [
-                'required' => false,
-                'label'    => 'filter.method',
-                'choices'  => [
+                'required'    => false,
+                'label'       => 'filter.method',
+                'placeholder' => 'filter.any',
+                'choices'     => [
                     'GET'     => 'GET',
                     'POST'    => 'POST',
                     'PUT'     => 'PUT',
@@ -36,31 +40,36 @@ final class HttpLogFilterType extends AbstractType
                     'OPTIONS' => 'OPTIONS',
                 ],
             ]);
-            $this->addTextField('routeName', ['required' => false, 'label' => 'filter.route_name']);
-            $this->addIntegerField('statusCode', ['required' => false, 'label' => 'filter.status_code']);
+            $this->addIntegerField('statusCode', ['required' => false, 'label' => 'filter.status_code', 'attr' => ['min' => 100, 'max' => 599]]);
             $this->addTextField('clientIp', ['required' => false, 'label' => 'filter.client_ip']);
             $this->addTextField('path', ['required' => false, 'label' => 'filter.path']);
+            $this->addTextField('routeName', ['required' => false, 'label' => 'filter.route_name']);
             $this->addChoiceField('bodyContentType', [
-                'required' => false,
-                'label'    => 'filter.body_content_type',
-                'choices'  => array_combine(
+                'required'    => false,
+                'label'       => 'filter.body_content_type',
+                'placeholder' => 'filter.any',
+                'choices'     => array_combine(
                     array_map(static fn (BodyContentType $t): string => $t->value, BodyContentType::cases()),
                     array_map(static fn (BodyContentType $t): string => $t->value, BodyContentType::cases()),
                 ),
             ]);
+            // Native date-and-time picker (datetime-local), minute precision.
             $this->addTypedField('createdFrom', DateTimeType::class, [
-                'required' => false,
-                'label'    => 'filter.created_from',
-                'widget'   => 'single_text',
-                'input'    => 'datetime_immutable',
+                'required'     => false,
+                'label'        => 'filter.created_from',
+                'widget'       => 'single_text',
+                'html5'        => true,
+                'with_seconds' => false,
+                'input'        => 'datetime_immutable',
             ]);
             $this->addTypedField('createdTo', DateTimeType::class, [
-                'required' => false,
-                'label'    => 'filter.created_to',
-                'widget'   => 'single_text',
-                'input'    => 'datetime_immutable',
+                'required'     => false,
+                'label'        => 'filter.created_to',
+                'widget'       => 'single_text',
+                'html5'        => true,
+                'with_seconds' => false,
+                'input'        => 'datetime_immutable',
             ]);
-            $this->addTextField('q', ['required' => false, 'label' => 'filter.q']);
         });
     }
 

@@ -21,6 +21,8 @@ admin.field.response_headers: Cabeceras de respuesta
 admin.field.request_body: Cuerpo de petición
 admin.field.response_body: Cuerpo de respuesta
 admin.field.truncated: truncado
+admin.field.name: 'Nombre'
+admin.field.value: 'Valor'
 admin.action.view: Ver
 admin.action.back: Volver al listado
 admin.action.filter: Filtrar
@@ -40,6 +42,8 @@ filter.body_content_type: Tipo de cuerpo
 filter.created_from: Creado desde
 filter.created_to: Creado hasta
 filter.q: Buscar
+filter.q_placeholder: 'Ruta, nombre de ruta o IP'
+filter.any: 'Cualquiera'
 flash.export_queued: Exportación encolada para procesarse en segundo plano.
 flash.purged: 'Se han purgado %count% entradas del registro HTTP.'
 flash.deleted: Entrada del registro HTTP eliminada.

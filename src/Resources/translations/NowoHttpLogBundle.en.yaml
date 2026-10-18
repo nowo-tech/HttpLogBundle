@@ -21,6 +21,8 @@ admin.field.response_headers: Response headers
 admin.field.request_body: Request body
 admin.field.response_body: Response body
 admin.field.truncated: truncated
+admin.field.name: 'Name'
+admin.field.value: 'Value'
 admin.action.view: View
 admin.action.back: Back to list
 admin.action.filter: Filter
@@ -40,6 +42,8 @@ filter.body_content_type: Body type
 filter.created_from: Created from
 filter.created_to: Created to
 filter.q: Search
+filter.q_placeholder: 'Path, route or IP'
+filter.any: 'Any'
 flash.export_queued: Export queued for background processing.
 flash.purged: 'Purged %count% HTTP log entries.'
 flash.deleted: HTTP log entry deleted.
