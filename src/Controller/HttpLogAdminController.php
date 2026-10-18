@@ -168,9 +168,9 @@ final class HttpLogAdminController extends AbstractController
 
         $data = $this->validateActionForm($request, HttpLogExportType::class, [
             'criteria' => $this->rawCriteriaFromRequest($request),
-            'format'   => (string) ($this->input($request, 'format') ?? ExportFormat::Csv->value),
+            'format'   => (string) $request->request->get('format', ExportFormat::Csv->value),
         ]);
-        $formatValue = (string) ($data['format'] ?? $this->input($request, 'format') ?? ExportFormat::Csv->value);
+        $formatValue = (string) ($data['format'] ?? ExportFormat::Csv->value);
         $format      = ExportFormat::tryFrom($formatValue) ?? ExportFormat::Csv;
         if (!$this->isExportFormatAllowed($format)) {
             throw new BadRequestHttpException(sprintf('Export format "%s" is not enabled (nowo_http_log.export.formats).', $format->value));
@@ -357,21 +357,12 @@ final class HttpLogAdminController extends AbstractController
         return $this->normalizeCriteria($form->getData());
     }
 
-    /**
-     * POST field, else query parameter: the admin export action carries the format and the criteria in its URL
-     * (only the CSRF token is posted), 1.x forms post them as hidden fields.
-     */
-    private function input(Request $request, string $key): bool|float|int|string|null
-    {
-        return $request->request->get($key) ?? $request->query->get($key);
-    }
-
     /** @return array<string, mixed> */
     private function criteriaFromRequest(Request $request): array
     {
         $criteria = [];
         foreach (self::CRITERIA_FIELDS as $key) {
-            $value = $this->input($request, $key);
+            $value = $request->request->get($key);
             if ($value !== null && $value !== '') {
                 if (in_array($key, ['createdFrom', 'createdTo'], true)) {
                     $criteria[$key] = $this->parseDateCriteria($value);
@@ -389,7 +380,7 @@ final class HttpLogAdminController extends AbstractController
     {
         $criteria = [];
         foreach (self::CRITERIA_FIELDS as $key) {
-            $value = $this->input($request, $key);
+            $value = $request->request->get($key);
             if ($value !== null && $value !== '') {
                 $criteria[$key] = $value;
             }

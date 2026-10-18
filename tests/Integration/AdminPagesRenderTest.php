@@ -41,10 +41,14 @@ final class AdminPagesRenderTest extends TestCase
         self::assertStringContainsString('nowo-ui-table__cell--muted', $html);
         self::assertStringContainsString('data-label="Client IP" data-nowo-ui-priority="3"', $html);
         self::assertSame(6, substr_count($html, 'href="/admin/http-log/4'), 'id link + view row action per entry');
-        // header actions: export carries format + criteria in the URL and posts the CSRF token; purge opens a dialog
-        self::assertStringContainsString('action="/admin/http-log/export?format=csv&amp;method=POST&amp;statusCode=201"', $html);
-        self::assertStringContainsString('action="/admin/http-log/export?format=json&amp;method=POST&amp;statusCode=201"', $html);
+        // header actions: FormView-backed export forms post the CSRF token, the format and the criteria; purge opens a dialog
+        self::assertSame(2, substr_count($html, 'action="/admin/http-log/export"'));
+        self::assertStringContainsString('<input type="hidden" name="format" value="csv">', $html);
+        self::assertStringContainsString('<input type="hidden" name="format" value="json">', $html);
+        self::assertSame(2, substr_count($html, '<input type="hidden" name="method" value="POST">'));
+        self::assertSame(2, substr_count($html, '<input type="hidden" name="statusCode" value="201">'));
         self::assertSame(2, substr_count($html, 'name="_token" value="token-http_log_export"'));
+        self::assertStringNotContainsString('export?', $html);
         self::assertStringContainsString('name="_token" value="token-http_log_purge"', $html);
         self::assertStringContainsString('Purge HTTP log entries matching the retention policy?', $html);
         self::assertStringContainsString('<dialog', $html);
@@ -93,6 +97,8 @@ final class AdminPagesRenderTest extends TestCase
         self::assertStringContainsString('id="http-log-request-body"', $html);
         self::assertStringContainsString('id="http-log-response-body"', $html);
         self::assertStringContainsString('<code>{&quot;name&quot;:&quot;x&quot;}</code>', $html);
+        // payloads: UiKit code_block slot, nowo-http-log-code kept as a stable hook
+        self::assertSame(5, substr_count($html, '<pre class="nowo-ui-code-block border p-3 nowo-http-log-code">'));
         self::assertSame(1, substr_count($html, '>truncated</span>'), 'only the request body is truncated');
         self::assertStringContainsString('href="/admin/http-log"', $html);
         self::assertStringContainsString('Back to list', $html);
@@ -121,7 +127,8 @@ final class AdminPagesRenderTest extends TestCase
         self::assertStringContainsString('<header class="host-header">', $html);
         self::assertSame(2, substr_count($html, 'name="_token" value="token-http_log_export"'));
         self::assertStringContainsString('name="_token" value="token-http_log_purge"', $html);
-        self::assertStringContainsString('action="/admin/http-log/export?format=csv"', $html);
+        self::assertSame(2, substr_count($html, 'action="/admin/http-log/export"'));
+        self::assertSame(1, substr_count($html, '<input type="hidden" name="format" value="csv">'));
     }
 
     #[Test]

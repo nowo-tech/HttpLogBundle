@@ -54,6 +54,7 @@ final class LegacyThemeBridge
         'detail_term'     => 'detail_term',
         'detail_value'    => 'detail_value',
         'section_title'   => 'card_title',
+        'code'            => 'code_block',
     ];
 
     /** 1.x `web_ui.attributes` target => UiKit theme slot (`results` / `show` go on the page model instead). */

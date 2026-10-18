@@ -49,6 +49,7 @@ final class LegacyThemeBridgeTest extends TestCase
             'btn_danger'    => 'btn btn-danger btn-lg',
             'badge_neutral' => 'badge bg-dark',
             'card_title'    => 'h6',
+            'code_block'    => 'bg-dark',
         ], $theme['classes'] ?? null);
         self::assertArrayNotHasKey('attributes', $theme);
         self::assertArrayNotHasKey('partials', $theme);

@@ -18,7 +18,7 @@
             </h2>
         </header>
         <div class="{{ nowo_ui_class('card_body', bundle) }}">
-            <pre class="nowo-http-log-code"><code>{{ content }}</code></pre>
+            <pre class="{{ nowo_ui_class('code_block', bundle) }} nowo-http-log-code"{{ nowo_ui_attrs('code_block', bundle) }}><code>{{ content }}</code></pre>
         </div>
     </section>
 {% endmacro %}

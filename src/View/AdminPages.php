@@ -22,8 +22,6 @@ use Nowo\UiKitBundle\View\ShowPage;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
-use function http_build_query;
-use function is_scalar;
 use function is_string;
 use function number_format;
 use function sprintf;
@@ -31,8 +29,9 @@ use function sprintf;
 /**
  * Builds the UiKit view models of the admin pages (REQ-UI-003): the list page (`admin/index.html.twig`, list
  * scaffold) and the entry page (`admin/show.html.twig`, show scaffold). Plain data in, immutable view models out —
- * no request or session state is kept (worker safe); the controller passes the forms and the permissions. Action
- * forms are read for their CSRF token (and the export criteria); the view models carry plain values.
+ * no request or session state is kept (worker safe); the controller passes the forms and the permissions. Export,
+ * purge and delete are `FormView`-backed actions (UiKit 2.1 prints their hidden fields — CSRF token, export format
+ * and criteria — on every render, also through a host page_header override).
  */
 final readonly class AdminPages
 {
@@ -68,13 +67,13 @@ final readonly class AdminPages
 
         $actions = [];
         foreach ($exportForms as $format => $form) {
-            // format + criteria travel in the URL, only the CSRF token is posted (see self::csrfToken()).
+            // the export form posts its hidden fields: CSRF token, format and the current criteria.
             $actions[] = new Action(
                 'export',
                 $this->label('admin.action.export_' . $format),
-                href: $exportUrl . '?' . http_build_query($this->hiddenValues($form)),
+                href: $exportUrl,
                 method: 'POST',
-                csrfToken: $this->csrfToken($form),
+                form: $form,
                 visible: $canExport,
             );
         }
@@ -83,8 +82,8 @@ final readonly class AdminPages
             $this->label('admin.action.purge'),
             href: $purgeUrl,
             method: 'POST',
-            csrfToken: $this->csrfToken($purgeForm),
             confirm: new Confirm($this->label('admin.action.purge'), $this->label('admin.purge.confirm'), $this->label('admin.action.purge')),
+            form: $purgeForm,
             visible: $canPurge,
         );
 
@@ -142,8 +141,8 @@ final readonly class AdminPages
                         $this->label('admin.action.delete'),
                         href: $deleteUrl,
                         method: 'POST',
-                        csrfToken: $this->csrfToken($deleteForm),
                         confirm: new Confirm($this->label('admin.action.delete'), $this->label('admin.delete.confirm'), $this->label('admin.action.delete')),
+                        form: $deleteForm,
                         visible: $canPurge,
                     ),
                 ],
@@ -179,37 +178,6 @@ final readonly class AdminPages
             new DetailItem($this->label('admin.field.user'), $entry->getUserIdentifier()),
             new DetailItem($this->label('admin.field.content_type'), $contentType === '' || $bodyType === '' ? $contentType . $bodyType : sprintf('%s (%s)', $contentType, $bodyType)),
         ];
-    }
-
-    /**
-     * CSRF token value of an action form (HttpLog*Type, field `_token`). Header actions carry the token as a string
-     * instead of the FormView: the scaffolds render header actions more than once (pre-rendered 1.x `toolbar` and a
-     * 2.0 page_header override rendering `actions`), and a FormView's fields render only once.
-     */
-    private function csrfToken(FormView $form): ?string
-    {
-        $token = $form->children['_token'] ?? null;
-        $value = $token instanceof FormView ? ($token->vars['value'] ?? null) : null;
-
-        return is_string($value) && $value !== '' ? $value : null;
-    }
-
-    /**
-     * Hidden values of the export form but the CSRF token (format + criteria), for the export URL.
-     *
-     * @return array<string, string>
-     */
-    private function hiddenValues(FormView $form): array
-    {
-        $values = [];
-        foreach ($form->children as $name => $child) {
-            $value = $child->vars['value'] ?? null;
-            if ($name !== '_token' && is_scalar($value) && $value !== '') {
-                $values[(string) $name] = (string) $value;
-            }
-        }
-
-        return $values;
     }
 
     /**

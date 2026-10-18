@@ -374,7 +374,8 @@ final class HttpLogAdminControllerTest extends TestCase
                 self::callback(static fn (array $parameters): bool => $parameters['page'] instanceof ListPage
                     && count($parameters['page']->header->actions) === 2
                     && $parameters['page']->header->actions[0]->kind === 'export'
-                    && str_contains((string) $parameters['page']->header->actions[0]->href, 'format=json')
+                    && $parameters['page']->header->actions[0]->form instanceof FormView
+                    && $parameters['page']->header->actions[0]->form->children['format']->vars['value'] === 'json'
                     && $parameters['page']->header->actions[1]->confirm instanceof Confirm),
             )
             ->willReturn('index');
@@ -429,25 +430,6 @@ final class HttpLogAdminControllerTest extends TestCase
         );
 
         self::assertSame('index', $controller->index($request)->getContent());
-    }
-
-    #[Test]
-    public function exportReadsFormatAndCriteriaFromTheActionUrl(): void
-    {
-        $request = Request::create('/admin/http-log/export?format=json&method=POST&statusCode=201', 'POST', ['_token' => 'valid-token']);
-
-        $exportService = $this->createMock(ExportHttpLogService::class);
-        $exportService->expects(self::once())
-            ->method('countForCriteria')
-            ->with(['method' => 'POST', 'statusCode' => '201'])
-            ->willReturn(1);
-        $exportService->expects(self::once())->method('exportToString')->willReturn('[]');
-
-        $controller = $this->createController(request: $request, exportService: $exportService, csrfValid: true);
-        $response   = $controller->export($request);
-
-        self::assertSame('application/json', $response->headers->get('Content-Type'));
-        self::assertSame('attachment; filename="http-log-export.json"', $response->headers->get('Content-Disposition'));
     }
 
     #[Test]
