@@ -1487,6 +1487,11 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             partials?: array<string, scalar|Param|null>,
  *             tokens?: array<string, mixed>,
  *             tokens_dark?: array<string, mixed>,
+ *             pages?: array<string, array{ // Default: []
+ *                 framework_defaults?: bool|Param, // Override of theme.framework_defaults for this page type (unset = inherit).
+ *                 classes?: array<string, mixed>,
+ *                 attributes?: array<string, array<string, mixed>>,
+ *             }>,
  *         }>,
  *         pages?: array<string, array{ // Default: []
  *             framework_defaults?: bool|Param, // Override of theme.framework_defaults for this page type (unset = inherit).

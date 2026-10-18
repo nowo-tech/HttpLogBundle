@@ -1043,13 +1043,13 @@
             "dist": {
                 "type": "path",
                 "url": "/var/http-log-bundle",
-                "reference": "7a3eae38e3655edbd5bd4f03aaf48869b457c425"
+                "reference": "2e5c3b6866ebdff8d0ed2807181e073841cd5009"
             },
             "require": {
                 "doctrine/doctrine-bundle": "^2.10 || ^3.0",
                 "doctrine/orm": "^3.7",
                 "nowo-tech/form-kit-bundle": "^2.10",
-                "nowo-tech/ui-kit-bundle": "^2.0",
+                "nowo-tech/ui-kit-bundle": "^2.1",
                 "php": ">=8.2 <8.6",
                 "psr/clock": "^1.0",
                 "psr/log": "^1 || ^2 || ^3",
@@ -1180,16 +1180,16 @@
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v2.0.1",
+            "version": "v2.1.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "b9a7073223f8dd4c5fe4b1c101912752c7fe2210"
+                "reference": "f0abbd4536811d0c91e4f91473745f6af9f44cd2"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/b9a7073223f8dd4c5fe4b1c101912752c7fe2210",
-                "reference": "b9a7073223f8dd4c5fe4b1c101912752c7fe2210",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/f0abbd4536811d0c91e4f91473745f6af9f44cd2",
+                "reference": "f0abbd4536811d0c91e4f91473745f6af9f44cd2",
                 "shasum": ""
             },
             "require": {
@@ -1268,7 +1268,7 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-10-17T22:24:08+00:00"
+            "time": "2026-10-17T23:39:23+00:00"
         },
         {
             "name": "psr/cache",

@@ -50,4 +50,46 @@ final class DemoControllerTest extends WebTestCase
         self::assertSelectorExists('[data-nowo-ui-page="show"][data-testid="http-log-show"]');
         self::assertSelectorExists('dialog[data-nowo-ui-confirm]');
     }
+
+    /** No-JS: the FormView-backed export and delete forms post their CSRF token (and export format + criteria). */
+    public function testAdminExportAndDeleteFormsSubmitWithTheirCsrfToken(): void
+    {
+        $client = static::createClient();
+        $client->request('GET', '/api/ping');
+
+        $auth    = ['PHP_AUTH_USER' => 'admin', 'PHP_AUTH_PW' => 'admin'];
+        $crawler = $client->request('GET', '/admin/http-log?http_log_filter%5Bmethod%5D=GET', [], [], $auth);
+        self::assertResponseIsSuccessful();
+
+        $export = $crawler->filter('form[action="/admin/http-log/export"]')->reduce(
+            static fn ($form): bool => $form->filter('input[name="format"][value="json"]')->count() === 1,
+        );
+        self::assertCount(1, $export);
+        self::assertCount(1, $export->filter('input[name="method"][value="GET"]'), 'criteria travel as hidden fields');
+        self::assertCount(1, $export->filter('input[name="_token"]'));
+
+        $client->submit($export->form(), [], $auth);
+        self::assertResponseIsSuccessful();
+        self::assertResponseHeaderSame('Content-Disposition', 'attachment; filename="http-log-export.json"');
+        $rows = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($rows);
+        self::assertNotEmpty($rows);
+        self::assertSame(['GET'], array_values(array_unique(array_column($rows, 'method'))));
+
+        $client->request('POST', '/admin/http-log/export', ['_token' => 'forged', 'format' => 'json'], [], $auth);
+        self::assertResponseStatusCodeSame(403);
+
+        $crawler = $client->request('GET', '/admin/http-log', [], [], $auth);
+        $show    = (string) $crawler->filter('[data-nowo-ui-region="table"] tbody a')->first()->attr('href');
+        $crawler = $client->request('GET', $show, [], [], $auth);
+        self::assertSelectorExists('pre.nowo-ui-code-block.nowo-http-log-code');
+
+        $delete = $crawler->filter('form[action="' . $show . '/delete"]');
+        self::assertCount(1, $delete);
+        $client->submit($delete->form(), [], $auth);
+        self::assertResponseRedirects('/admin/http-log');
+
+        $client->request('GET', $show, [], [], $auth);
+        self::assertResponseStatusCodeSame(404);
+    }
 }
