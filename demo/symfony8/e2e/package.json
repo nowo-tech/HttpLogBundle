@@ -1,0 +1,16 @@
+{
+  "name": "nowo-http-log-demo-e2e",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Playwright e2e + screenshots of the Http Log admin pages on the UiKit page contract (REQ-UI-003, REQ-DEMO-013)",
+  "scripts": {
+    "test": "playwright test",
+    "test:screenshots": "playwright test --project=screenshots",
+    "install-browsers": "playwright install chromium",
+    "to-webp": "node scripts/to-webp.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "sharp": "^0.34.4"
+  }
+}

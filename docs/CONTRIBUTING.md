@@ -137,6 +137,8 @@ Demo application under `demo/symfony8` (Symfony 8.x, FrankenPHP, SQLite, port **
 ```bash
 make -C demo/symfony8 up
 make demo-smoke
+make -C demo/symfony8 test-e2e          # Playwright e2e of the admin pages (REQ-DEMO-013)
+make -C demo/symfony8 demo-screenshots  # refreshes docs/images/demo/*.webp
 ```
 
 See [Demo with FrankenPHP](DEMO-FRANKENPHP.md).
