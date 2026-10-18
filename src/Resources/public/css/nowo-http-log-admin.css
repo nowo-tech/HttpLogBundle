@@ -1,0 +1,35 @@
+/*
+ * HttpLogBundle admin entry page: layout of the bundle's own payload markup inside the UiKit show scaffold
+ * (REQ-UI-003). Chrome (cards, tables, code, badges) comes from UiKit and its theme; this file only sizes the payload
+ * blocks and reads UiKit tokens.
+ */
+
+/*
+ * Bodies: UiKit code block with the wrap modifier (long lines wrap instead of scrolling sideways), bounded to a whole
+ * number of lines plus the block padding so the visible area never ends in the middle of a line.
+ */
+.nowo-http-log-code {
+  --nowo-ui-code-block-max-height: calc(1.5em * 24 + 1.5rem);
+  margin: 0;
+}
+
+/* Headers / query parameters: name column sized to the names, values wrap anywhere (user agents, cookies). */
+.nowo-http-log-kv {
+  width: 100%;
+}
+
+.nowo-http-log-kv th,
+.nowo-http-log-kv td {
+  vertical-align: top;
+}
+
+.nowo-http-log-kv__name {
+  font-weight: inherit;
+  white-space: nowrap;
+  width: 1%;
+}
+
+.nowo-http-log-kv__value {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}

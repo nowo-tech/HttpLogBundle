@@ -22,9 +22,26 @@ use Nowo\UiKitBundle\View\ShowPage;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
+use function array_filter;
+use function array_is_list;
+use function array_map;
+use function implode;
+use function is_array;
+use function is_bool;
+use function is_scalar;
 use function is_string;
+use function json_decode;
+use function json_encode;
+use function json_last_error;
+use function ltrim;
 use function number_format;
 use function sprintf;
+use function str_starts_with;
+
+use const JSON_ERROR_NONE;
+use const JSON_PRETTY_PRINT;
+use const JSON_UNESCAPED_SLASHES;
+use const JSON_UNESCAPED_UNICODE;
 
 /**
  * Builds the UiKit view models of the admin pages (REQ-UI-003): the list page (`admin/index.html.twig`, list
@@ -110,15 +127,15 @@ final readonly class AdminPages
             layout: $this->layout(),
             attributes: ['data-testid' => 'http-log-list'] + LegacyThemeBridge::pageAttributes($this->webUi, 'results'),
             filterFields: [
-                'method'          => new FilterField('method', width: 'sm'),
-                'routeName'       => new FilterField('routeName', width: 'md'),
-                'statusCode'      => new FilterField('statusCode', width: 'xs'),
+                'q'               => new FilterField('q', $this->label('filter.q_placeholder'), width: 'lg'),
+                'method'          => new FilterField('method', width: 'xs'),
+                'statusCode'      => new FilterField('statusCode', '404', width: 'xs'),
                 'clientIp'        => new FilterField('clientIp', width: 'sm'),
-                'path'            => new FilterField('path', width: 'md'),
+                'path'            => new FilterField('path', '/api/', width: 'lg'),
+                'routeName'       => new FilterField('routeName', 'app_', width: 'md'),
                 'bodyContentType' => new FilterField('bodyContentType', width: 'sm'),
                 'createdFrom'     => new FilterField('createdFrom', width: 'md'),
                 'createdTo'       => new FilterField('createdTo', width: 'md'),
-                'q'               => new FilterField('q', width: 'lg'),
             ],
             filtersSubmit: new Action('filter', $this->label('admin.action.filter')),
         );
@@ -156,7 +173,7 @@ final readonly class AdminPages
     }
 
     /**
-     * Request / response summary of the entry page (the payloads render as code sections in the template).
+     * Request / response summary of the entry page (payloads: name / value tables and code sections in the template, see payload()).
      *
      * @return list<DetailItem>
      */
@@ -170,7 +187,7 @@ final readonly class AdminPages
             new DetailItem($this->label('admin.field.request_id'), $entry->getRequestId()),
             new DetailItem($this->label('admin.column.created_at'), $entry->getCreatedAt()->format('Y-m-d H:i:s')),
             new DetailItem($this->label('admin.column.method'), $entry->getMethod()),
-            new DetailItem($this->label('admin.field.url'), sprintf('%s://%s%s', $entry->getScheme(), $entry->getHost(), $entry->getPath())),
+            new DetailItem($this->label('admin.field.url'), $this->entryUrl($entry)),
             new DetailItem($this->label('admin.field.route'), $entry->getRouteName()),
             new DetailItem($this->label('admin.column.status'), $entry->getStatusCode()),
             new DetailItem($this->label('admin.column.duration'), $entry->getDurationMs() === null ? null : number_format($entry->getDurationMs(), 2) . ' ms'),
@@ -178,6 +195,91 @@ final readonly class AdminPages
             new DetailItem($this->label('admin.field.user'), $entry->getUserIdentifier()),
             new DetailItem($this->label('admin.field.content_type'), $contentType === '' || $bodyType === '' ? $contentType . $bodyType : sprintf('%s (%s)', $contentType, $bodyType)),
         ];
+    }
+
+    /**
+     * Display data of the payload sections of the entry page: headers and query parameters as name / value rows
+     * (list values joined with ", "; redacted values flagged, never revealed), bodies pretty-printed when they are
+     * complete JSON documents (anything else — truncated, form data, HTML — as stored).
+     *
+     * @return array{
+     *     query_params: list<array{name: string, value: string, redacted: bool}>,
+     *     request_headers: list<array{name: string, value: string, redacted: bool}>,
+     *     response_headers: list<array{name: string, value: string, redacted: bool}>,
+     *     request_body: string|null,
+     *     response_body: string|null
+     * }
+     */
+    public function payload(HttpLogEntry $entry): array
+    {
+        return [
+            'query_params'     => self::keyValueRows($entry->getQueryParams() ?? []),
+            'request_headers'  => self::keyValueRows($entry->getRequestHeaders() ?? []),
+            'response_headers' => self::keyValueRows($entry->getResponseHeaders() ?? []),
+            'request_body'     => self::formatBody($entry->getRequestBody()),
+            'response_body'    => self::formatBody($entry->getResponseBody()),
+        ];
+    }
+
+    /**
+     * @param array<mixed> $values
+     *
+     * @return list<array{name: string, value: string, redacted: bool}>
+     */
+    public static function keyValueRows(array $values): array
+    {
+        $rows = [];
+        foreach ($values as $name => $value) {
+            $redacted = is_string($value) && str_starts_with($value, '[REDACTED');
+            $rows[]   = ['name' => (string) $name, 'value' => self::scalarText($value), 'redacted' => $redacted];
+        }
+
+        return $rows;
+    }
+
+    /** Complete JSON documents pretty-printed (slashes and unicode unescaped); any other body unchanged. */
+    public static function formatBody(?string $body): ?string
+    {
+        if ($body === null || $body === '') {
+            return $body;
+        }
+        $trimmed = ltrim($body);
+        if (!str_starts_with($trimmed, '{') && !str_starts_with($trimmed, '[')) {
+            return $body;
+        }
+        $decoded = json_decode($body, true);
+        if (!is_array($decoded) || json_last_error() !== JSON_ERROR_NONE) {
+            return $body;
+        }
+
+        return (string) json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    }
+
+    private static function scalarText(mixed $value): string
+    {
+        if (is_array($value)) {
+            if (array_is_list($value) && array_filter($value, static fn (mixed $v): bool => !is_scalar($v) && $v !== null) === []) {
+                return implode(', ', array_map(self::scalarText(...), $value));
+            }
+
+            return (string) json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        }
+
+        return match (true) {
+            $value === null   => '',
+            is_bool($value)   => $value ? 'true' : 'false',
+            is_scalar($value) => (string) $value,
+            default           => (string) json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        };
+    }
+
+    /**
+     * scheme://host[:port]path — the recorder stores the host with its port when the request used a non-default one;
+     * the (redacted) query parameters have their own section.
+     */
+    private function entryUrl(HttpLogEntry $entry): string
+    {
+        return sprintf('%s://%s%s', $entry->getScheme(), $entry->getHost(), $entry->getPath());
     }
 
     /**

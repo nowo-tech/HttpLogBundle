@@ -1,15 +1,17 @@
 {#
   HTTP log entry (REQ-UI-003): UiKit show scaffold. Variables: page (Nowo\UiKitBundle\View\ShowPage: header with the
   back and delete actions — delete opens the UiKit confirm dialog —, breadcrumbs and the request summary section),
-  entry (Nowo\HttpLogBundle\Entity\HttpLogEntry, for the payload sections).
+  entry (Nowo\HttpLogBundle\Entity\HttpLogEntry), payload (View\AdminPages::payload(): headers / query parameters as
+  name-value rows with redacted values flagged, bodies pretty-printed when they are JSON documents).
 
-  Payload sections (query parameters, headers, bodies) render in nowo_ui_show_after; each one is its own block
-  (nowo_http_log_section_*), so an override that extends '@!NowoHttpLogBundle/admin/show.html.twig'
-  (web_ui.templates.show) can replace or hide one of them.
+  nowo_ui_show_sections renders the summary with the detail-list slots, Method and Status as badges (same slots as the
+  list) and the request ID / URL in the `code` slot. Payload sections (query parameters, headers, bodies) render in
+  nowo_ui_show_after; each one is its own block (nowo_http_log_section_*), so an override that extends
+  '@!NowoHttpLogBundle/admin/show.html.twig' (web_ui.templates.show) can replace or hide one of them.
 #}
 {% extends '@NowoUiKit/page/show.html.twig' %}
 
-{% macro payload(id, title, content, truncated, bundle) %}
+{% macro section_open(id, title, truncated, bundle) %}
     <section class="{{ nowo_ui_class('section', bundle) }} {{ nowo_ui_class('card', bundle) }} nowo-http-log-payload" id="http-log-{{ id }}" data-nowo-ui-region="section"{{ nowo_ui_attrs('section', bundle) }}>
         <header class="{{ nowo_ui_class('card_header', bundle) }}">
             <h2 class="{{ nowo_ui_class('card_title', bundle) }}">
@@ -18,28 +20,115 @@
             </h2>
         </header>
         <div class="{{ nowo_ui_class('card_body', bundle) }}">
-            <pre class="{{ nowo_ui_class('code_block', bundle) }} nowo-http-log-code"{{ nowo_ui_attrs('code_block', bundle) }}><code>{{ content }}</code></pre>
+{% endmacro %}
+
+{% macro section_close() %}
         </div>
     </section>
 {% endmacro %}
 
+{# Body / raw payload: bounded, scrollable code block; long lines wrap instead of being cut. #}
+{% macro payload(id, title, content, truncated, bundle) %}
+    {{ _self.section_open(id, title, truncated, bundle) }}
+            <pre class="{{ nowo_ui_class('code_block', bundle) }} nowo-ui-code-block--wrap nowo-http-log-code"{{ nowo_ui_attrs('code_block', bundle) }}><code>{{ content }}</code></pre>
+    {{ _self.section_close() }}
+{% endmacro %}
+
+{# Headers / query parameters: name | value table; redacted values stay redacted (muted placeholder). #}
+{% macro key_values(id, title, rows, bundle) %}
+    {{ _self.section_open(id, title, false, bundle) }}
+            <div class="{{ nowo_ui_class('table_wrap', bundle) }}"{{ nowo_ui_attrs('table_wrap', bundle) }}>
+                <table class="{{ nowo_ui_class('table', bundle) }} nowo-http-log-kv"{{ nowo_ui_attrs('table', bundle) }}>
+                    <thead class="{{ nowo_ui_class('table_head', bundle) }}">
+                        <tr class="{{ nowo_ui_class('table_head_row', bundle) }}">
+                            <th scope="col" class="{{ nowo_ui_class('table_head_cell', bundle) }} nowo-http-log-kv__name">{{ 'admin.field.name'|trans({}, 'NowoHttpLogBundle') }}</th>
+                            <th scope="col" class="{{ nowo_ui_class('table_head_cell', bundle) }}">{{ 'admin.field.value'|trans({}, 'NowoHttpLogBundle') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                            <tr class="{{ nowo_ui_class('table_row', bundle) }}">
+                                <th scope="row" class="{{ nowo_ui_class('table_cell', bundle) }} nowo-http-log-kv__name"><code class="{{ nowo_ui_class('code', bundle) }}">{{ row.name }}</code></th>
+                                {% if row.redacted %}
+                                    <td class="{{ nowo_ui_class('table_cell', bundle) }} {{ nowo_ui_class('table_cell_muted', bundle) }}" data-nowo-http-log-redacted>{{ row.value }}</td>
+                                {% else %}
+                                    <td class="{{ nowo_ui_class('table_cell', bundle) }} nowo-http-log-kv__value">{{ row.value }}</td>
+                                {% endif %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+    {{ _self.section_close() }}
+{% endmacro %}
+
+{% block nowo_ui_styles %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('bundles/nowohttplog/css/nowo-http-log-admin.css') }}">
+{% endblock %}
+
+{% block nowo_ui_show_sections %}
+    {% set _b = page.bundle %}
+    {% set _status = entry.statusCode|default(0) %}
+    {% set _status_slot = _status >= 500 ? 'badge_danger' : (_status >= 400 ? 'badge_warning' : (_status >= 300 ? 'badge_info' : 'badge_success')) %}
+    {% for section in page.sections %}
+        <section class="{{ nowo_ui_class('section', _b) }} {{ nowo_ui_class('card', _b) }}"{% if section.id %} id="{{ section.id }}"{% endif %} data-nowo-ui-region="section"{{ nowo_ui_attrs('section', _b) }}>
+            {% if section.title %}
+                <header class="{{ nowo_ui_class('card_header', _b) }}"><h2 class="{{ nowo_ui_class('card_title', _b) }}">{{ section.title|nowo_ui_trans }}</h2></header>
+            {% endif %}
+            <div class="{{ nowo_ui_class('card_body', _b) }}">
+                <dl class="{{ nowo_ui_class('detail_list', _b) }}"{{ nowo_ui_attrs('detail_list', _b) }}>
+                    {% for item in section.items %}
+                        {% set _key = item.label.key ?? null %}
+                        {% set _blank = item.value is same as(false) or item.value is null or item.value is same as('') %}
+                        <div class="{{ nowo_ui_class('detail_item', _b) }}">
+                            <dt class="{{ nowo_ui_class('detail_term', _b) }}">{{ item.label|nowo_ui_trans }}</dt>
+                            <dd class="{{ nowo_ui_class('detail_value', _b) }}">
+                                {%- if _blank -%}
+                                    <span class="{{ nowo_ui_class('muted', _b) }}">—</span>
+                                {%- elseif _key == 'admin.column.method' -%}
+                                    <span class="{{ nowo_ui_class('badge_neutral', _b) }} nowo-http-log-method">{{ item.value }}</span>
+                                {%- elseif _key == 'admin.column.status' -%}
+                                    <span class="{{ nowo_ui_class(_status_slot, _b) }} nowo-http-log-status">{{ item.value }}</span>
+                                {%- elseif _key in ['admin.field.url', 'admin.field.request_id', 'admin.field.route'] -%}
+                                    <code class="{{ nowo_ui_class('code', _b) }}">{{ item.value }}</code>
+                                {%- else -%}
+                                    {{ item.value|nowo_ui_trans }}
+                                {%- endif -%}
+                            </dd>
+                        </div>
+                    {% endfor %}
+                </dl>
+            </div>
+        </section>
+    {% endfor %}
+{% endblock %}
+
 {% block nowo_ui_show_after %}
     {% set _b = page.bundle %}
+    {% set _json = constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_SLASHES') %}
+    {% set _payload = payload|default(null) %}
     {% block nowo_http_log_detail_sections %}
         {% block nowo_http_log_section_query_params %}
-            {% if entry.queryParams %}{{ _self.payload('query-params', 'admin.field.query_params', entry.queryParams|json_encode(constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_SLASHES')), false, _b) }}{% endif %}
+            {% if entry.queryParams %}
+                {% if _payload %}{{ _self.key_values('query-params', 'admin.field.query_params', _payload.query_params, _b) }}{% else %}{{ _self.payload('query-params', 'admin.field.query_params', entry.queryParams|json_encode(_json), false, _b) }}{% endif %}
+            {% endif %}
         {% endblock %}
         {% block nowo_http_log_section_request_headers %}
-            {% if entry.requestHeaders %}{{ _self.payload('request-headers', 'admin.field.request_headers', entry.requestHeaders|json_encode(constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_SLASHES')), false, _b) }}{% endif %}
+            {% if entry.requestHeaders %}
+                {% if _payload %}{{ _self.key_values('request-headers', 'admin.field.request_headers', _payload.request_headers, _b) }}{% else %}{{ _self.payload('request-headers', 'admin.field.request_headers', entry.requestHeaders|json_encode(_json), false, _b) }}{% endif %}
+            {% endif %}
         {% endblock %}
         {% block nowo_http_log_section_response_headers %}
-            {% if entry.responseHeaders %}{{ _self.payload('response-headers', 'admin.field.response_headers', entry.responseHeaders|json_encode(constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_SLASHES')), false, _b) }}{% endif %}
+            {% if entry.responseHeaders %}
+                {% if _payload %}{{ _self.key_values('response-headers', 'admin.field.response_headers', _payload.response_headers, _b) }}{% else %}{{ _self.payload('response-headers', 'admin.field.response_headers', entry.responseHeaders|json_encode(_json), false, _b) }}{% endif %}
+            {% endif %}
         {% endblock %}
         {% block nowo_http_log_section_request_body %}
-            {% if entry.requestBody %}{{ _self.payload('request-body', 'admin.field.request_body', entry.requestBody, entry.requestBodyTruncated, _b) }}{% endif %}
+            {% if entry.requestBody %}{{ _self.payload('request-body', 'admin.field.request_body', _payload ? _payload.request_body : entry.requestBody, entry.requestBodyTruncated, _b) }}{% endif %}
         {% endblock %}
         {% block nowo_http_log_section_response_body %}
-            {% if entry.responseBody %}{{ _self.payload('response-body', 'admin.field.response_body', entry.responseBody, entry.responseBodyTruncated, _b) }}{% endif %}
+            {% if entry.responseBody %}{{ _self.payload('response-body', 'admin.field.response_body', _payload ? _payload.response_body : entry.responseBody, entry.responseBodyTruncated, _b) }}{% endif %}
         {% endblock %}
     {% endblock %}
 {% endblock %}

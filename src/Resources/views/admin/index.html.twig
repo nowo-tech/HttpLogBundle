@@ -23,7 +23,7 @@
         <span class="{{ nowo_ui_class('badge_neutral', _b) }} nowo-http-log-method">{{ row.method }}</span>
     </td>
     <td class="{{ _cell }} nowo-ui-cell--start nowo-http-log-path" data-label="{{ 'admin.column.path'|trans({}, 'NowoHttpLogBundle') }}">
-        <code>{{ row.path }}</code>
+        <code class="{{ nowo_ui_class('code', _b) }}">{{ row.path }}</code>
     </td>
     <td class="{{ _cell }} nowo-ui-cell--start" data-label="{{ 'admin.column.status'|trans({}, 'NowoHttpLogBundle') }}">
         {%- if row.statusCode is not null -%}

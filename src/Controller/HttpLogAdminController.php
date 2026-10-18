@@ -143,9 +143,11 @@ final class HttpLogAdminController extends AbstractController
             'action' => $this->generateUrl('nowo_http_log_admin_delete', ['id' => $entry->getId()]),
         ])->createView();
 
+        $pages    = $this->pages();
         $response = $this->render($this->template('show'), [
-            'page'  => $this->pages()->showPage($entry, $deleteForm, $this->canPurge()),
-            'entry' => $entry,
+            'page'    => $pages->showPage($entry, $deleteForm, $this->canPurge()),
+            'entry'   => $entry,
+            'payload' => $pages->payload($entry),
         ]);
         $this->repository->detachAll([$entry]);
 

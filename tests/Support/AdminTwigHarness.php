@@ -198,7 +198,7 @@ final class AdminTwigHarness
         if ($full) {
             $entry
                 ->setQueryParams(['page' => '1'])
-                ->setRequestHeaders(['accept' => ['application/json']])
+                ->setRequestHeaders(['accept' => ['application/json', 'text/plain'], 'cookie' => '[REDACTED]'])
                 ->setResponseHeaders(['content-type' => ['application/json']])
                 ->setRequestBody('{"name":"x"}')
                 ->setRequestBodyTruncated(true)

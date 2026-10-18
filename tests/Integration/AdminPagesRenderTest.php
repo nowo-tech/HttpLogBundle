@@ -84,28 +84,53 @@ final class AdminPagesRenderTest extends TestCase
     public function showPageRendersSummaryPayloadsAndDeleteDialog(): void
     {
         $entry = AdminTwigHarness::entry(7, true);
-        $html  = $this->render('@NowoHttpLogBundle/admin/show.html.twig', ['page' => AdminPageFixtures::showPage($entry), 'entry' => $entry]);
+        $entry->setHost('example.test:8443');
+        $html = $this->render('@NowoHttpLogBundle/admin/show.html.twig', [
+            'page'    => AdminPageFixtures::showPage($entry),
+            'entry'   => $entry,
+            'payload' => AdminPageFixtures::pages()->payload($entry),
+        ]);
 
         self::assertStringContainsString('<title>HTTP Log Entry #7 · Host</title>', $html);
         self::assertStringContainsString('data-nowo-ui-page="show" data-testid="http-log-show"', $html);
-        self::assertStringContainsString('>https://example.test/api/items/7</dd>', $html);
+        // summary: URL keeps the port, method / status as badges (list slots), identifiers in the code slot
+        self::assertStringContainsString('<code class="nowo-ui-code">https://example.test:8443/api/items/7</code></dd>', $html);
+        self::assertMatchesRegularExpression('#<span class="nowo-ui-badge nowo-ui-badge--neutral[^"]*nowo-http-log-method">POST</span>#', $html);
+        self::assertMatchesRegularExpression('#<span class="nowo-ui-badge nowo-ui-badge--success[^"]*nowo-http-log-status">201</span>#', $html);
+        self::assertStringContainsString('<code class="nowo-ui-code">req-7</code>', $html);
         self::assertStringContainsString('>application/json (json)</dd>', $html);
         self::assertStringContainsString('>12.35 ms</dd>', $html);
-        self::assertStringContainsString('id="http-log-query-params"', $html);
-        self::assertStringContainsString('id="http-log-request-headers"', $html);
-        self::assertStringContainsString('id="http-log-response-headers"', $html);
-        self::assertStringContainsString('id="http-log-request-body"', $html);
-        self::assertStringContainsString('id="http-log-response-body"', $html);
-        self::assertStringContainsString('<code>{&quot;name&quot;:&quot;x&quot;}</code>', $html);
-        // payloads: UiKit code_block slot, nowo-http-log-code kept as a stable hook
-        self::assertSame(5, substr_count($html, '<pre class="nowo-ui-code-block border p-3 nowo-http-log-code">'));
+        foreach (['query-params', 'request-headers', 'response-headers', 'request-body', 'response-body'] as $id) {
+            self::assertStringContainsString('id="http-log-' . $id . '"', $html);
+        }
+        // headers / query parameters: name | value tables, list values joined, redacted values stay redacted
+        self::assertSame(3, substr_count($html, 'nowo-http-log-kv"'));
+        self::assertStringContainsString('<code class="nowo-ui-code">accept</code></th>', $html);
+        self::assertStringContainsString('>application/json, text/plain</td>', $html);
+        self::assertMatchesRegularExpression('#data-nowo-http-log-redacted>\[REDACTED\]</td>#', $html);
+        self::assertStringContainsString('<th scope="col" class="nowo-ui-table__head-cell">Value</th>', $html);
+        // bodies: UiKit code_block slot + wrap modifier; JSON pretty-printed; the request body is truncated (raw)
+        self::assertSame(2, substr_count($html, '<pre class="nowo-ui-code-block border p-3 nowo-ui-code-block--wrap nowo-http-log-code">'));
+        self::assertStringContainsString("<code>{\n    &quot;id&quot;: 1\n}</code>", $html);
         self::assertSame(1, substr_count($html, '>truncated</span>'), 'only the request body is truncated');
+        self::assertStringContainsString('href="/bundles/nowohttplog/css/nowo-http-log-admin.css"', $html);
         self::assertStringContainsString('href="/admin/http-log"', $html);
         self::assertStringContainsString('Back to list', $html);
         self::assertStringContainsString('action="/admin/http-log/7/delete"', $html);
         self::assertStringContainsString('name="_token" value="token-http_log_delete"', $html);
         self::assertStringContainsString('Delete this HTTP log entry?', $html);
         self::assertStringNotContainsString('onsubmit', $html);
+    }
+
+    #[Test]
+    public function showPageWithoutThePayloadVariableFallsBackToJsonBlocks(): void
+    {
+        $entry = AdminTwigHarness::entry(7, true);
+        $html  = $this->render('@NowoHttpLogBundle/admin/show.html.twig', ['page' => AdminPageFixtures::showPage($entry), 'entry' => $entry]);
+
+        self::assertSame(5, substr_count($html, 'nowo-http-log-code">'));
+        self::assertStringContainsString('<code>{&quot;name&quot;:&quot;x&quot;}</code>', $html);
+        self::assertStringNotContainsString('nowo-http-log-kv"', $html);
     }
 
     #[Test]
