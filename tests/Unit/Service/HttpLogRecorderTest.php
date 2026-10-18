@@ -79,6 +79,23 @@ final class HttpLogRecorderTest extends TestCase
     }
 
     #[Test]
+    public function recordKeepsTheHostPortOfNonDefaultPorts(): void
+    {
+        $hosts         = [];
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->method('persist')->willReturnCallback(static function (HttpLogEntry $entry) use (&$hosts): void {
+            $hosts[] = $entry->getHost();
+        });
+        $messageBus = $this->createMock(MessageBusInterface::class);
+
+        $recorder = $this->createRecorder($entityManager, $messageBus, async: false);
+        $recorder->record(Request::create('http://127.0.0.1:8000/api/items'), new Response('ok'), 1.0, 'req-port');
+        $recorder->record(Request::create('https://example.test/api/items'), new Response('ok'), 1.0, 'req-default');
+
+        self::assertSame(['127.0.0.1:8000', 'example.test'], $hosts);
+    }
+
+    #[Test]
     public function asyncFalsePersistsViaEntityManager(): void
     {
         $entityManager = $this->createMock(EntityManagerInterface::class);

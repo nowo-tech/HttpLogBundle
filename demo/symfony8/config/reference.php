@@ -1303,7 +1303,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     track_sub_requests?: bool|Param, // Default: false
  *     ignore_routes?: list<scalar|Param|null>,
  *     ignore_path_prefixes?: list<scalar|Param|null>,
- *     ignore_default_path_prefixes?: bool|Param, // Also skip the kit-internal paths /_nowo/ (HotReload), /sw.js and /manifest.webmanifest (PWA), merged with ignore_path_prefixes. // Default: true
+ *     ignore_default_path_prefixes?: bool|Param, // Also skip the kit-internal paths /_nowo/ (HotReload), /sw.js and /manifest.webmanifest (PWA) and the WebProfiler paths /_wdt/ and /_profiler/, merged with ignore_path_prefixes. // Default: true
  *     ignore_unrouted?: bool|Param, // Skip requests no route matched (unrouted 404s: scanners probing /wp-login.php, /.env…). // Default: false
  *     capture?: array{
  *         request_headers?: bool|Param, // Default: true

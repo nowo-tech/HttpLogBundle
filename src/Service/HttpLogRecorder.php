@@ -103,7 +103,8 @@ final class HttpLogRecorder
             requestId: $requestId,
             method: $request->getMethod(),
             scheme: $request->getScheme(),
-            host: $request->getHost(),
+            // Host with its port when the request used a non-default one (e.g. 127.0.0.1:8000).
+            host: $request->getHttpHost(),
             path: $request->getPathInfo(),
             routeName: is_string($request->attributes->get('_route')) ? $request->attributes->get('_route') : null,
             queryParams: $queryParams,

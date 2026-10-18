@@ -1,10 +1,6 @@
 nowo_http_log:
     enabled: true
     async: false
-    # dev only: keep the WebProfiler toolbar / profiler requests out of the log
-    ignore_path_prefixes:
-        - /_wdt/
-        - /_profiler/
     capture:
         request_body: true
         response_body_by_type:

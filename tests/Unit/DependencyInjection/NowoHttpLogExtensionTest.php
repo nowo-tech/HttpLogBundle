@@ -73,7 +73,7 @@ final class NowoHttpLogExtensionTest extends TestCase
         (new NowoHttpLogExtension())->load([['security' => ['allow_unauthenticated' => true]]], $container);
 
         self::assertSame(
-            ['/admin/http-log', '/_nowo/', '/sw.js', '/manifest.webmanifest'],
+            ['/admin/http-log', '/_nowo/', '/sw.js', '/manifest.webmanifest', '/_wdt/', '/_profiler/'],
             $container->getParameter('nowo_http_log.ignore_path_prefixes'),
         );
     }
@@ -90,7 +90,7 @@ final class NowoHttpLogExtensionTest extends TestCase
         ]], $container);
 
         self::assertSame(
-            ['/api', '/sw.js', '/_nowo/', '/manifest.webmanifest'],
+            ['/api', '/sw.js', '/_nowo/', '/manifest.webmanifest', '/_wdt/', '/_profiler/'],
             $container->getParameter('nowo_http_log.ignore_path_prefixes'),
         );
     }

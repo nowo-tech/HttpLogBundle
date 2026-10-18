@@ -31,11 +31,12 @@ final class Configuration implements ConfigurationInterface
 
     /**
      * Kit-internal paths merged into `ignore_path_prefixes` while `ignore_default_path_prefixes` is true:
-     * HotReloadBundle client / shared worker (`/_nowo/`), PwaBundle service worker and manifest.
+     * HotReloadBundle client / shared worker (`/_nowo/`), PwaBundle service worker and manifest, and the Symfony
+     * WebProfiler toolbar / profiler (`/_wdt/`, `/_profiler/`, since 1.9).
      *
      * @var list<string>
      */
-    public const DEFAULT_IGNORE_PATH_PREFIXES = ['/_nowo/', '/sw.js', '/manifest.webmanifest'];
+    public const DEFAULT_IGNORE_PATH_PREFIXES = ['/_nowo/', '/sw.js', '/manifest.webmanifest', '/_wdt/', '/_profiler/'];
 
     public const DEFAULT_PURGE_BATCH_SIZE = 1000;
 
@@ -80,7 +81,7 @@ final class Configuration implements ConfigurationInterface
                     ->defaultValue(['/admin/http-log'])
                 ->end()
                 ->booleanNode('ignore_default_path_prefixes')
-                    ->info('Also skip the kit-internal paths /_nowo/ (HotReload), /sw.js and /manifest.webmanifest (PWA), merged with ignore_path_prefixes.')
+                    ->info('Also skip the kit-internal paths /_nowo/ (HotReload), /sw.js and /manifest.webmanifest (PWA) and the WebProfiler paths /_wdt/ and /_profiler/, merged with ignore_path_prefixes.')
                     ->defaultTrue()
                 ->end()
                 ->booleanNode('ignore_unrouted')
