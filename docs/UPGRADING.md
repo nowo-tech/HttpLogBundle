@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.9.0](#to-190)
 - [To 1.8.0](#to-180)
   - [Template contract](#template-contract)
   - [Deprecated configuration](#deprecated-configuration)
@@ -37,6 +38,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.9.0
+
+From **1.8.0**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 - **WebProfiler paths ignored by default (behaviour change):** with `ignore_default_path_prefixes: true` (default) the recorder now also skips `/_wdt/` and `/_profiler/`. You can remove them from your `ignore_path_prefixes` (duplicates are harmless). If you deliberately recorded profiler traffic, set `ignore_default_path_prefixes: false` and list the kit paths you still want skipped (`/_nowo/`, `/sw.js`, `/manifest.webmanifest`).
 - **Host with port:** new entries store the host with its port when the request used a non-default one (`getHttpHost()`). Queries or exports that compare `host` with a bare hostname should use a prefix match (`host LIKE 'example.test%'`).

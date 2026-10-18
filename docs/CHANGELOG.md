@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.9.0] - 2026-10-18](#190---2026-10-18)
 - [[1.8.0] - 2026-10-18](#180---2026-10-18)
 - [[1.7.0] - 2026-10-14](#170---2026-10-14)
 - [[1.6.0] - 2026-10-13](#160---2026-10-13)
@@ -31,7 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-UI polish after the UiKit page-contract migration: readable entry page, grouped filters, WebProfiler requests no longer recorded by default. See [UPGRADING](UPGRADING.md#unreleased).
+## [1.9.0] - 2026-10-18
+
+`/_wdt/` and `/_profiler/` ignored by default, entry URL keeps the port; readable entry page (badges, header tables, pretty JSON bodies) and grouped list filters. See [UPGRADING](UPGRADING.md#to-190).
+
+UI polish after the UiKit page-contract migration: readable entry page, grouped filters, WebProfiler requests no longer recorded by default. See [UPGRADING](UPGRADING.md#to-190).
 
 ### Changed
 
@@ -43,6 +48,8 @@ UI polish after the UiKit page-contract migration: readable entry page, grouped 
 ### Fixed
 
 - **Entry URL lost the port:** the recorder stored `Request::getHost()`; it now stores `getHttpHost()`, so non-default ports are kept (`http://127.0.0.1:8000/api/echo`). Entries recorded before keep their port-less host.
+
+[1.9.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.9.0
 
 ## [1.8.0] - 2026-10-18
 
