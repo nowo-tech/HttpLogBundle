@@ -118,7 +118,7 @@ nowo_http_log:
 
 ## Twig template overrides
 
-Since **1.8** the admin pages follow the UiKit 2.0 page contract (REQ-UI-003): `admin/index.html.twig` extends the
+Since **1.8** the admin pages follow the UiKit 2.1 page contract (REQ-UI-003): `admin/index.html.twig` extends the
 UiKit **list** scaffold and `admin/show.html.twig` the **show** scaffold. Header, breadcrumbs, flashes, filter row,
 table frame, row actions, confirm dialogs, pagination and empty state come from UiKit; the bundle templates fill only
 data blocks. Full list: [TEMPLATES.md](TEMPLATES.md).
@@ -141,8 +141,9 @@ or merge your override. Prefer, in this order:
 | `admin/show.html.twig` | Entry detail (`page/show`, payload blocks `nowo_http_log_section_*` in `nowo_ui_show_after`) |
 | `admin/_filter.html.twig` | **Deprecated** (removed in 2.0): BC partial for `web_ui.templates.filter` overrides |
 
-Export, purge and delete post the flat `_token` field with the CSRF token ids `http_log_export`, `http_log_purge`
-and `http_log_delete`; export carries `format` and the active criteria in its URL query.
+Export, purge and delete are `FormView`-backed UiKit actions: they post the flat `_token` field with the CSRF token
+ids `http_log_export`, `http_log_purge` and `http_log_delete`; export also posts `format` and the active criteria as
+hidden fields (UiKit 2.1 prints them on every render, also through a host `page_header` override).
 
 ## Customising the admin pages
 
@@ -160,7 +161,9 @@ and `http_log_delete`; export carries `format` and the active criteria in its UR
 
 **Payload sections.** `admin/show.html.twig` renders query parameters, headers and bodies as cards in
 `nowo_ui_show_after`, one block each: `nowo_http_log_section_query_params`, `_request_headers`, `_response_headers`,
-`_request_body`, `_response_body` (context: `entry`, `page`). Override one with an empty block to hide it.
+`_request_body`, `_response_body` (context: `entry`, `page`). Override one with an empty block to hide it. The `<pre>`
+blocks use the UiKit `code_block` slot (restyle with `nowo_ui_kit.theme.bundles.NowoHttpLogBundle.classes.code_block`
+or the `--nowo-ui-code-*` tokens) and keep the class `nowo-http-log-code`.
 
 **Filter row.** Field widths come from `ListPage::filterFields`; restyle through the `filters`, `filters_field` and
 `filters_actions` slots, or override the `nowo_ui_list_filters` block in a page override. The 1.x hooks still work

@@ -160,7 +160,7 @@ Use `nowo:http-log:purge` or the admin UI to purge.
 
 ## web_ui
 
-The admin pages follow the UiKit 2.0 page contract (REQ-UI-003): the list renders the `@NowoUiKit/page/list`
+The admin pages follow the UiKit 2.1 page contract (REQ-UI-003): the list renders the `@NowoUiKit/page/list`
 scaffold and the entry page `@NowoUiKit/page/show`, inside the layout configured once for every bundle
 (`nowo_ui_kit.layouts.admin`). CSS stack, icon set, row-action display and every class / attribute come from
 `nowo_ui_kit` (`css_framework`, `icon_set`, `row_actions_display`, `theme`). Page list and data blocks:

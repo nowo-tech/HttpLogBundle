@@ -4,7 +4,7 @@
 **Namespace:** `Nowo\HttpLogBundle`  
 **Config alias:** `nowo_http_log`  
 **Status:** Implemented (unreleased, planned 1.8.0)  
-**Origin:** REQ-UI-003 (standard page contract, UiKit 2.0), phase 1 of the migration matrix in
+**Origin:** REQ-UI-003 (standard page contract, UiKit 2.1), phase 1 of the migration matrix in
 `BUNDLES_UI_PAGE_CONTRACT.md` (§5 row HttpLog)
 
 ## Overview
@@ -39,7 +39,7 @@ blocks still renders.
 | ID | Requirement |
 | --- | --- |
 | FR-UIC-001 | `admin/index.html.twig` extends `@NowoUiKit/page/list.html.twig` and fills `nowo_ui_list_row`; `admin/show.html.twig` extends `@NowoUiKit/page/show.html.twig` and fills `nowo_ui_show_after` (payload blocks `nowo_http_log_section_*` kept). |
-| FR-UIC-002 | `View\AdminPages` builds `ListPage` (header actions export per enabled format, purge with `Confirm`; columns; view row action; filter fields; `Pagination`; `EmptyState`; clear link while filtered) and `ShowPage` (back, delete with `Confirm`, breadcrumbs, summary `DetailSection`). Header actions carry the CSRF token as a string (a FormView renders once; scaffolds may render header actions twice). Export carries `format` + criteria in its URL; the controller reads POST first, then the query. |
+| FR-UIC-002 | `View\AdminPages` builds `ListPage` (header actions export per enabled format, purge with `Confirm`; columns; view row action; filter fields; `Pagination`; `EmptyState`; clear link while filtered) and `ShowPage` (back, delete with `Confirm`, breadcrumbs, summary `DetailSection`). Export, purge and delete are `FormView`-backed actions (UiKit 2.1 prints their hidden fields on every render: CSRF token, export `format` + criteria); the controller reads them from the POST body. Payload `<pre>` blocks use the `code_block` slot and keep `nowo-http-log-code`. |
 | FR-UIC-003 | Actions the access checker denies (`canExport`, `canPurge`) are not visible. |
 | FR-UIC-004 | `web_ui.layout_template` defaults to `null` (UiKit layout); the 1.x default `@NowoHttpLogBundle/layout.html.twig` normalises to `null`. |
 | FR-UIC-005 | Deprecated (removed in 2.0): `css_framework`, `icon_set` (seeded into `nowo_ui_kit` only when set here and not there), `templates.filter`, `templates.pagination`, `css_classes`, `attributes` (bridged by `LegacyThemeBridge`), `ui_kit_stylesheet`, `header_actions_in_layout`, `confirm_attributes`, `ui_kit_row_actions` (no effect). |

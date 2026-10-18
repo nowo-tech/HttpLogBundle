@@ -37,7 +37,9 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
-Standard page contract (REQ-UI-003, UiKit 2.0). Requires `nowo-tech/ui-kit-bundle` **^2.0**. Minor release: every
+Standard page contract (REQ-UI-003, UiKit 2.1). Requires `nowo-tech/ui-kit-bundle` **^2.1** (2.1 keeps the CSRF
+token of `FormView`-backed header actions when a host `page_header` override renders them, and adds the `code_block`
+slot). Minor release: every
 1.x key keeps working (deprecated, bridged into the UiKit theme); what changes is the markup of the two admin pages.
 
 ```bash
@@ -65,6 +67,7 @@ What hosts may notice:
 | --- | --- |
 | `admin/index.html.twig` with its own toolbar, table, `_filter` and `_pagination` | extends `@NowoUiKit/page/list.html.twig`; fills `nowo_ui_list_row` only |
 | `admin/show.html.twig` with back link, `<dl class="row">`, `<pre>` sections, delete form | extends `@NowoUiKit/page/show.html.twig`; summary = `DetailSection`, payload cards in `nowo_ui_show_after` |
+| Payload `<pre class="nowo-ui-code bg-light p-3">` (`css_classes.code`) | `<pre>` with the UiKit `code_block` slot (`nowo-ui-code-block`, Bootstrap `border p-3`, scrolls above `--nowo-ui-code-block-max-height`) + `nowo-http-log-code` (stable hook, no styles shipped) |
 | `layout.html.twig` (Bootstrap CDN), `admin/base.html.twig`, `admin/_pagination.html.twig`, `admin/_macros.html.twig` | **removed** (UiKit layout, scaffold, `pagination` partial, theme slots) |
 | `admin/_filter.html.twig` (always included) | deprecated BC partial, used only through `web_ui.templates.filter` (bridged to the theme partial `list_filters`) |
 | Twig context `filterForm`, `entries`, `total`, `page` (int), `pageSize`, `exportCsvForm`, `exportJsonForm`, `purgeForm`, `deleteForm`, `nowo_http_log_ui` | `page` = `Nowo\UiKitBundle\View\ListPage` / `ShowPage` (+ `criteria` on the list, `entry` on the detail page) |
@@ -72,11 +75,16 @@ What hosts may notice:
 | Blocks `nowo_http_log_detail_sections`, `nowo_http_log_section_*` | kept (inside `nowo_ui_show_after`, context `entry`) |
 | Blocks `nowo_http_log_filter_panel`, `_fields`, `_actions` | kept in the deprecated `admin/_filter.html.twig`; `filterForm` = `page.filters` |
 | Inline `onsubmit="return confirm(…)"` / `confirm_attributes` | UiKit confirm `<dialog>` (no inline JS, CSP-safe) |
-| Export / purge / delete forms (`form_start` + hidden criteria) | UiKit POST actions with the flat `_token` (same CSRF ids `http_log_export`, `http_log_purge`, `http_log_delete`); export sends `format` and the criteria in the URL query (the controller reads POST first, then the query) |
+| Export / purge / delete forms (`form_start` + hidden criteria) | UiKit `FormView`-backed POST actions (same forms: flat `_token`, CSRF ids `http_log_export`, `http_log_purge`, `http_log_delete`; export posts `format` and the criteria as hidden fields, unchanged); purge / delete confirm in a dialog |
 | Export / purge buttons always shown | hidden for users the access checker denies `canExport` / `canPurge` (the routes still enforce it) |
 | Twig globals `nowo_http_log_layout_template`, `nowo_http_log_css_framework` | removed (`nowo_http_log_path_prefix`, `nowo_http_log_page_size` kept) |
 | Status code as plain text, method badge `badge bg-secondary` | status badges per class (`badge_success` / `_info` / `_warning` / `_danger` slots), method badge slot `badge_neutral` |
 | Pagination "Page N of M" | UiKit pagination (numbered, "Showing x–y of n"); filters kept across pages from the request query |
+
+Hosts that tried the unreleased `feature/ui-page-contract` branch on UiKit 2.0: header actions are `FormView`-backed
+again and the export route no longer reads `format` / criteria from the URL query (POST fields only, as in 1.x); the
+payload `<pre>` gained the `code_block` slot classes. Host `page_header` overrides that render `actions` through
+`nowo_ui_partial('action')` keep the CSRF tokens (UiKit 2.1).
 
 A pagination override set with `web_ui.templates.pagination` now receives UiKit's pagination input (`pagination`,
 `pagination_model`, `item_count`, `route`, `route_params`, `query`); `pages`, `page_size`, `nav_label`,
@@ -103,8 +111,9 @@ A pagination override set with `web_ui.templates.pagination` now receives UiKit'
 `table_wrap`; `table`, `table_head_row`, `table_head_cell`, `table_row`, `table_cell` → same name; `method_badge` →
 `badge_neutral`; `row_actions` → `row_actions`; `btn_view` → `action_neutral`; `empty_cell` → `empty`; `pagination` →
 `pagination`; `page_link` → `pagination_link`; `details` → `detail_list`; `detail_term`, `detail_value` → same name;
-`section_title` → `card_title`. No slot (dropped): `filter_body`, `results`, `actions`, `action_form`,
-`action_form_gap`, `path_cell`, `pagination_list`, `page_item`, `show`, `back`, `back_link`, `code`, `delete_form`.
+`section_title` → `card_title`; `code` → `code_block`. No slot (dropped): `filter_body`, `results`, `actions`,
+`action_form`, `action_form_gap`, `path_cell`, `pagination_list`, `page_item`, `show`, `back`, `back_link`,
+`delete_form`.
 `attributes` → slot: `filter`, `filter_form` → `filters`; `toolbar`; `table_wrapper` → `table_wrap`; `table`;
 `details` → `detail_list`; `results` / `show` → page root; `delete_form` dropped.
 

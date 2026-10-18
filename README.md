@@ -23,7 +23,7 @@ Http Log Bundle captures each HTTP exchange on kernel terminate, classifies resp
 - ✅ Redaction for headers, query parameters, and JSON paths
 - ✅ Doctrine entity `HttpLogEntry` with indexes for filter queries
 - ✅ Secured admin UI (filter, detail, export, purge) — REQ-UI-002
-- ✅ Admin pages on the UiKit 2.0 page contract (REQ-UI-003): list / show scaffolds, themed once through `nowo_ui_kit.theme` ([TEMPLATES](docs/TEMPLATES.md), [USAGE](docs/USAGE.md#customising-the-admin-pages))
+- ✅ Admin pages on the UiKit 2.1 page contract (REQ-UI-003): list / show scaffolds, themed once through `nowo_ui_kit.theme` ([TEMPLATES](docs/TEMPLATES.md), [USAGE](docs/USAGE.md#customising-the-admin-pages))
 - ✅ CLI: `nowo:http-log:export`, `nowo:http-log:purge`
 - ✅ Messenger async: persist, export, purge handlers
 - ✅ Ignore routes (`fnmatch`) and path prefixes (admin UI excluded by default)

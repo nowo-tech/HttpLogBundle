@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Standard page contract (REQ-UI-003, UiKit 2.0). See [UPGRADING — Unreleased](UPGRADING.md#unreleased).
+Standard page contract (REQ-UI-003, UiKit 2.1). See [UPGRADING — Unreleased](UPGRADING.md#unreleased).
 
 ### Added
 
@@ -42,11 +42,12 @@ Standard page contract (REQ-UI-003, UiKit 2.0). See [UPGRADING — Unreleased](U
 
 ### Changed
 
-- Requires `nowo-tech/ui-kit-bundle` **^2.0**.
+- Requires `nowo-tech/ui-kit-bundle` **^2.1** (CSRF-safe `FormView` header actions, `code_block` slot).
 - `admin/index.html.twig` extends `@NowoUiKit/page/list.html.twig` (header actions, filter row, table, row actions, confirm dialog, pagination, empty state from UiKit); `admin/show.html.twig` extends `@NowoUiKit/page/show.html.twig` (summary section, payload cards in `nowo_ui_show_after`).
 - `web_ui.layout_template` defaults to `null` (UiKit admin layout, `nowo_ui_kit.layouts.admin`); the 1.x value `@NowoHttpLogBundle/layout.html.twig` is read as `null`.
-- Purge and delete confirm in the UiKit `<dialog>` (no inline `confirm()`); export / purge / delete are UiKit POST actions with the flat `_token` (same CSRF ids); export sends `format` and the criteria in the URL query (the controller reads POST, then the query).
+- Purge and delete confirm in the UiKit `<dialog>` (no inline `confirm()`); export / purge / delete are `FormView`-backed UiKit POST actions (same forms, flat `_token`, same CSRF ids; export posts `format` and the criteria as hidden fields, as in 1.x).
 - Export / purge / delete actions are hidden from users the access checker denies.
+- Payload `<pre>` blocks of the entry page use the UiKit `code_block` theme slot (`nowo-ui-code-block`; the class `nowo-http-log-code` stays on the element); the deprecated `web_ui.css_classes.code` is bridged to `code_block`.
 - The `http_log` FormKit profile no longer adds `mb-2` row classes (filter rows sit in the UiKit filter row).
 - Removed: `layout.html.twig` (Bootstrap CDN), `admin/base.html.twig`, `admin/_pagination.html.twig`, `admin/_macros.html.twig`, the Twig globals `nowo_http_log_layout_template` / `nowo_http_log_css_framework`, the 1.x page blocks other than `nowo_http_log_section_*` / `nowo_http_log_detail_sections` (see UPGRADING "Template contract").
 
