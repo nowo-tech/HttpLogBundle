@@ -33,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Documentation: wave-1 REQ compliance — README documentation list order and labels, CONTRIBUTING Cursor Agent settings and post-release-commit trailer check, canonical bug-report template, tailored Spec Kit constitution, doc TOCs, Spec Kit inventory refresh (50/50, UiKit page contract).
+
 ## [1.9.1] - 2026-10-18
 
 Requires UiKit ^2.2 (table partial, scripts partial in the demo); filter placeholders and literal choices translated once. See [UPGRADING](UPGRADING.md#to-191).

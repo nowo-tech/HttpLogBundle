@@ -9,6 +9,22 @@
 | **Verdict** | ✅ **Viable under scenario B** — bundle services are stateless; each persisted log entry is detached after flush; the repository resolves (and resets) the EntityManager through `ManagerRegistry` on every call; the user is only recorded when a secured firewall handled the current request; admin/export/purge do not leave hydrated rows behind. Residual: the log `flush()` still flushes the whole unit of work of the shared manager (see W-01) |
 | Remediation (2026-09-23 / 2026-09-24) | W-01, W-02, W-03, W-05, W-07 resolved in `HttpLogRecorder`, `HttpLogEntryRepository`, `ExportHttpLogService`, `PurgeHttpLogService`, `HttpLogAdminController`, `PersistHttpLogHandler`; W-04, W-06 accepted. Regression tests: `tests/Integration/HttpLogRecorderWorkerModeTest.php`, `tests/Unit/Service/HttpLogRecorderTest.php`, `tests/Integration/HttpLogEntryRepositoryTest.php` |
 
+## Table of contents
+
+- [Execution model assumed](#execution-model-assumed)
+- [Summary](#summary)
+- [Services reviewed](#services-reviewed)
+- [Findings](#findings)
+  - [W-01 — Each logged request leaves an entity in the shared EntityManager (Medium)](#w-01--each-logged-request-leaves-an-entity-in-the-shared-entitymanager-medium)
+  - [W-02 — A failed log flush closes the EntityManager for the rest of the worker's life under B (Medium)](#w-02--a-failed-log-flush-closes-the-entitymanager-for-the-rest-of-the-workers-life-under-b-medium)
+  - [W-03 — User identifier is read from `TokenStorage` at terminate time (Medium)](#w-03--user-identifier-is-read-from-tokenstorage-at-terminate-time-medium)
+  - [W-04 — Synchronous log write runs on the worker thread (Low)](#w-04--synchronous-log-write-runs-on-the-worker-thread-low)
+  - [W-05 — Sync export and purge keep all loaded rows in the identity map (Low)](#w-05--sync-export-and-purge-keep-all-loaded-rows-in-the-identity-map-low)
+  - [W-06 — Queued export files are never removed (Low)](#w-06--queued-export-files-are-never-removed-low)
+  - [W-07 — Repository cached a closed EntityManager after `resetManager()` (Medium)](#w-07--repository-cached-a-closed-entitymanager-after-resetmanager-medium)
+- [Usage recommendations in worker mode](#usage-recommendations-in-worker-mode)
+- [Re-audit triggers](#re-audit-triggers)
+
 ## Execution model assumed
 
 FrankenPHP worker mode boots the Symfony kernel once per worker and serves many requests with the same container. This audit assumes the **strict** variant: the kernel is **not** rebooted between requests, so every shared service, static property and PHP global survives from one request to the next. Two scenarios are evaluated:

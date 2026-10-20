@@ -8,11 +8,13 @@ Thank you for your interest in contributing to **Http Log Bundle**! This documen
 - [How Can I Contribute?](#how-can-i-contribute)
   - [Reporting Bugs](#reporting-bugs)
   - [Suggesting Enhancements](#suggesting-enhancements)
-  - [Submitting Pull Requests](#submitting-pull-requests)
+  - [Contributing Code](#contributing-code)
 - [Project Structure](#project-structure)
 - [Demos](#demos)
 - [Questions](#questions)
 - [Acknowledgments](#acknowledgments)
+- [AI co-author trailers](#ai-co-author-trailers)
+- [Cursor Agent](#cursor-agent)
 
 ## Code of Conduct
 
@@ -157,3 +159,20 @@ If CI fails because trailers are already on the remote, see [GITHUB_CI.md](GITHU
 ## AI co-author trailers
 
 Do **not** add AI co-author trailers to commit messages: neither `Co-authored-by: Cursor` / `cursoragent@cursor.com` nor `Co-Authored-By: Claude …` / `noreply@anthropic.com` (REQ-GIT-001). Run `make setup-hooks` so the `commit-msg` hook strips them.
+Maintainers run `make check-no-cursor-coauthor` again **after** the release commit and **before** `git push`: an earlier `release-check` does not cover a commit created after it finished.
+
+## Cursor Agent
+
+Contributors using Cursor Agent on this repository should enable these user-level settings (REQ-IDE-006):
+
+1. **Submit with Ctrl + Enter** (macOS: **⌘ + Enter**) — Cursor Settings → Agents / Chat. Enter inserts a newline; Ctrl/⌘+Enter submits.
+2. **Queue follow-ups** in user `settings.json`:
+
+```json
+{
+  "cursor.composer.queueMessageDefaultBehavior": "queue"
+}
+```
+
+Do not use `"steer"` as the default: it interrupts a running agent turn.
+

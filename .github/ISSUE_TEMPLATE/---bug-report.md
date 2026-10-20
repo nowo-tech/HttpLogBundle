@@ -8,8 +8,10 @@ assignees: ''
 ---
 
 <!--
-- Please do not report an issue for a version of HttpLogBundle that is no longer supported.
-- You can retrieve the bundle version by running `composer show nowo-tech/http-log-bundle`.
+- Please do not report an issue for a version of `http-log-bundle` that is no longer supported. Currently supported versions are listed here: https://github.com/nowo-tech/HttpLogBundle#version-information
+- Please fill in this template according to your issue.
+- Please keep the table shown below at the top of your issue.
+- You can retrieve `http-log-bundle` version by running `composer info | grep "http-log-bundle"`.
 - You can retrieve PHP version by running `php -v`.
 - Please post code as text (using proper markup). Do not post screenshots of code.
 - Please remove this comment before submitting your issue.
@@ -17,9 +19,8 @@ assignees: ''
 
 | Q                           | A
 | ----------------------------| -----------------------
-| `http-log-bundle` version  | x.y.z
+| `HttpLogBundle` version        | x.y.z
 | PHP version                 | x.y.z
-| Symfony version             | x.y.z
 | Database                    | MySQL / PostgreSQL / SQLite / Other
 
 #### Summary

@@ -77,6 +77,7 @@ As a maintainer, I run the Symfony 8 FrankenPHP demo and CI smoke checks to veri
 | FR-ADM-001 | Secured admin UI at `web_ui.path_prefix` supports list, filter, detail, export, and purge |
 | FR-UI-001 | Admin UI supports configurable CSS framework and layout integration |
 | FR-UI-002 | Admin UI requires Symfony Security or custom `HttpLogAccessCheckerInterface` unless explicitly allowed |
+| FR-UI-003 | Admin pages render on the UiKit page contract (REQ-UI-003, spec [004](../004-ui-page-contract/spec.md)): `View\AdminPages` builds the list/show view models, `nowo-http-log-admin.css` only sizes the payload blocks, and `LegacyThemeBridge` maps changed 1.x `web_ui` chrome keys into UiKit theme slots until 2.0 |
 | FR-TWIG-001 | Application Twig overrides under `templates/bundles/NowoHttpLogBundle/` take precedence over bundle templates |
 
 ### Export & purge (`FR-EXP-*`, `FR-PUR-*`)
@@ -143,7 +144,7 @@ As a maintainer, I run the Symfony 8 FrankenPHP demo and CI smoke checks to veri
 | --- | --- |
 | SC-01 | Unit tests cover classifier, redactor, capture policy, subscriber, configuration, access checker, Twig compiler pass |
 | SC-02 | Demo returns HTTP 200 and admin UI is reachable with credentials |
-| SC-03 | `code-inventory.md` lists every file under `src/` (51 units) |
+| SC-03 | `code-inventory.md` lists every file under `src/` (50 units) |
 | SC-04 | Integrator docs describe full YAML tree and security defaults |
 | SC-05 | Bundle is viable under FrankenPHP worker mode without kernel reset (scenario B); see [docs/FRANKENPHP-WORKER-AUDIT.md](../../docs/FRANKENPHP-WORKER-AUDIT.md) |
 

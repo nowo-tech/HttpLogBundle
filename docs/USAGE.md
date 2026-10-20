@@ -10,12 +10,14 @@ How to capture HTTP traffic, use the admin UI, export, purge, and exclude routes
 - [Admin UI](#admin-ui)
 - [Twig template overrides](#twig-template-overrides)
 - [Customising the admin pages](#customising-the-admin-pages)
+  - [Example: Symfony Beacon](#example-symfony-beacon)
 - [Translation overrides](#translation-overrides)
 - [Export](#export)
 - [Purge and retention](#purge-and-retention)
 - [Ignoring routes and paths](#ignoring-routes-and-paths)
 - [CLI commands](#cli-commands)
 - [Async processing](#async-processing)
+- [FrankenPHP worker mode](#frankenphp-worker-mode)
 
 ## Automatic capture
 

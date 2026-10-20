@@ -6,7 +6,7 @@
 - [User stories](#user-stories)
 - [Functional scope](#functional-scope)
 - [Validating the spec](#validating-the-spec)
-- [Requirement identifiers (`REQ-*`)](#requirement-identifiers-req)
+- [Requirement identifiers (`REQ-*`)](#requirement-identifiers-req-)
 - [Suggested workflow for contributors](#suggested-workflow-for-contributors)
 - [GitHub Spec Kit (summary)](#github-spec-kit-summary)
 - [See also](#see-also)

@@ -10,6 +10,7 @@ Install **Http Log Bundle** in a Symfony 7.4 or 8 application with Doctrine ORM 
 - [Manual registration](#manual-registration)
 - [Database schema](#database-schema)
 - [Messenger (async capture)](#messenger-async-capture)
+- [Admin routes](#admin-routes)
 - [Security (admin UI)](#security-admin-ui)
 - [Verify](#verify)
 - [Demo application](#demo-application)

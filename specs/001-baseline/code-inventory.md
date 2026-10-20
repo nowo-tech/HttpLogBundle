@@ -2,9 +2,9 @@
 
 **Baseline spec**: [`spec.md`](spec.md)  
 **Package**: `nowo-tech/http-log-bundle`  
-**Last audited**: 2026-08-03
+**Last audited**: 2026-10-20 (UiKit page contract, spec 004)
 
-Maps **100%** of production files under `src/` (51 units). Test and demo trees are out of Packagist scope unless promoted in the spec.
+Maps **100%** of production files under `src/` (50 units; audit: `git ls-files src | wc -l` → 50). Test and demo trees are out of Packagist scope unless promoted in the spec.
 
 ## Bundle entry
 
@@ -19,6 +19,7 @@ Maps **100%** of production files under `src/` (51 units). Test and demo trees a
 | `DependencyInjection/Configuration.php` | Config tree | FR-CFG-001 |
 | `DependencyInjection/NowoHttpLogExtension.php` | DI extension | FR-CFG-002, FR-DI-001 |
 | `DependencyInjection/Compiler/TwigPathsPass.php` | Twig override path order | FR-TWIG-001 |
+| `DependencyInjection/LegacyThemeBridge.php` | 1.x chrome keys → UiKit theme slots (deprecated) | FR-UI-003, 004: FR-UIC-005 |
 
 ## Entity & persistence
 
@@ -114,17 +115,27 @@ Maps **100%** of production files under `src/` (51 units). Test and demo trees a
 
 | Source file | Purpose | Requirement IDs |
 | --- | --- | --- |
-| `Resources/views/layout.html.twig` | Admin layout shell | FR-TWIG-001, FR-UI-001 |
 | `Resources/views/admin/index.html.twig` | List page | FR-ADM-001, FR-TWIG-001 |
 | `Resources/views/admin/show.html.twig` | Detail page | FR-ADM-001, FR-TWIG-001 |
 | `Resources/views/admin/_filter.html.twig` | Filter partial | FR-ADM-001, FR-TWIG-001, FR-CHR-001 |
-| `Resources/views/admin/base.html.twig` | Page shell extending `web_ui.layout_template` | FR-UI-001, FR-CHR-005 |
-| `Resources/views/admin/_pagination.html.twig` | Default list pagination partial | FR-CHR-002 |
-| `Resources/views/admin/_macros.html.twig` | Chrome helpers (`class_attr`, `attrs`) | FR-CHR-003, FR-CHR-004 |
+| `View/AdminPages.php` | Admin page view models (UiKit) | FR-UI-003, 004: FR-UIC-002 |
+| `Resources/public/css/nowo-http-log-admin.css` | Admin payload stylesheet | FR-UI-003, 004: FR-UIC-001 |
 
 ## Coverage summary
 
-| Metric | Value |
-| --- | --- |
-| Production units mapped | 51 |
-| Unmapped files under `src/` | 0 |
+| Category | Files | Mapped |
+| --- | ---: | ---: |
+| Bundle entry | 1 | 1 |
+| DependencyInjection | 4 | 4 |
+| Entity & persistence | 2 | 2 |
+| Domain model & enums | 5 | 5 |
+| Services | 6 | 6 |
+| HTTP & events | 2 | 2 |
+| Forms | 5 | 5 |
+| Security | 2 | 2 |
+| Messenger | 6 | 6 |
+| CLI | 2 | 2 |
+| Symfony config (`src/Resources/config/`) | 3 | 3 |
+| Translations (`src/Resources/translations/`) | 7 | 7 |
+| Twig views (`src/Resources/views/`) | 5 | 5 |
+| **Total production sources** | **50** | **50** |
