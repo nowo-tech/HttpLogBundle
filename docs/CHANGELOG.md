@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.10.0] - 2026-10-21](#1100---2026-10-21)
 - [[1.9.1] - 2026-10-18](#191---2026-10-18)
 - [[1.9.0] - 2026-10-18](#190---2026-10-18)
 - [[1.8.0] - 2026-10-18](#180---2026-10-18)
@@ -33,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-10-21
+
+Wave-2 REQ compliance: configurable table prefix, injected URL generator, raw-form gate in release-check. See [UPGRADING](UPGRADING.md#to-1100).
+
 ### Added
 
 - `doctrine.table_prefix` config and `Doctrine\TablePrefixListener`: prefixes `nowo_http_log_entry` and its index names, never host entities (REQ-ORM-002).
@@ -46,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dependencies refreshed (Composer and pnpm/npm lock files of the bundle and its demos, campaign 2026-10-19).
 - `.php-cs-fixer.dist.php`: `new ParallelConfig(2)` (REQ-CS-001).
 - Documentation: wave-1 REQ compliance — README documentation list order and labels, CONTRIBUTING Cursor Agent settings and post-release-commit trailer check, canonical bug-report template, tailored Spec Kit constitution, doc TOCs, Spec Kit inventory refresh (50/50, UiKit page contract).
+
+[1.10.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.10.0
 
 ## [1.9.1] - 2026-10-18
 
