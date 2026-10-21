@@ -40,6 +40,11 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+- If you instantiate `HttpLogAdminController` yourself (tests, custom wiring), pass the URL generator as the new last
+  constructor argument (`urlGenerator:`); the container autowires it.
+- Optional `nowo_http_log.doctrine.table_prefix`: setting it on an existing database renames `nowo_http_log_entry`
+  (and its indexes) — ship a migration that renames the table.
+
 ## To 1.9.1
 
 From **1.9.0**:

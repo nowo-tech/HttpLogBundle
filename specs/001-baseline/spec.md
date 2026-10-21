@@ -108,6 +108,7 @@ As a maintainer, I run the Symfony 8 FrankenPHP demo and CI smoke checks to veri
 | ID | Requirement |
 | --- | --- |
 | FR-ORM-001 | Persist `HttpLogEntry` via Doctrine with paginated repository queries |
+| FR-ORM-002 | `doctrine.table_prefix` prefixes the `HttpLogEntry` table and its index names through `TablePrefixListener` (registered only when set; REQ-ORM-002) |
 
 ### FrankenPHP worker / long-lived kernel (`FR-WORKER-*`)
 
@@ -144,7 +145,7 @@ As a maintainer, I run the Symfony 8 FrankenPHP demo and CI smoke checks to veri
 | --- | --- |
 | SC-01 | Unit tests cover classifier, redactor, capture policy, subscriber, configuration, access checker, Twig compiler pass |
 | SC-02 | Demo returns HTTP 200 and admin UI is reachable with credentials |
-| SC-03 | `code-inventory.md` lists every file under `src/` (50 units) |
+| SC-03 | `code-inventory.md` lists every file under `src/` (51 units) |
 | SC-04 | Integrator docs describe full YAML tree and security defaults |
 | SC-05 | Bundle is viable under FrankenPHP worker mode without kernel reset (scenario B); see [docs/FRANKENPHP-WORKER-AUDIT.md](../../docs/FRANKENPHP-WORKER-AUDIT.md) |
 

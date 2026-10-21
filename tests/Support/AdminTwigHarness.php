@@ -49,18 +49,18 @@ use function dirname;
 /**
  * Builds a real Twig environment (forms, routing, translations, UiKit scaffolds and theme) for admin page render tests.
  */
-final class AdminTwigHarness
+final readonly class AdminTwigHarness
 {
     public const FIXTURES_DIR = __DIR__ . '/../Fixtures';
 
     /** Host layout bridge of the fixtures (renders every UiKit canonical block). */
     public const HOST_LAYOUT = 'host/layout.html.twig';
 
-    private readonly FormFactoryInterface $formFactory;
+    private FormFactoryInterface $formFactory;
 
-    private readonly Translator $translator;
+    private Translator $translator;
 
-    private readonly UrlGenerator $router;
+    private UrlGenerator $router;
 
     public function __construct()
     {

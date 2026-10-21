@@ -11,11 +11,11 @@ use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler]
-final class ExportHttpLogHandler
+final readonly class ExportHttpLogHandler
 {
     public function __construct(
-        private readonly ExportHttpLogService $exportService,
-        private readonly LoggerInterface $logger,
+        private ExportHttpLogService $exportService,
+        private LoggerInterface $logger,
     ) {
     }
 

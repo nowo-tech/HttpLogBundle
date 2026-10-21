@@ -32,7 +32,7 @@ use const PREG_SPLIT_NO_EMPTY;
 /**
  * Redacts sensitive headers, query parameters, and body fields (JSON, form-urlencoded, multipart).
  */
-final class HttpLogRedactor
+final readonly class HttpLogRedactor
 {
     public const PLACEHOLDER = '[REDACTED]';
 
@@ -45,9 +45,9 @@ final class HttpLogRedactor
      * @param list<string> $jsonPaths
      */
     public function __construct(
-        private readonly array $headerKeys,
-        private readonly array $queryParamKeys,
-        private readonly array $jsonPaths,
+        private array $headerKeys,
+        private array $queryParamKeys,
+        private array $jsonPaths,
     ) {
     }
 

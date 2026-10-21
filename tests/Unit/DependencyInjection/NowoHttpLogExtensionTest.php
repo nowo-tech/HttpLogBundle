@@ -8,6 +8,7 @@ use LogicException;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
 use Nowo\HttpLogBundle\DependencyInjection\NowoHttpLogExtension;
+use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
 use Nowo\HttpLogBundle\EventSubscriber\HttpLogSubscriber;
 use Nowo\HttpLogBundle\Security\ConfigurableHttpLogAccessChecker;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
@@ -15,6 +16,7 @@ use Nowo\HttpLogBundle\View\AdminChrome;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
+use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\Definition\Processor;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
@@ -62,6 +64,46 @@ final class NowoHttpLogExtensionTest extends TestCase
             ConfigurableHttpLogAccessChecker::class,
             $container->getDefinition('nowo_http_log.access_checker.default')->getClass(),
         );
+    }
+
+    #[Test]
+    public function tablePrefixListenerIsRemovedWithoutPrefix(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.environment', 'test');
+
+        (new NowoHttpLogExtension())->load([['security' => ['allow_unauthenticated' => true]]], $container);
+
+        self::assertSame('', $container->getParameter('nowo_http_log.doctrine.table_prefix'));
+        self::assertFalse($container->hasDefinition(TablePrefixListener::class));
+    }
+
+    #[Test]
+    public function tablePrefixListenerIsRegisteredWithPrefix(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.environment', 'test');
+
+        (new NowoHttpLogExtension())->load([[
+            'security' => ['allow_unauthenticated' => true],
+            'doctrine' => ['table_prefix' => 'app_'],
+        ]], $container);
+
+        self::assertSame('app_', $container->getParameter('nowo_http_log.doctrine.table_prefix'));
+        $definition = $container->getDefinition(TablePrefixListener::class);
+        self::assertSame('%nowo_http_log.doctrine.table_prefix%', $definition->getArgument('$tablePrefix'));
+        self::assertSame([['event' => 'loadClassMetadata']], $definition->getTag('doctrine.event_listener'));
+    }
+
+    #[Test]
+    public function tablePrefixRejectsInvalidCharacters(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('letters, digits and underscores only');
+
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.environment', 'test');
+        (new NowoHttpLogExtension())->load([['doctrine' => ['table_prefix' => 'app-']]], $container);
     }
 
     #[Test]

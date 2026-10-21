@@ -7,6 +7,7 @@ namespace Nowo\HttpLogBundle\Controller;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
+use LogicException;
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Enum\ExportFormat;
@@ -80,6 +81,8 @@ final class HttpLogAdminController extends AbstractController
         private readonly ?TranslatorInterface $translator = null,
         /** @var list<string> Allowed export formats (export.formats). */
         private readonly array $exportFormats = ['csv', 'json'],
+        // REQ-SF-003 / REQ-DI-001: injected (autowired router) instead of $this->container->get('router').
+        private readonly ?UrlGeneratorInterface $urlGenerator = null,
     ) {
     }
 
@@ -157,10 +160,11 @@ final class HttpLogAdminController extends AbstractController
     /** View-model builder of the admin pages (per call: no state kept between requests). */
     private function pages(): AdminPages
     {
-        /** @var UrlGeneratorInterface $router */
-        $router = $this->container->get('router');
+        if (!$this->urlGenerator instanceof UrlGeneratorInterface) {
+            throw new LogicException('HttpLogAdminController needs a UrlGeneratorInterface (autowired from the router).');
+        }
 
-        return new AdminPages($router, $this->webUi);
+        return new AdminPages($this->urlGenerator, $this->webUi);
     }
 
     #[Route('/export', name: 'nowo_http_log_admin_export', methods: ['POST'])]

@@ -6,6 +6,7 @@ namespace Nowo\HttpLogBundle\DependencyInjection;
 
 use LogicException;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
+use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
 use Nowo\HttpLogBundle\EventSubscriber\HttpLogSubscriber;
 use Nowo\HttpLogBundle\Security\ConfigurableHttpLogAccessChecker;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
@@ -244,6 +245,12 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
 
         if (!$config['web_ui']['enabled'] && $container->hasDefinition(HttpLogAdminController::class)) {
             $container->removeDefinition(HttpLogAdminController::class);
+        }
+
+        // REQ-ORM-002: the table prefix listener only exists when a prefix is configured.
+        $container->setParameter($alias . '.doctrine.table_prefix', $config['doctrine']['table_prefix']);
+        if ($config['doctrine']['table_prefix'] === '') {
+            $container->removeDefinition(TablePrefixListener::class);
         }
 
         $this->registerAccessChecker($container, $config['security']);

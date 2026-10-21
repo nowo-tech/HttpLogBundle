@@ -33,8 +33,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `doctrine.table_prefix` config and `Doctrine\TablePrefixListener`: prefixes `nowo_http_log_entry` and its index names, never host entities (REQ-ORM-002).
+- `make check-no-raw-html-form` in `release-check` (REQ-MAKE-002, REQ-TWIG-005).
+
 ### Changed
 
+- `HttpLogAdminController` receives the URL generator by constructor injection (autowired router) instead of `$this->container->get('router')`; commands are registered by `#[AsCommand]` + autoconfiguration without manual `console.command` tags (REQ-SF-003).
+- Rector uses the PHP 8.2 sets (package floor) with at most 2 workers (REQ-CS-003); demo `.gitignore` ignores `node_modules` / `.pnpm-store` (REQ-GITIGNORE-003).
+- `.scripts/check-no-cursor-coauthor.sh` accepts git worktrees (REQ-GIT-001).
 - Dependencies refreshed (Composer and pnpm/npm lock files of the bundle and its demos, campaign 2026-10-19).
 - `.php-cs-fixer.dist.php`: `new ParallelConfig(2)` (REQ-CS-001).
 - Documentation: wave-1 REQ compliance — README documentation list order and labels, CONTRIBUTING Cursor Agent settings and post-release-commit trailer check, canonical bug-report template, tailored Spec Kit constitution, doc TOCs, Spec Kit inventory refresh (50/50, UiKit page contract).

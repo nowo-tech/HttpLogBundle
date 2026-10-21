@@ -24,14 +24,14 @@ use const JSON_THROW_ON_ERROR;
 /**
  * Exports HTTP log entries to CSV or JSON.
  */
-final class ExportHttpLogService
+final readonly class ExportHttpLogService
 {
     private const BATCH_SIZE = 500;
 
     public function __construct(
-        private readonly HttpLogEntryRepository $repository,
-        private readonly ?Closure $tempStreamOpener = null,
-        private readonly ?Closure $streamReader = null,
+        private HttpLogEntryRepository $repository,
+        private ?Closure $tempStreamOpener = null,
+        private ?Closure $streamReader = null,
     ) {
     }
 

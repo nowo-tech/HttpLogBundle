@@ -16,15 +16,15 @@ use function sprintf;
 /**
  * Purges HTTP log entries by retention policy or explicit criteria.
  */
-final class PurgeHttpLogService
+final readonly class PurgeHttpLogService
 {
     /**
      * @param array<string, mixed> $retentionConfig
      */
     public function __construct(
-        private readonly HttpLogEntryRepository $repository,
-        private readonly ClockInterface $clock,
-        private readonly array $retentionConfig,
+        private HttpLogEntryRepository $repository,
+        private ClockInterface $clock,
+        private array $retentionConfig,
     ) {
     }
 

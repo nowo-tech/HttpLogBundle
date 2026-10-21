@@ -18,6 +18,7 @@ use function implode;
 use function is_array;
 use function is_int;
 use function is_string;
+use function preg_match;
 use function rtrim;
 use function str_contains;
 use function str_starts_with;
@@ -146,6 +147,20 @@ final class Configuration implements ConfigurationInterface
                             ->info('Rows deleted per statement by the purge (keyset batches by id), so a large log does not lock the table or flood the binlog.')
                             ->defaultValue(self::DEFAULT_PURGE_BATCH_SIZE)
                             ->min(1)
+                        ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('doctrine')
+                    ->info('Doctrine mapping of the bundle-owned table.')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->scalarNode('table_prefix')
+                            ->defaultValue('')
+                            ->info('Prefix prepended to nowo_http_log_entry and its index names (e.g. "app_" yields app_nowo_http_log_entry). Empty: unprefixed.')
+                            ->validate()
+                                ->ifTrue(static fn (mixed $value): bool => !is_string($value) || preg_match('/^[A-Za-z0-9_]*$/', $value) !== 1)
+                                ->thenInvalid('Invalid "nowo_http_log.doctrine.table_prefix" %s: use letters, digits and underscores only.')
+                            ->end()
                         ->end()
                     ->end()
                 ->end()

@@ -419,11 +419,11 @@ final class HttpLogEntryRepositoryTest extends TestCase
     }
 }
 
-final class TestManagerRegistry implements ManagerRegistry
+final readonly class TestManagerRegistry implements ManagerRegistry
 {
     public function __construct(
-        private readonly EntityManager $entityManager,
-        private readonly Connection $connection,
+        private EntityManager $entityManager,
+        private Connection $connection,
     ) {
     }
 

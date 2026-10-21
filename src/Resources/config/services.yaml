@@ -16,14 +16,20 @@ services:
     Nowo\HttpLogBundle\Repository\:
         resource: '../../Repository/'
 
+    # REQ-ORM-002: removed by the extension when nowo_http_log.doctrine.table_prefix is empty.
+    Nowo\HttpLogBundle\Doctrine\TablePrefixListener:
+        arguments:
+            $tablePrefix: '%nowo_http_log.doctrine.table_prefix%'
+        tags:
+            - { name: doctrine.event_listener, event: loadClassMetadata }
+
+    # REQ-SF-003: commands are registered by #[AsCommand] + autoconfigure (no manual console.command tag).
     Nowo\HttpLogBundle\Command\:
         resource: '../../Command/'
-        tags: ['console.command']
 
     Nowo\HttpLogBundle\Command\ExportHttpLogCommand:
         arguments:
             $exportFormats: '%nowo_http_log.export.formats%'
-        tags: ['console.command']
 
     Nowo\HttpLogBundle\Service\HttpLogRedactor:
         arguments:

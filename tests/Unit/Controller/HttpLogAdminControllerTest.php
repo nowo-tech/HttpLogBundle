@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\Tests\Unit\Controller;
 
 use DateTimeImmutable;
+use LogicException;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Form\HttpLogFilterType;
@@ -20,6 +21,7 @@ use Nowo\UiKitBundle\View\ShowPage;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 use ReflectionProperty;
 use stdClass;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -750,6 +752,25 @@ final class HttpLogAdminControllerTest extends TestCase
         return $formFactory;
     }
 
+    public function testAdminPagesNeedAnInjectedUrlGenerator(): void
+    {
+        $controller = new HttpLogAdminController(
+            $this->createMock(HttpLogEntryRepository::class),
+            $this->createMock(HttpLogAccessCheckerInterface::class),
+            $this->createMock(ExportHttpLogService::class),
+            $this->createMock(PurgeHttpLogService::class),
+            $this->createMock(MessageBusInterface::class),
+            true,
+            10,
+            20,
+        );
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('needs a UrlGeneratorInterface');
+
+        (new ReflectionMethod($controller, 'pages'))->invoke($controller);
+    }
+
     private function createController(
         ?Request $request = null,
         ?HttpLogEntryRepository $repository = null,
@@ -790,9 +811,10 @@ final class HttpLogAdminControllerTest extends TestCase
             ->addExtension(new CsrfExtension($csrfTokenManager))
             ->getFormFactory());
         $container->set('twig', $twig ?? $this->createMock(Environment::class));
-        $container->set('router', $router ?? $this->createConfiguredMock(RouterInterface::class, [
+        $router ??= $this->createConfiguredMock(RouterInterface::class, [
             'generate' => '/admin/http-log',
-        ]));
+        ]);
+        $container->set('router', $router);
 
         $controller = new HttpLogAdminController(
             $repository ?? $this->createMock(HttpLogEntryRepository::class),
@@ -806,6 +828,7 @@ final class HttpLogAdminControllerTest extends TestCase
             $webUi,
             $translator,
             $exportFormats,
+            $router,
         );
         $controller->setContainer($container);
 

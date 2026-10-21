@@ -27,24 +27,24 @@ use function is_string;
 /**
  * Builds and persists HTTP log entries from request/response pairs.
  */
-final class HttpLogRecorder
+final readonly class HttpLogRecorder
 {
     /**
      * @param array<string, mixed> $captureConfig
      */
     public function __construct(
-        private readonly EntityManagerInterface $entityManager,
-        private readonly MessageBusInterface $messageBus,
-        private readonly ClockInterface $clock,
-        private readonly LoggerInterface $logger,
-        private readonly HttpLogRedactor $redactor,
-        private readonly CapturePolicy $capturePolicy,
-        private readonly ContentTypeClassifier $contentTypeClassifier,
-        private readonly bool $async,
-        private readonly array $captureConfig,
-        private readonly ?TokenStorageInterface $tokenStorage = null,
-        private readonly ?ManagerRegistry $managerRegistry = null,
-        private readonly ?Security $security = null,
+        private EntityManagerInterface $entityManager,
+        private MessageBusInterface $messageBus,
+        private ClockInterface $clock,
+        private LoggerInterface $logger,
+        private HttpLogRedactor $redactor,
+        private CapturePolicy $capturePolicy,
+        private ContentTypeClassifier $contentTypeClassifier,
+        private bool $async,
+        private array $captureConfig,
+        private ?TokenStorageInterface $tokenStorage = null,
+        private ?ManagerRegistry $managerRegistry = null,
+        private ?Security $security = null,
     ) {
     }
 

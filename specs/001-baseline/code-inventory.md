@@ -2,9 +2,9 @@
 
 **Baseline spec**: [`spec.md`](spec.md)  
 **Package**: `nowo-tech/http-log-bundle`  
-**Last audited**: 2026-10-20 (UiKit page contract, spec 004)
+**Last audited**: 2026-10-21 (table prefix listener; UiKit page contract, spec 004)
 
-Maps **100%** of production files under `src/` (50 units; audit: `git ls-files src | wc -l` → 50). Test and demo trees are out of Packagist scope unless promoted in the spec.
+Maps **100%** of production files under `src/` (51 units; audit: `git ls-files src | wc -l` → 51). Test and demo trees are out of Packagist scope unless promoted in the spec.
 
 ## Bundle entry
 
@@ -27,6 +27,7 @@ Maps **100%** of production files under `src/` (50 units; audit: `git ls-files s
 | --- | --- | --- |
 | `Entity/HttpLogEntry.php` | Doctrine entity | FR-ORM-001 |
 | `Repository/HttpLogEntryRepository.php` | Query / pagination | FR-ORM-001, FR-ADM-001 |
+| `Doctrine/TablePrefixListener.php` | `doctrine.table_prefix` metadata listener | FR-ORM-002 |
 
 ## Domain model & enums
 
@@ -127,7 +128,7 @@ Maps **100%** of production files under `src/` (50 units; audit: `git ls-files s
 | --- | ---: | ---: |
 | Bundle entry | 1 | 1 |
 | DependencyInjection | 4 | 4 |
-| Entity & persistence | 2 | 2 |
+| Entity & persistence | 3 | 3 |
 | Domain model & enums | 5 | 5 |
 | Services | 6 | 6 |
 | HTTP & events | 2 | 2 |
@@ -138,4 +139,4 @@ Maps **100%** of production files under `src/` (50 units; audit: `git ls-files s
 | Symfony config (`src/Resources/config/`) | 3 | 3 |
 | Translations (`src/Resources/translations/`) | 7 | 7 |
 | Twig views (`src/Resources/views/`) | 5 | 5 |
-| **Total production sources** | **50** | **50** |
+| **Total production sources** | **51** | **51** |

@@ -9,6 +9,7 @@ All options live under the root key `nowo_http_log` (alias `nowo_http_log`).
 - [capture](#capture)
 - [redaction](#redaction)
 - [retention](#retention)
+- [doctrine](#doctrine)
 - [export](#export)
 - [web_ui](#web_ui)
   - [Deprecated 1.x chrome keys](#deprecated-1x-chrome-keys)
@@ -71,6 +72,8 @@ nowo_http_log:
     retention:
         days: 30                          # null = keep forever
         purge_batch_size: 1000            # Rows deleted per statement (keyset batches by id)
+    doctrine:
+        table_prefix: ''                  # Prefix for nowo_http_log_entry + index names (REQ-ORM-002)
     export:
         formats:
             - csv
@@ -150,6 +153,23 @@ Body redaction is skipped entirely when both `query_params` and `json_paths` are
 | `purge_batch_size` | `1000` | Rows deleted per statement by every purge (retention / `--days`, admin UI, `PurgeHttpLogMessage`). The retention purge walks ids in keyset batches (`id > :afterId ORDER BY id LIMIT n`, then `DELETE … WHERE id IN (…)`) until a short batch, so a large log is never deleted in one table-locking, binlog-filling statement. Must be `>= 1`. Since 1.7.0. |
 
 Use `nowo:http-log:purge` or the admin UI to purge.
+
+## doctrine
+
+Since 1.10 (REQ-ORM-002). Namespace the bundle-owned table when several applications share one database:
+
+```yaml
+nowo_http_log:
+    doctrine:
+        table_prefix: 'app_'   # default '' (no prefix); letters, digits and underscores only
+```
+
+| Default | With `table_prefix: 'app_'` |
+|---------|-----------------------------|
+| table `nowo_http_log_entry` | `app_nowo_http_log_entry` |
+| indexes `idx_http_log_*` | `app_idx_http_log_*` |
+
+`Nowo\HttpLogBundle\Doctrine\TablePrefixListener` (Doctrine `loadClassMetadata`, registered only when the prefix is not empty) rewrites the `HttpLogEntry` mapping only. Setting a prefix on an existing install renames the table: generate a migration (`doctrine:migrations:diff`) and rename instead of dropping.
 
 ## export
 

@@ -14,12 +14,12 @@ use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler]
-final class PersistHttpLogHandler
+final readonly class PersistHttpLogHandler
 {
     public function __construct(
-        private readonly HttpLogEntryRepository $repository,
-        private readonly HttpLogRecorder $recorder,
-        private readonly LoggerInterface $logger,
+        private HttpLogEntryRepository $repository,
+        private HttpLogRecorder $recorder,
+        private LoggerInterface $logger,
     ) {
     }
 

@@ -1,5 +1,8 @@
 # Dependencies
 /vendor
+/node_modules
+/.pnpm-store
+/e2e/node_modules
 
 # Environment (do not commit secrets; use .env.example as template)
 .env

@@ -13,13 +13,13 @@ use function substr;
 /**
  * Decides whether request/response bodies are stored and truncated.
  */
-final class CapturePolicy
+final readonly class CapturePolicy
 {
     /**
      * @param array<string, mixed> $captureConfig
      */
     public function __construct(
-        private readonly array $captureConfig,
+        private array $captureConfig,
     ) {
     }
 

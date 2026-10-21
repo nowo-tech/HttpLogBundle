@@ -79,7 +79,8 @@ final class PaginationKeepsFiltersTest extends TestCase
         $container->set('request_stack', $requestStack);
         $container->set('form.factory', $harness->formFactory());
         $container->set('twig', $harness->createEnvironment(requestStack: $requestStack));
-        $container->set('router', $harness->router());
+        $router = $harness->router();
+        $container->set('router', $router);
 
         $controller = new HttpLogAdminController(
             $repository,
@@ -90,6 +91,7 @@ final class PaginationKeepsFiltersTest extends TestCase
             true,
             100,
             1,
+            urlGenerator: $router,
         );
         $controller->setContainer($container);
 

@@ -11,11 +11,11 @@ use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
 #[AsMessageHandler]
-final class PurgeHttpLogHandler
+final readonly class PurgeHttpLogHandler
 {
     public function __construct(
-        private readonly PurgeHttpLogService $purgeService,
-        private readonly LoggerInterface $logger,
+        private PurgeHttpLogService $purgeService,
+        private LoggerInterface $logger,
     ) {
     }
 

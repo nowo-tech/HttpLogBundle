@@ -25,7 +25,7 @@ use const PHP_INT_MAX;
 /**
  * Captures HTTP requests and responses on kernel terminate.
  */
-final class HttpLogSubscriber implements EventSubscriberInterface
+final readonly class HttpLogSubscriber implements EventSubscriberInterface
 {
     public const ATTR_START_TIME = '_nowo_http_log_start_time';
     public const ATTR_REQUEST_ID = '_nowo_http_log_request_id';
@@ -37,16 +37,16 @@ final class HttpLogSubscriber implements EventSubscriberInterface
      * @param string|null $webUiPathPrefix Admin UI route prefix (web_ui.path_prefix) when the web UI is enabled; always ignored, segment-aware
      */
     public function __construct(
-        private readonly HttpLogRecorder $recorder,
-        private readonly bool $enabled,
-        private readonly array $environments,
-        private readonly float $samplingRate,
-        private readonly bool $trackSubRequests,
-        private readonly array $ignoreRoutes,
-        private readonly array $ignorePathPrefixes,
-        private readonly string $kernelEnvironment,
-        private readonly bool $ignoreUnrouted = false,
-        private readonly ?string $webUiPathPrefix = null,
+        private HttpLogRecorder $recorder,
+        private bool $enabled,
+        private array $environments,
+        private float $samplingRate,
+        private bool $trackSubRequests,
+        private array $ignoreRoutes,
+        private array $ignorePathPrefixes,
+        private string $kernelEnvironment,
+        private bool $ignoreUnrouted = false,
+        private ?string $webUiPathPrefix = null,
     ) {
     }
 
