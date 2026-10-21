@@ -1331,6 +1331,9 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         days?: mixed, // Null keeps entries forever // Default: 30
  *         purge_batch_size?: int|Param, // Rows deleted per statement by the purge (keyset batches by id), so a large log does not lock the table or flood the binlog. // Default: 1000
  *     },
+ *     doctrine?: array{ // Doctrine mapping of the bundle-owned table.
+ *         table_prefix?: scalar|Param|null, // Prefix prepended to nowo_http_log_entry and its index names (e.g. "app_" yields app_nowo_http_log_entry). Empty: unprefixed. // Default: ""
+ *     },
  *     export?: array{
  *         formats?: list<"csv"|"json"|Param>,
  *         max_sync_rows?: int|Param, // Default: 1000
