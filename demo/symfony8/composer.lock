@@ -930,16 +930,16 @@
         },
         {
             "name": "nowo-tech/form-kit-bundle",
-            "version": "v2.13.1",
+            "version": "v2.13.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/FormKitBundle.git",
-                "reference": "9cabfcc084804dc053120b28f73bb9461fd83900"
+                "reference": "1d8f8f9686e23b93090c7f4e0419d3d97fea3ba4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/FormKitBundle/zipball/9cabfcc084804dc053120b28f73bb9461fd83900",
-                "reference": "9cabfcc084804dc053120b28f73bb9461fd83900",
+                "url": "https://api.github.com/repos/nowo-tech/FormKitBundle/zipball/1d8f8f9686e23b93090c7f4e0419d3d97fea3ba4",
+                "reference": "1d8f8f9686e23b93090c7f4e0419d3d97fea3ba4",
                 "shasum": ""
             },
             "require": {
@@ -960,7 +960,7 @@
                 "friendsofphp/php-cs-fixer": "^3.95.11",
                 "igor-php/igor-php": "^0.10.0",
                 "nowo-tech/phpstan-frankenphp": "^1.0",
-                "nowo-tech/ui-kit-bundle": "^2.5.2",
+                "nowo-tech/ui-kit-bundle": "^2.5.3",
                 "phpstan/extension-installer": "^1.2",
                 "phpstan/phpstan": "^2.0",
                 "phpstan/phpstan-phpunit": "^2.0",
@@ -986,7 +986,7 @@
                 "nowo-tech/slide-to-confirm-bundle": "For addSlideToConfirm() / addSlideToConfirmField() / addSlideToConfirmFieldType()",
                 "nowo-tech/tag-input-bundle": "For addTagInput() / addTagInputField() / addTagInputFieldType()",
                 "nowo-tech/tiptap-editor-bundle": "For addTiptapEditor() / addTiptapEditorField() / addTiptapEditorFieldType()",
-                "nowo-tech/ui-kit-bundle": "^2.5.2: locale tabs (locale_tabs option, TranslatableMapType, _locale_tabs include) render through the UiKit locale_tabs partial (WAI-ARIA tabs, no-JS fieldsets, keyboard, browser validation, Live Component safe); without it FormKit keeps its neutral markup",
+                "nowo-tech/ui-kit-bundle": "^2.5.3: locale tabs (locale_tabs option, TranslatableMapType, _locale_tabs include) render through the UiKit locale_tabs partial (WAI-ARIA tabs, no-JS fieldsets, keyboard, browser validation, Live Component safe); without it FormKit keeps its neutral markup",
                 "symfony/ux-autocomplete": "Entity autocomplete fields; use addAutocompleteField() / addAutocompleteFieldType() with your autocomplete FormType FQCN",
                 "symfony/ux-cropperjs": "For addCropper() / addCropperField() / addCropperFieldType() (image crop widget)",
                 "symfony/ux-dropzone": "For addDropzone() / addDropzoneField() / addDropzoneFieldType() (drag-and-drop file upload)",
@@ -1039,7 +1039,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-10-19T11:19:58+00:00"
+            "time": "2026-10-20T08:21:50+00:00"
         },
         {
             "name": "nowo-tech/http-log-bundle",
@@ -1047,7 +1047,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/http-log-bundle",
-                "reference": "1ed0fee1baa63975a14d7b1d4bbf78a59644f3d0"
+                "reference": "96c674ce274e5e6ca647fb74683d297478cc0882"
             },
             "require": {
                 "doctrine/doctrine-bundle": "^2.10 || ^3.0",
@@ -1184,16 +1184,16 @@
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v2.5.2",
+            "version": "v2.6.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "840fa7f3601d5a94d5ae63b608dd3548c9a0b6d2"
+                "reference": "1e0944a99055b820204e3c64aa024d088de06fc7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/840fa7f3601d5a94d5ae63b608dd3548c9a0b6d2",
-                "reference": "840fa7f3601d5a94d5ae63b608dd3548c9a0b6d2",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/1e0944a99055b820204e3c64aa024d088de06fc7",
+                "reference": "1e0944a99055b820204e3c64aa024d088de06fc7",
                 "shasum": ""
             },
             "require": {
@@ -1274,7 +1274,7 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-10-19T11:17:50+00:00"
+            "time": "2026-10-21T19:29:07+00:00"
         },
         {
             "name": "psr/cache",
@@ -6225,16 +6225,16 @@
         },
         {
             "name": "nowo-tech/hot-reload-bundle",
-            "version": "v1.6.1",
+            "version": "v1.6.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/HotReloadBundle.git",
-                "reference": "6d3117328bd9d7f55a70743567d04ee25d6bc366"
+                "reference": "cf84e69a6f93f95f06876638337f9f792b2bcb0a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/HotReloadBundle/zipball/6d3117328bd9d7f55a70743567d04ee25d6bc366",
-                "reference": "6d3117328bd9d7f55a70743567d04ee25d6bc366",
+                "url": "https://api.github.com/repos/nowo-tech/HotReloadBundle/zipball/cf84e69a6f93f95f06876638337f9f792b2bcb0a",
+                "reference": "cf84e69a6f93f95f06876638337f9f792b2bcb0a",
                 "shasum": ""
             },
             "require": {
@@ -6312,7 +6312,7 @@
                 "issues": "https://github.com/nowo-tech/HotReloadBundle/issues",
                 "source": "https://github.com/nowo-tech/HotReloadBundle"
             },
-            "time": "2026-10-13T10:57:34+00:00"
+            "time": "2026-10-21T05:26:17+00:00"
         },
         {
             "name": "nowo-tech/twig-inspector-bundle",
