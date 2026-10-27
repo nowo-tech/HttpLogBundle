@@ -41,6 +41,10 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+### Admin UI requires form CSRF protection at compile time
+
+With `web_ui.enabled: true` the container no longer compiles without form CSRF protection (`LogicException`: "requires CSRF protection"). Standard Flex hosts (`symfony/security-csrf` installed, `framework.csrf_protection` enabled, `framework.form.csrf_protection` not disabled) need no change. Otherwise enable `framework.csrf_protection: true` — also in the `test` environment of functional suites that enable the admin UI — or keep `web_ui.enabled: false`.
+
 ## To 1.10.0
 
 From **1.9.1**:

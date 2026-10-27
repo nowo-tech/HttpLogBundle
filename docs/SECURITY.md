@@ -19,6 +19,7 @@ Security considerations for HTTP log capture, storage, and the admin UI.
 | --- | --- |
 | Sensitive data in logs | Redaction of headers, query params, JSON keys; request body off by default |
 | Unauthorized log access | Symfony Security + `access_roles` / custom `HttpLogAccessCheckerInterface` |
+| CSRF on purge / delete / export | Symfony form CSRF on every admin action form. **Fails closed**: `CsrfProtectionPass` refuses to compile the container when the admin UI is enabled without `security.csrf.token_manager` + `form.type_extension.csrf`, or with `framework.form.csrf_protection: false` (action forms declaring their own CSRF options would otherwise accept tokenless POSTs) |
 | Log injection / XSS in admin | Twig auto-escaping; treat stored bodies as untrusted when displaying |
 | Storage growth / DoS | `max_body_bytes`, sampling, retention purge |
 | Async queue exposure | Messenger transport access controls; messages contain redacted capture arrays |

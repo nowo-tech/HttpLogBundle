@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- CSRF fails closed: new `CsrfProtectionPass` makes the container refuse to compile when the admin UI (`web_ui.enabled: true`) is on and form CSRF protection is unavailable (`security.csrf.token_manager` or `form.type_extension.csrf` missing, or `framework.form.csrf_protection: false`). Before, the purge / delete / export actions (`AbstractHttpLogActionType` declares its own CSRF options, checked by `validateActionForm()`) accepted tokenless cross-site POSTs in that configuration. See [UPGRADING](UPGRADING.md#unreleased) and [SECURITY](SECURITY.md#threat-model).
+
 ## [1.10.0] - 2026-10-21
 
 Wave-2 REQ compliance: configurable table prefix, injected URL generator, raw-form gate in release-check. See [UPGRADING](UPGRADING.md#to-1100).

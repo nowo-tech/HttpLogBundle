@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\Tests\Integration;
 
 use LogicException;
+use Nowo\HttpLogBundle\DependencyInjection\Compiler\CsrfProtectionPass;
 use Nowo\HttpLogBundle\DependencyInjection\NowoHttpLogExtension;
 use Nowo\HttpLogBundle\NowoHttpLogBundle;
 use PHPUnit\Framework\TestCase;
@@ -34,6 +35,10 @@ final class HttpLogBundleIntegrationTest extends TestCase
         $container = new ContainerBuilder();
         $bundle->build($container);
         self::assertNotEmpty($container->getCompilerPassConfig()->getPasses());
+        self::assertContains(
+            CsrfProtectionPass::class,
+            array_map(static fn (object $pass): string => $pass::class, $container->getCompilerPassConfig()->getPasses()),
+        );
     }
 
     public function testExtensionRequiresSecurityWhenWebUiAndNotAllowUnauthenticated(): void
