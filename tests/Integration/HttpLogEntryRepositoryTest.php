@@ -115,6 +115,40 @@ final class HttpLogEntryRepositoryTest extends TestCase
     }
 
     #[Test]
+    public function findListPageCapsTheCountAndClampsThePage(): void
+    {
+        foreach (range(1, 5) as $i) {
+            $this->persistEntry('GET', 'r' . $i, 200, '10.0.0.' . $i, '/p' . $i, 'json', new DateTimeImmutable('2026-08-0' . $i . 'T10:00:00+00:00'));
+        }
+        $this->entityManager->flush();
+
+        $capped = $this->repository->findListPage([], 99, 2, maxListed: 3);
+        self::assertSame(3, $capped['total']);
+        self::assertTrue($capped['total_capped']);
+        self::assertSame(2, $capped['page'], 'clamped to the last page of the capped list');
+        self::assertCount(1, $capped['items']);
+
+        $all = $this->repository->findListPage([], 1, 10);
+        self::assertSame(5, $all['total']);
+        self::assertFalse($all['total_capped']);
+        self::assertSame('/p5', $all['items'][0]->getPath(), 'newest first');
+
+        $empty = $this->repository->findListPage(['statusCode' => '599'], 4, 10);
+        self::assertSame([0, 1, []], [$empty['total'], $empty['page'], $empty['items']]);
+    }
+
+    #[Test]
+    public function findFilteredCanSkipTheCount(): void
+    {
+        $this->persistEntry('GET', 'r', 200, '10.0.0.1', '/p', 'json', new DateTimeImmutable('2026-08-01T10:00:00+00:00'));
+        $this->entityManager->flush();
+
+        $page = $this->repository->findFiltered([], 1, 10, withTotal: false);
+        self::assertSame(0, $page['total']);
+        self::assertCount(1, $page['items']);
+    }
+
+    #[Test]
     public function findFilteredListsEntriesOfTheSameSecondNewestIdFirst(): void
     {
         $at     = new DateTimeImmutable('2026-08-03T12:00:00+00:00');

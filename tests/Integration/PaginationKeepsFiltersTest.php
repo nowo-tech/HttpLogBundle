@@ -38,11 +38,11 @@ final class PaginationKeepsFiltersTest extends TestCase
         $calls   = [];
 
         $repository = $this->createMock(HttpLogEntryRepository::class);
-        $repository->method('findFiltered')->willReturnCallback(
+        $repository->method('findListPage')->willReturnCallback(
             static function (array $criteria, int $page, int $pageSize) use (&$calls): array {
                 $calls[] = ['criteria' => $criteria, 'page' => $page];
 
-                return ['items' => [AdminTwigHarness::entry($page)], 'total' => 5];
+                return ['items' => [AdminTwigHarness::entry($page)], 'total' => 5, 'total_capped' => false, 'page' => $page];
             },
         );
 

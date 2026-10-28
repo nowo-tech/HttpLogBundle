@@ -36,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Performance
+
+- **Bounded admin list.** Every list page ran a full `COUNT` and an unbounded `OFFSET` over the whole log. The list now
+  counts and paginates at most 10 000 matching entries (`HttpLogEntryRepository::MAX_LISTED`, header shows
+  "10000+ entries"; narrow the filters to reach older ones) and clamps out-of-range pages. Background / CLI exports
+  are unchanged but no longer run a `COUNT` for every batch.
+
 ## [1.12.0] - 2026-10-28
 
 Security: background exports are kept in a private, expiring store and downloaded from the admin list. See [UPGRADING](UPGRADING.md#to-1120).

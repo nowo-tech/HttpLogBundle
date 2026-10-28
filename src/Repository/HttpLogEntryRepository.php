@@ -21,9 +21,12 @@ use function array_key_exists;
 use function array_keys;
 use function array_map;
 use function array_values;
+use function ceil;
 use function count;
 use function is_array;
 use function is_string;
+use function max;
+use function min;
 use function sprintf;
 
 /**
@@ -34,6 +37,9 @@ use function sprintf;
  */
 final class HttpLogEntryRepository extends ServiceEntityRepository
 {
+    /** Entries the admin list paginates and counts at most (deeper results: narrow the filters). */
+    public const MAX_LISTED = 10000;
+
     public function __construct(private readonly ManagerRegistry $registry)
     {
         parent::__construct($registry, HttpLogEntry::class);
@@ -105,11 +111,43 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
     }
 
     /**
+     * Admin list page: at most {@see MAX_LISTED} matching entries are paginated and counted, so a huge log never costs a
+     * full COUNT or a deep OFFSET per page view. `total_capped` is true when more entries match (narrow the filters).
+     *
      * @param array<string, mixed> $criteria
+     * @param int $maxListed cap (defaults to {@see MAX_LISTED})
+     *
+     * @return array{items: list<HttpLogEntry>, total: int, total_capped: bool, page: int}
+     */
+    public function findListPage(array $criteria, int $page, int $pageSize, int $maxListed = self::MAX_LISTED): array
+    {
+        $pageSize = max(1, $pageSize);
+        $countQb  = $this->createQueryBuilder('e')->select('e.id')->setMaxResults($maxListed + 1);
+        $this->applyCriteria($countQb, $criteria);
+        $matched = count($countQb->getQuery()->getScalarResult());
+        $total   = min($matched, $maxListed);
+        $page    = min(max(1, $page), max(1, (int) ceil($total / $pageSize)));
+
+        $qb = $this->createQueryBuilder('e')
+            ->orderBy('e.createdAt', SortDirection::Descending)
+            ->addOrderBy('e.id', SortDirection::Descending)
+            ->setFirstResult(($page - 1) * $pageSize)
+            // the last page of a capped list ends at the cap
+            ->setMaxResults(max(1, min($pageSize, $total - ($page - 1) * $pageSize)));
+        $this->applyCriteria($qb, $criteria);
+        /** @var list<HttpLogEntry> $items */
+        $items = $qb->getQuery()->getResult();
+
+        return ['items' => $items, 'total' => $total, 'total_capped' => $matched > $maxListed, 'page' => $page];
+    }
+
+    /**
+     * @param array<string, mixed> $criteria
+     * @param bool $withTotal false skips the COUNT (batch exports read page after page)
      *
      * @return array{items: list<HttpLogEntry>, total: int}
      */
-    public function findFiltered(array $criteria, int $page, int $pageSize): array
+    public function findFiltered(array $criteria, int $page, int $pageSize, bool $withTotal = true): array
     {
         $qb = $this->createQueryBuilder('e')
             ->orderBy('e.createdAt', SortDirection::Descending)
@@ -118,12 +156,15 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
 
         $this->applyCriteria($qb, $criteria);
 
-        $countQb = clone $qb;
-        $total   = (int) $countQb
-            ->select('COUNT(e.id)')
-            ->resetDQLPart('orderBy')
-            ->getQuery()
-            ->getSingleScalarResult();
+        $total = 0;
+        if ($withTotal) {
+            $countQb = clone $qb;
+            $total   = (int) $countQb
+                ->select('COUNT(e.id)')
+                ->resetDQLPart('orderBy')
+                ->getQuery()
+                ->getSingleScalarResult();
+        }
 
         $items = $qb
             ->setFirstResult(max(0, ($page - 1) * $pageSize))

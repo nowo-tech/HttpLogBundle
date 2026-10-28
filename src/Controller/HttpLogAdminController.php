@@ -104,7 +104,9 @@ final class HttpLogAdminController extends AbstractController
 
         $criteriaParams = $this->queryParamsFromCriteria($criteria);
         $page           = max(1, $request->query->getInt('page', 1));
-        $result         = $this->repository->findFiltered($criteria, $page, $this->pageSize);
+        // Bounded page + count (HttpLogEntryRepository::MAX_LISTED): no full COUNT / deep OFFSET on a large log.
+        $result = $this->repository->findListPage($criteria, $page, $this->pageSize);
+        $page   = $result['page'];
 
         $exportForms = [];
         foreach ([ExportFormat::Csv, ExportFormat::Json] as $format) {
@@ -129,6 +131,7 @@ final class HttpLogAdminController extends AbstractController
                 $this->canExport(),
                 $this->canPurge(),
                 $this->canExport() ? $this->readyExports() : [],
+                $result['total_capped'],
             ),
             'criteria' => $criteria,
         ]);

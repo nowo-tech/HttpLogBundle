@@ -120,7 +120,7 @@ final readonly class ExportHttpLogService
         $total = 0;
 
         do {
-            $result = $this->repository->findFiltered($criteria, $page, self::BATCH_SIZE);
+            $result = $this->repository->findFiltered($criteria, $page, self::BATCH_SIZE, withTotal: false);
             foreach ($result['items'] as $entry) {
                 fputcsv($resource, $this->entryToCsvRow($entry));
                 ++$total;
@@ -141,7 +141,7 @@ final readonly class ExportHttpLogService
         $first = true;
 
         do {
-            $result = $this->repository->findFiltered($criteria, $page, self::BATCH_SIZE);
+            $result = $this->repository->findFiltered($criteria, $page, self::BATCH_SIZE, withTotal: false);
             foreach ($result['items'] as $entry) {
                 if (!$first) {
                     fwrite($resource, ',');

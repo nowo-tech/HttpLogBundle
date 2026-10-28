@@ -73,6 +73,7 @@ final readonly class AdminPages
      * @param array<string, FormView> $exportForms export format (csv, json) => CSRF form with the criteria (only enabled formats)
      * @param list<array{name: string, format: ExportFormat, size: int, createdAt: DateTimeImmutable}> $downloads finished
      *                                                                                                            background exports ({@see ExportFileStore::ready()}), offered as header actions
+     * @param bool $totalCapped more entries match than the list pages through: the count shows "N+"
      */
     public function listPage(
         iterable $entries,
@@ -86,6 +87,7 @@ final readonly class AdminPages
         bool $canExport = true,
         bool $canPurge = true,
         array $downloads = [],
+        bool $totalCapped = false,
     ): ListPage {
         $exportUrl = $this->urls->generate('nowo_http_log_admin_export');
         $purgeUrl  = $this->urls->generate('nowo_http_log_admin_purge');
@@ -124,7 +126,7 @@ final readonly class AdminPages
         );
 
         return new ListPage(
-            new PageHeader($this->label('admin.index.title'), $this->label('admin.index.total', ['%count%' => $total]), $actions),
+            new PageHeader($this->label('admin.index.title'), $this->label('admin.index.total', ['%count%' => $totalCapped ? $total . '+' : $total]), $actions),
             [
                 new Column('id', $this->label('admin.column.id'), required: true),
                 new Column('createdAt', $this->label('admin.column.created_at'), priority: 2),
