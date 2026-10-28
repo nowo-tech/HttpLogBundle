@@ -28,6 +28,7 @@ admin.action.back: 'Zurück zur Liste'
 admin.action.filter: 'Filtern'
 admin.action.export_csv: 'CSV exportieren'
 admin.action.export_json: 'JSON exportieren'
+admin.action.download_export: '%format%-Export herunterladen (%date%)'
 admin.action.purge: 'Alte Einträge bereinigen'
 admin.action.delete: 'Eintrag löschen'
 admin.purge.confirm: 'HTTP-Log-Einträge gemäß Aufbewahrungsrichtlinie bereinigen?'
@@ -47,6 +48,6 @@ filter.status_code_placeholder: '404'
 filter.path_placeholder: '/api/'
 filter.route_name_placeholder: 'app_'
 filter.any: 'Beliebig'
-flash.export_queued: Export zur Hintergrundverarbeitung eingereiht.
+flash.export_queued: Export zur Hintergrundverarbeitung eingereiht. Nach Abschluss oben in der Liste herunterladen (wird nur begrenzte Zeit aufbewahrt).
 flash.purged: '%count% HTTP-Log-Einträge bereinigt.'
 flash.deleted: HTTP-Log-Eintrag gelöscht.

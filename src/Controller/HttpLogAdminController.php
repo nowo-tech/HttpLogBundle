@@ -19,14 +19,17 @@ use Nowo\HttpLogBundle\Form\HttpLogPurgeType;
 use Nowo\HttpLogBundle\Message\ExportHttpLogMessage;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
+use Nowo\HttpLogBundle\Service\ExportFileStore;
 use Nowo\HttpLogBundle\Service\ExportHttpLogService;
 use Nowo\HttpLogBundle\Service\PurgeHttpLogService;
 use Nowo\HttpLogBundle\View\AdminPages;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\FormView;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
@@ -43,10 +46,9 @@ use function is_scalar;
 use function is_string;
 use function max;
 use function sprintf;
+use function str_ends_with;
 use function strtr;
 use function strval;
-use function sys_get_temp_dir;
-use function uniqid;
 
 use const FILTER_VALIDATE_INT;
 
@@ -83,6 +85,8 @@ final class HttpLogAdminController extends AbstractController
         private readonly array $exportFormats = ['csv', 'json'],
         // REQ-SF-003 / REQ-DI-001: injected (autowired router) instead of $this->container->get('router').
         private readonly ?UrlGeneratorInterface $urlGenerator = null,
+        // Private storage of background exports (export.directory / export.ttl_hours).
+        private readonly ?ExportFileStore $exportStore = null,
     ) {
     }
 
@@ -124,6 +128,7 @@ final class HttpLogAdminController extends AbstractController
                 $criteria !== [],
                 $this->canExport(),
                 $this->canPurge(),
+                $this->canExport() ? $this->readyExports() : [],
             ),
             'criteria' => $criteria,
         ]);
@@ -185,9 +190,10 @@ final class HttpLogAdminController extends AbstractController
 
         $count = $this->exportService->countForCriteria($criteria);
         if ($count > $this->maxSyncExportRows) {
-            $outputPath = sprintf('%s/http-log-export-%s.%s', sys_get_temp_dir(), uniqid('', true), $format->value);
-            $this->messageBus->dispatch(new ExportHttpLogMessage($criteria, $format->value, $outputPath));
-            $this->addFlash('success', $this->translate('flash.export_queued', 'Export queued for background processing.'));
+            $store = $this->exportStore();
+            $name  = $store->reserve($format);
+            $this->messageBus->dispatch(new ExportHttpLogMessage($criteria, $format->value, $store->partialPath($name), $name));
+            $this->addFlash('success', $this->translate('flash.export_queued', 'Export queued for background processing. When it finishes, download it from the list header (kept for a limited time).'));
 
             return $this->redirectToRoute('nowo_http_log_admin_index', $this->queryParamsFromCriteria($criteria));
         }
@@ -200,6 +206,50 @@ final class HttpLogAdminController extends AbstractController
             'Content-Type'        => $mimeType,
             'Content-Disposition' => sprintf('attachment; filename="%s"', $filename),
         ]);
+    }
+
+    #[Route('/export/{name}', name: 'nowo_http_log_admin_export_download', requirements: ['name' => '[a-f0-9]{32}\\.(csv|json)'], methods: ['GET'])]
+    public function downloadExport(string $name): BinaryFileResponse
+    {
+        $this->denyUnlessGrantedExport();
+
+        $path = $this->exportStore()->readyPath($name);
+        if ($path === null) {
+            throw $this->createNotFoundException();
+        }
+        $format   = str_ends_with($name, '.json') ? ExportFormat::Json : ExportFormat::Csv;
+        $response = new BinaryFileResponse($path, Response::HTTP_OK, [
+            'Content-Type'  => $format === ExportFormat::Json ? 'application/json' : 'text/csv',
+            'Cache-Control' => 'private, no-store',
+        ]);
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, sprintf('http-log-export.%s', $format->value));
+
+        return $response;
+    }
+
+    /**
+     * Finished background exports offered for download; expired ones are deleted here as well as after each export
+     * job, so files do not outlive export.ttl_hours when no new export runs.
+     *
+     * @return list<array{name: string, format: ExportFormat, size: int, createdAt: DateTimeImmutable}>
+     */
+    private function readyExports(): array
+    {
+        if (!$this->exportStore instanceof ExportFileStore) {
+            return [];
+        }
+        $this->exportStore->purgeExpired();
+
+        return $this->exportStore->ready();
+    }
+
+    private function exportStore(): ExportFileStore
+    {
+        if (!$this->exportStore instanceof ExportFileStore) {
+            throw new LogicException('HttpLogAdminController needs an ExportFileStore (registered by the bundle) for background exports.');
+        }
+
+        return $this->exportStore;
     }
 
     private function isExportFormatAllowed(ExportFormat $format): bool

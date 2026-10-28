@@ -55,6 +55,9 @@ nowo_http_log:
             - csv
             - json
         max_sync_rows: 1000
+        # Background (Messenger) exports: private directory (0700, files 0600), deleted after ttl_hours.
+        directory: '%kernel.project_dir%/var/http-log/exports'
+        ttl_hours: 24
     web_ui:
         enabled: true
         path_prefix: /admin/http-log

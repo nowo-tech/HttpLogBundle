@@ -208,7 +208,7 @@ admin.title: Request audit log
 
 ## Export
 
-**Admin UI:** use the export button on the filtered list (CSV or JSON, up to `export.max_sync_rows`).
+**Admin UI:** use the export button on the filtered list (CSV or JSON). Up to `export.max_sync_rows` rows the file is downloaded at once; larger exports are queued on Messenger, written to `export.directory` and offered as **Download … export** buttons in the list header (users allowed to export only) until `export.ttl_hours` expires.
 
 **CLI:**
 

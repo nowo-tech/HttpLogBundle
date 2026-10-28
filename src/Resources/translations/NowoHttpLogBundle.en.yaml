@@ -28,6 +28,7 @@ admin.action.back: Back to list
 admin.action.filter: Filter
 admin.action.export_csv: Export CSV
 admin.action.export_json: Export JSON
+admin.action.download_export: 'Download %format% export (%date%)'
 admin.action.purge: Purge old entries
 admin.action.delete: Delete entry
 admin.purge.confirm: Purge HTTP log entries matching the retention policy?
@@ -47,6 +48,6 @@ filter.status_code_placeholder: '404'
 filter.path_placeholder: '/api/'
 filter.route_name_placeholder: 'app_'
 filter.any: 'Any'
-flash.export_queued: Export queued for background processing.
+flash.export_queued: Export queued for background processing. When it finishes, download it from the list header (kept for a limited time).
 flash.purged: 'Purged %count% HTTP log entries.'
 flash.deleted: HTTP log entry deleted.

@@ -57,6 +57,11 @@ services:
             $kernelEnvironment: '%kernel.environment%'
             $ignoreUnrouted: '%nowo_http_log.ignore_unrouted%'
 
+    Nowo\HttpLogBundle\Service\ExportFileStore:
+        arguments:
+            $directory: '%nowo_http_log.export.directory%'
+            $ttlSeconds: '%nowo_http_log.export.ttl_seconds%'
+
     Nowo\HttpLogBundle\Service\PurgeHttpLogService:
         arguments:
             $retentionConfig: '%nowo_http_log.retention%'

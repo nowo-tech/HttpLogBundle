@@ -107,7 +107,7 @@ Before tagging a release, confirm:
 | **No secrets in repo** | No API keys, passwords, or tokens in tracked files or exported log samples. |
 | **Redaction defaults** | Default header/query/JSON redaction lists remain enabled; request body capture stays off by default. |
 | **Admin UI exposure** | `security.allow_unauthenticated` is `false` in recipe defaults; document `access_control` for `^/admin/http-log` (`ROLE_ADMIN`) and schedule purge cron. |
-| **Input / output** | Stored bodies treated as untrusted in Twig (auto-escaping); export files may contain PII — protect filesystem access. |
+| **Input / output** | Stored bodies treated as untrusted in Twig (auto-escaping); export files may contain PII: background exports live in the private `export.directory` (`0700` / `0600`, random names, deleted after `export.ttl_hours`) and are downloaded only by users allowed to export; CLI exports are created `0600`. |
 | **Dependencies** | `composer audit` run; issues triaged. |
 | **Logging** | Messenger/async failures log message type and ids only — no raw Authorization, Cookie, or body payloads. |
 | **Messenger** | Retry and failure transport documented for `PersistHttpLogMessage`, `ExportHttpLogMessage`, and `PurgeHttpLogMessage`. |

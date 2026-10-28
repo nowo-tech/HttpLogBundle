@@ -8,10 +8,12 @@ use DateTimeImmutable;
 use LogicException;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
+use Nowo\HttpLogBundle\Enum\ExportFormat;
 use Nowo\HttpLogBundle\Form\HttpLogFilterType;
 use Nowo\HttpLogBundle\Message\ExportHttpLogMessage;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
+use Nowo\HttpLogBundle\Service\ExportFileStore;
 use Nowo\HttpLogBundle\Service\ExportHttpLogService;
 use Nowo\HttpLogBundle\Service\PurgeHttpLogService;
 use Nowo\UiKitBundle\View\Action;
@@ -51,6 +53,23 @@ use function count;
 
 final class HttpLogAdminControllerTest extends TestCase
 {
+    private string $exportDir;
+
+    protected function setUp(): void
+    {
+        $this->exportDir = sys_get_temp_dir() . '/http-log-admin-test-' . bin2hex(random_bytes(6));
+    }
+
+    protected function tearDown(): void
+    {
+        foreach (glob($this->exportDir . '/*') ?: [] as $file) {
+            unlink($file);
+        }
+        if (is_dir($this->exportDir)) {
+            rmdir($this->exportDir);
+        }
+    }
+
     #[Test]
     public function indexRendersEntriesWhenAccessIsAllowed(): void
     {
@@ -457,10 +476,11 @@ final class HttpLogAdminControllerTest extends TestCase
         $messageBus = $this->createMock(MessageBusInterface::class);
         $messageBus->expects(self::once())
             ->method('dispatch')
-            ->with(self::callback(static fn (ExportHttpLogMessage $message): bool => $message->format === 'json'
+            ->with(self::callback(fn (ExportHttpLogMessage $message): bool => $message->format === 'json'
                 && ($message->criteria['createdFrom'] ?? null) instanceof DateTimeImmutable
                 && ($message->criteria['createdTo'] ?? null) instanceof DateTimeImmutable
-                && str_ends_with($message->outputPath, '.json')))
+                && preg_match('/^[a-f0-9]{32}\.json$/', (string) $message->exportName) === 1
+                && $message->outputPath === $this->exportDir . '/' . $message->exportName . '.part'))
             ->willReturn(new Envelope(new stdClass()));
 
         $router = $this->createMock(RouterInterface::class);
@@ -485,12 +505,114 @@ final class HttpLogAdminControllerTest extends TestCase
             allowUnauthenticated: true,
             csrfValid: true,
             maxSyncExportRows: 10,
+            exportStore: new ExportFileStore($this->exportDir),
         );
 
         $response = $controller->export($request);
 
         self::assertSame('/admin/http-log?queued=1', $response->headers->get('Location'));
-        self::assertSame(['Export queued for background processing.'], $request->getSession()->getFlashBag()->get('success'));
+        self::assertSame(['Export queued for background processing. When it finishes, download it from the list header (kept for a limited time).'], $request->getSession()->getFlashBag()->get('success'));
+        self::assertSame(0o700, fileperms($this->exportDir) & 0o777);
+    }
+
+    #[Test]
+    public function exportNeedsTheExportStoreForBackgroundJobs(): void
+    {
+        $request       = Request::create('/admin/http-log/export', 'POST', ['_token' => 'valid-token', 'format' => 'csv']);
+        $exportService = $this->createMock(ExportHttpLogService::class);
+        $exportService->method('countForCriteria')->willReturn(50);
+
+        $controller = $this->createController(request: $request, exportService: $exportService, maxSyncExportRows: 10);
+
+        $this->expectException(LogicException::class);
+        $controller->export($request);
+    }
+
+    #[Test]
+    public function downloadExportStreamsAFinishedExport(): void
+    {
+        $store = new ExportFileStore($this->exportDir);
+        $name  = $store->reserve(ExportFormat::Csv);
+        file_put_contents($store->partialPath($name), "id\n1\n");
+        $store->complete($name);
+
+        $response = $this->createController(exportStore: $store)->downloadExport($name);
+
+        self::assertSame('text/csv', $response->headers->get('Content-Type'));
+        self::assertStringContainsString('attachment; filename=http-log-export.csv', (string) $response->headers->get('Content-Disposition'));
+        self::assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
+        self::assertSame($this->exportDir . '/' . $name, $response->getFile()->getPathname());
+
+        $json = $store->reserve(ExportFormat::Json);
+        file_put_contents($store->partialPath($json), '[]');
+        $store->complete($json);
+        self::assertSame('application/json', $this->createController(exportStore: $store)->downloadExport($json)->headers->get('Content-Type'));
+    }
+
+    #[Test]
+    public function downloadExportReturnsNotFoundForUnknownOrRunningExports(): void
+    {
+        $store = new ExportFileStore($this->exportDir);
+        $name  = $store->reserve(ExportFormat::Csv);
+        file_put_contents($store->partialPath($name), 'partial');
+
+        $this->expectException(NotFoundHttpException::class);
+        $this->createController(exportStore: $store)->downloadExport($name);
+    }
+
+    #[Test]
+    public function downloadExportDeniesUsersThatMayNotExport(): void
+    {
+        $accessChecker = $this->createMock(HttpLogAccessCheckerInterface::class);
+        $accessChecker->method('canExport')->willReturn(false);
+
+        $controller = $this->createController(accessChecker: $accessChecker, allowUnauthenticated: false, exportStore: new ExportFileStore($this->exportDir));
+
+        $this->expectException(AccessDeniedException::class);
+        $controller->downloadExport(str_repeat('a', 32) . '.csv');
+    }
+
+    #[Test]
+    public function indexOffersFinishedExportsAndDeletesExpiredOnes(): void
+    {
+        $store = new ExportFileStore($this->exportDir, 3600);
+        $name  = $store->reserve(ExportFormat::Json);
+        file_put_contents($store->partialPath($name), '[]');
+        $store->complete($name);
+        $expired = $this->exportDir . '/' . str_repeat('b', 32) . '.csv';
+        file_put_contents($expired, 'old');
+        touch($expired, time() - 7200);
+
+        $form = $this->createMock(FormInterface::class);
+        $form->method('isSubmitted')->willReturn(false);
+        $form->method('createView')->willReturn(new FormView());
+        $repository = $this->createMock(HttpLogEntryRepository::class);
+        $repository->method('findFiltered')->willReturn(['items' => [], 'total' => 0]);
+
+        $twig = $this->createMock(Environment::class);
+        $twig->expects(self::once())
+            ->method('render')
+            ->with(
+                '@NowoHttpLogBundle/admin/index.html.twig',
+                self::callback(static fn (array $parameters): bool => count(array_filter(
+                    $parameters['page']->header->actions,
+                    static fn (Action $action): bool => $action->href === '/admin/http-log/export/download',
+                )) === 1),
+            )
+            ->willReturn('index');
+        $router = $this->createMock(RouterInterface::class);
+        $router->method('generate')->willReturnCallback(static fn (string $route): string => $route === 'nowo_http_log_admin_export_download' ? '/admin/http-log/export/download' : '/admin/http-log');
+
+        $controller = $this->createController(
+            repository: $repository,
+            formFactory: $this->createIndexFormFactory($form),
+            twig: $twig,
+            router: $router,
+            exportStore: $store,
+        );
+
+        self::assertSame('index', $controller->index(Request::create('/admin/http-log'))->getContent());
+        self::assertFileDoesNotExist($expired);
     }
 
     #[Test]
@@ -788,6 +910,7 @@ final class HttpLogAdminControllerTest extends TestCase
         array $webUi = [],
         ?TranslatorInterface $translator = null,
         array $exportFormats = ['csv', 'json'],
+        ?ExportFileStore $exportStore = null,
     ): HttpLogAdminController {
         $request ??= Request::create('/admin/http-log', 'GET');
         $session = new Session(new MockArraySessionStorage());
@@ -829,6 +952,7 @@ final class HttpLogAdminControllerTest extends TestCase
             $translator,
             $exportFormats,
             $router,
+            $exportStore,
         );
         $controller->setContainer($container);
 

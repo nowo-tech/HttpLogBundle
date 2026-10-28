@@ -100,6 +100,7 @@ final class ExportHttpLogServiceTest extends TestCase
             $content = file_get_contents($path);
             self::assertIsString($content);
             self::assertStringContainsString('req-file', $content);
+            self::assertSame(0o600, fileperms($path) & 0o777);
         } finally {
             if (file_exists($path)) {
                 unlink($path);

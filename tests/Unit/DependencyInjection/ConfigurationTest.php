@@ -34,6 +34,8 @@ final class ConfigurationTest extends TestCase
         self::assertSame(30, $config['retention']['days']);
         self::assertSame(1000, $config['retention']['purge_batch_size']);
         self::assertSame(['csv', 'json'], $config['export']['formats']);
+        self::assertSame('%kernel.project_dir%/var/http-log/exports', $config['export']['directory']);
+        self::assertSame(24, $config['export']['ttl_hours']);
         self::assertTrue($config['web_ui']['enabled']);
         self::assertSame('/admin/http-log', $config['web_ui']['path_prefix']);
         self::assertSame(CssFramework::Bootstrap5->value, $config['web_ui']['css_framework']);

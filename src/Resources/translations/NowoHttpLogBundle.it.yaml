@@ -28,6 +28,7 @@ admin.action.back: 'Torna all’elenco'
 admin.action.filter: 'Filtra'
 admin.action.export_csv: 'Esporta CSV'
 admin.action.export_json: 'Esporta JSON'
+admin.action.download_export: 'Scarica esportazione %format% (%date%)'
 admin.action.purge: 'Elimina voci vecchie'
 admin.action.delete: 'Elimina voce'
 admin.purge.confirm: 'Eliminare le voci del log HTTP secondo la politica di conservazione?'
@@ -47,6 +48,6 @@ filter.status_code_placeholder: '404'
 filter.path_placeholder: '/api/'
 filter.route_name_placeholder: 'app_'
 filter.any: 'Qualsiasi'
-flash.export_queued: Esportazione accodata per l’elaborazione in background.
+flash.export_queued: Esportazione accodata per l’elaborazione in background. Al termine, scaricala dall’intestazione dell’elenco (conservata per un tempo limitato).
 flash.purged: '%count% voci del log HTTP eliminate.'
 flash.deleted: Voce del log HTTP eliminata.

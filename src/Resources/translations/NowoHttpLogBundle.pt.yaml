@@ -28,6 +28,7 @@ admin.action.back: 'Voltar à lista'
 admin.action.filter: 'Filtrar'
 admin.action.export_csv: 'Exportar CSV'
 admin.action.export_json: 'Exportar JSON'
+admin.action.download_export: 'Descarregar exportação %format% (%date%)'
 admin.action.purge: 'Purgar entradas antigas'
 admin.action.delete: 'Eliminar entrada'
 admin.purge.confirm: 'Purgar entradas do registo HTTP segundo a política de retenção?'
@@ -47,6 +48,6 @@ filter.status_code_placeholder: '404'
 filter.path_placeholder: '/api/'
 filter.route_name_placeholder: 'app_'
 filter.any: 'Qualquer'
-flash.export_queued: Exportação colocada na fila para processamento em segundo plano.
+flash.export_queued: Exportação colocada na fila para processamento em segundo plano. Quando terminar, descarregue-a no cabeçalho da lista (mantida por tempo limitado).
 flash.purged: '%count% entradas do registo HTTP purgadas.'
 flash.deleted: Entrada do registo HTTP eliminada.

@@ -35,6 +35,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Background exports no longer leak to the shared temp directory.** Exports above `export.max_sync_rows` were
+  written by the Messenger handler to `sys_get_temp_dir()/http-log-export-<uniqid>.csv|json` with the default umask
+  (usually world-readable), never deleted and never offered to the admin. They contain request logs (paths,
+  headers, bodies, user identifiers). They now go through `ExportFileStore`:
+  - private directory `export.directory` (default `%kernel.project_dir%/var/http-log/exports`, created `0700`),
+    files `0600` with random names, written as `<name>.part` and published when complete;
+  - downloadable from the admin list header (`nowo_http_log_admin_export_download`, users allowed to export only,
+    `Cache-Control: private, no-store`);
+  - deleted after `export.ttl_hours` (default 24) by the export job and when the admin list is opened.
+- `ExportHttpLogService::exportToFile()` (also used by `nowo:http-log:export`) creates files `0600`.
+
+### Added
+
+- `export.directory` and `export.ttl_hours` options; `ExportHttpLogMessage::$exportName` (named exports in the
+  private store; the handler ignores `outputPath` for them).
+
 ## [1.11.0] - 2026-10-28
 
 Security: the admin UI refuses to compile without form CSRF protection (CsrfProtectionPass, fail closed). See [UPGRADING](UPGRADING.md#to-1110).

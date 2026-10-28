@@ -79,6 +79,8 @@ nowo_http_log:
             - csv
             - json
         max_sync_rows: 1000               # Max rows for synchronous UI/CLI export
+        directory: '%kernel.project_dir%/var/http-log/exports' # Private dir of background exports
+        ttl_hours: 24                     # Background exports are deleted after this many hours
     web_ui:
         enabled: true
         path_prefix: /admin/http-log      # Route prefix of the admin UI; must start with /
@@ -177,6 +179,8 @@ nowo_http_log:
 | --- | --- | --- |
 | `formats` | `[csv, json]` | Allowed export formats (`csv`, `json`; at least one). The admin UI only shows buttons for enabled formats and answers **400** to others; `nowo:http-log:export` exits with `INVALID` for a disabled format. |
 | `max_sync_rows` | `1000` | Row cap for synchronous exports; larger jobs should use async Messenger. |
+| `directory` | `%kernel.project_dir%/var/http-log/exports` | Private directory of background exports (created `0700`, files `0600`, random names). Keep it out of the web root and off shared temp dirs. |
+| `ttl_hours` | `24` | Hours a finished background export stays downloadable; expired files are deleted after each export job and when the admin list is opened. |
 
 ## web_ui
 

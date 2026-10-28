@@ -28,6 +28,7 @@ admin.action.back: 'Terug naar lijst'
 admin.action.filter: 'Filteren'
 admin.action.export_csv: 'CSV exporteren'
 admin.action.export_json: 'JSON exporteren'
+admin.action.download_export: '%format%-export downloaden (%date%)'
 admin.action.purge: 'Oude regels opschonen'
 admin.action.delete: 'Regel verwijderen'
 admin.purge.confirm: 'HTTP-logregels opschonen volgens het bewaarbeleid?'
@@ -47,6 +48,6 @@ filter.status_code_placeholder: '404'
 filter.path_placeholder: '/api/'
 filter.route_name_placeholder: 'app_'
 filter.any: 'Alle'
-flash.export_queued: Export in de wachtrij gezet voor verwerking op de achtergrond.
+flash.export_queued: Export in de wachtrij gezet voor verwerking op de achtergrond. Download hem na afloop bovenaan de lijst (wordt beperkte tijd bewaard).
 flash.purged: '%count% HTTP-logregels opgeschoond.'
 flash.deleted: HTTP-logregel verwijderd.

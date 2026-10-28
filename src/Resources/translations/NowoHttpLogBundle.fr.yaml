@@ -28,6 +28,7 @@ admin.action.back: 'Retour à la liste'
 admin.action.filter: 'Filtrer'
 admin.action.export_csv: 'Exporter en CSV'
 admin.action.export_json: 'Exporter en JSON'
+admin.action.download_export: 'Télécharger l’export %format% (%date%)'
 admin.action.purge: 'Purger les anciennes entrées'
 admin.action.delete: 'Supprimer l’entrée'
 admin.purge.confirm: 'Purger les entrées du journal HTTP selon la politique de rétention ?'
@@ -47,6 +48,6 @@ filter.status_code_placeholder: '404'
 filter.path_placeholder: '/api/'
 filter.route_name_placeholder: 'app_'
 filter.any: 'Tous'
-flash.export_queued: Export mis en file d’attente pour un traitement en arrière-plan.
+flash.export_queued: Export mis en file d’attente pour un traitement en arrière-plan. Une fois terminé, téléchargez-le depuis l’en-tête de la liste (conservé pendant une durée limitée).
 flash.purged: '%count% entrées du journal HTTP purgées.'
 flash.deleted: Entrée du journal HTTP supprimée.

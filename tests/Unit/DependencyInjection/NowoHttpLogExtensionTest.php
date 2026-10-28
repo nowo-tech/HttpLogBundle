@@ -157,6 +157,7 @@ final class NowoHttpLogExtensionTest extends TestCase
     {
         $container = new ContainerBuilder();
         $container->setParameter('kernel.environment', 'test');
+        $container->setParameter('kernel.project_dir', '/app');
 
         (new NowoHttpLogExtension())->load([[
             'security' => ['allow_unauthenticated' => true],
@@ -173,6 +174,8 @@ final class NowoHttpLogExtensionTest extends TestCase
 
         self::assertSame('w-[50%]', $chrome['css_classes']['table']);
         self::assertSame('{message}', $chrome['confirm_attributes']['data-confirm-submit-message-value']);
+        self::assertSame('/app/var/http-log/exports', $container->getParameter('nowo_http_log.export.directory'));
+        self::assertSame(86400, $container->getParameter('nowo_http_log.export.ttl_seconds'));
         self::assertFalse($chrome['ui_kit_stylesheet']);
         self::assertSame(AdminChrome::DEFAULT_TEMPLATES, $chrome['templates']);
     }

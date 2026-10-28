@@ -228,6 +228,8 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         $container->setParameter($alias . '.export', $config['export']);
         $container->setParameter($alias . '.export.max_sync_rows', $config['export']['max_sync_rows']);
         $container->setParameter($alias . '.export.formats', array_values(array_unique($config['export']['formats'])));
+        $container->setParameter($alias . '.export.directory', $config['export']['directory']);
+        $container->setParameter($alias . '.export.ttl_seconds', $config['export']['ttl_hours'] * 3600);
         $container->setParameter($alias . '.redaction.headers', $config['redaction']['headers']);
         $container->setParameter($alias . '.redaction.query_params', $config['redaction']['query_params']);
         $container->setParameter($alias . '.redaction.json_paths', $config['redaction']['json_paths']);

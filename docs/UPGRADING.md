@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+  - [Background exports in a private directory](#background-exports-in-a-private-directory)
 - [To 1.11.0](#to-1110)
   - [Admin UI requires form CSRF protection at compile time](#admin-ui-requires-form-csrf-protection-at-compile-time)
 - [To 1.10.0](#to-1100)
@@ -42,6 +43,17 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+### Background exports in a private directory
+
+Admin exports above `export.max_sync_rows` are written to `export.directory` (default
+`%kernel.project_dir%/var/http-log/exports`) instead of the system temp directory, and the list header shows a
+download button for each finished export until `export.ttl_hours` (default 24) expires.
+
+- The PHP process (Messenger worker and web) must be able to create and write that directory; on several hosts or
+  containers, point it to a volume shared by the worker and the web server and not reachable from the web root.
+- Delete old `http-log-export-*` files left in the system temp directory by earlier versions.
+- `nowo:http-log:export --output=…` now creates the file with mode `0600`.
 
 ## To 1.11.0
 

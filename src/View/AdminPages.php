@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\View;
 
+use DateTimeImmutable;
 use Nowo\HttpLogBundle\DependencyInjection\LegacyThemeBridge;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
+use Nowo\HttpLogBundle\Enum\ExportFormat;
+use Nowo\HttpLogBundle\Service\ExportFileStore;
 use Nowo\UiKitBundle\View\Action;
 use Nowo\UiKitBundle\View\Column;
 use Nowo\UiKitBundle\View\Confirm;
@@ -38,6 +41,7 @@ use function ltrim;
 use function number_format;
 use function sprintf;
 use function str_starts_with;
+use function strtoupper;
 
 use const JSON_ERROR_NONE;
 use const JSON_PRETTY_PRINT;
@@ -67,6 +71,8 @@ final readonly class AdminPages
     /**
      * @param iterable<HttpLogEntry> $entries entries of the current page
      * @param array<string, FormView> $exportForms export format (csv, json) => CSRF form with the criteria (only enabled formats)
+     * @param list<array{name: string, format: ExportFormat, size: int, createdAt: DateTimeImmutable}> $downloads finished
+     *                                                                                                            background exports ({@see ExportFileStore::ready()}), offered as header actions
      */
     public function listPage(
         iterable $entries,
@@ -79,6 +85,7 @@ final readonly class AdminPages
         bool $filtered = false,
         bool $canExport = true,
         bool $canPurge = true,
+        array $downloads = [],
     ): ListPage {
         $exportUrl = $this->urls->generate('nowo_http_log_admin_export');
         $purgeUrl  = $this->urls->generate('nowo_http_log_admin_purge');
@@ -92,6 +99,17 @@ final readonly class AdminPages
                 href: $exportUrl,
                 method: 'POST',
                 form: $form,
+                visible: $canExport,
+            );
+        }
+        foreach ($downloads as $download) {
+            $actions[] = new Action(
+                'export',
+                $this->label('admin.action.download_export', [
+                    '%format%' => strtoupper($download['format']->value),
+                    '%date%'   => $download['createdAt']->format('Y-m-d H:i'),
+                ]),
+                href: $this->urls->generate('nowo_http_log_admin_export_download', ['name' => $download['name']]),
                 visible: $canExport,
             );
         }

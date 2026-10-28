@@ -12,6 +12,7 @@ use Nowo\HttpLogBundle\Enum\ExportFormat;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use RuntimeException;
 
+use function chmod;
 use function fclose;
 use function fputcsv;
 use function fwrite;
@@ -95,6 +96,8 @@ final readonly class ExportHttpLogService
         if ($handle === false) {
             throw new RuntimeException(sprintf('Unable to open export file: %s', $path));
         }
+        // Request logs (headers, bodies, user identifiers): owner-only, whatever the process umask.
+        chmod($path, 0o600);
 
         try {
             return $this->exportToResource($criteria, $format, $handle);
