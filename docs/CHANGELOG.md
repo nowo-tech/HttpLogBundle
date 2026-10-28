@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.13.0] - 2026-10-28](#1130---2026-10-28)
 - [[1.12.0] - 2026-10-28](#1120---2026-10-28)
 - [[1.11.0] - 2026-10-28](#1110---2026-10-28)
 - [[1.10.0] - 2026-10-21](#1100---2026-10-21)
@@ -36,12 +37,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-10-28
+
+Performance: the admin list counts and paginates at most 10 000 entries; exports skip the per-batch COUNT. See [UPGRADING](UPGRADING.md#to-1130).
+
 ### Performance
 
 - **Bounded admin list.** Every list page ran a full `COUNT` and an unbounded `OFFSET` over the whole log. The list now
   counts and paginates at most 10 000 matching entries (`HttpLogEntryRepository::MAX_LISTED`, header shows
   "10000+ entries"; narrow the filters to reach older ones) and clamps out-of-range pages. Background / CLI exports
   are unchanged but no longer run a `COUNT` for every batch.
+
+[1.13.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.13.0
 
 ## [1.12.0] - 2026-10-28
 
