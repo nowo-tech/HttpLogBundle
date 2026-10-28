@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.12.0] - 2026-10-28](#1120---2026-10-28)
 - [[1.11.0] - 2026-10-28](#1110---2026-10-28)
 - [[1.10.0] - 2026-10-21](#1100---2026-10-21)
 - [[1.9.1] - 2026-10-18](#191---2026-10-18)
@@ -35,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-10-28
+
+Security: background exports are kept in a private, expiring store and downloaded from the admin list. See [UPGRADING](UPGRADING.md#to-1120).
+
 ### Security
 
 - **Background exports no longer leak to the shared temp directory.** Exports above `export.max_sync_rows` were
@@ -52,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `export.directory` and `export.ttl_hours` options; `ExportHttpLogMessage::$exportName` (named exports in the
   private store; the handler ignores `outputPath` for them).
+
+[1.12.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.12.0
 
 ## [1.11.0] - 2026-10-28
 
