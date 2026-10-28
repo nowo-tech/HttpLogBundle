@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.11.0] - 2026-10-28](#1110---2026-10-28)
 - [[1.10.0] - 2026-10-21](#1100---2026-10-21)
 - [[1.9.1] - 2026-10-18](#191---2026-10-18)
 - [[1.9.0] - 2026-10-18](#190---2026-10-18)
@@ -34,9 +35,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-10-28
+
+Security: the admin UI refuses to compile without form CSRF protection (CsrfProtectionPass, fail closed). See [UPGRADING](UPGRADING.md#to-1110).
+
 ### Security
 
 - CSRF fails closed: new `CsrfProtectionPass` makes the container refuse to compile when the admin UI (`web_ui.enabled: true`) is on and form CSRF protection is unavailable (`security.csrf.token_manager` or `form.type_extension.csrf` missing, or `framework.form.csrf_protection: false`). Before, the purge / delete / export actions (`AbstractHttpLogActionType` declares its own CSRF options, checked by `validateActionForm()`) accepted tokenless cross-site POSTs in that configuration. See [UPGRADING](UPGRADING.md#unreleased) and [SECURITY](SECURITY.md#threat-model).
+
+[1.11.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.11.0
 
 ## [1.10.0] - 2026-10-21
 

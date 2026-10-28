@@ -5,6 +5,8 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.11.0](#to-1110)
+  - [Admin UI requires form CSRF protection at compile time](#admin-ui-requires-form-csrf-protection-at-compile-time)
 - [To 1.10.0](#to-1100)
 - [To 1.9.1](#to-191)
 - [To 1.9.0](#to-190)
@@ -40,6 +42,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.11.0
+
+From **1.10.0**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 ### Admin UI requires form CSRF protection at compile time
 
