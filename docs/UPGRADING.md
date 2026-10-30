@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.13.2](#to-1132)
 - [To 1.13.1](#to-1131)
 - [To 1.13.0](#to-1130)
 - [To 1.12.0](#to-1120)
@@ -46,6 +47,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.13.2
+
+From **1.13.1**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 - **Action forms are FormKit Types:** the export / purge / delete forms now use the `http_log` FormKit profile like the
   filter. No change for hosts: field names, CSRF token ids and markup are the same. If you subclass

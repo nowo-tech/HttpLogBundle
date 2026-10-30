@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.13.2] - 2026-10-30](#1132---2026-10-30)
 - [[1.13.1] - 2026-10-30](#1131---2026-10-30)
 - [[1.13.0] - 2026-10-28](#1130---2026-10-28)
 - [[1.12.0] - 2026-10-28](#1120---2026-10-28)
@@ -38,9 +39,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.2] - 2026-10-30
+
+Admin action form types are FormKit types (REQ-TWIG-005 rule 11, no markup change). See [UPGRADING](UPGRADING.md#to-1132).
+
 ### Changed
 
 - **FormKit action types (REQ-TWIG-005 rule 11):** `AbstractHttpLogActionType` (and so `HttpLogExportType`, `HttpLogPurgeType`, `HttpLogDeleteType`) is now a FormKit Type: `#[FormKitConfig('http_log')]` + `FormOptionsTrait`, like `HttpLogFilterType`. Field names, CSRF token ids (`http_log_export` / `http_log_purge` / `http_log_delete`) and the rendered hidden fields are unchanged. The `http_log` profile is documented in [CONFIGURATION](CONFIGURATION.md#form-profile-formkit).
+
+[1.13.2]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.13.2
 
 ## [1.13.1] - 2026-10-30
 
