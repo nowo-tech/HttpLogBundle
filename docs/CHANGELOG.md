@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.13.1] - 2026-10-30](#1131---2026-10-30)
 - [[1.13.0] - 2026-10-28](#1130---2026-10-28)
 - [[1.12.0] - 2026-10-28](#1120---2026-10-28)
 - [[1.11.0] - 2026-10-28](#1110---2026-10-28)
@@ -37,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.1] - 2026-10-30
+
+Bundle routes are opt-in again: controllers are no longer autoconfigured, so a host's routing.controllers import does not expose them (REQ-SF-004 rule 7). See [UPGRADING](UPGRADING.md#to-1131).
+
 ### Fixed
 
 - **Admin routes registered without the route import:** on Symfony >= 7.3 the `#[Route]` attributes on the
@@ -46,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   controller is no longer autoconfigured nor matched by the bundle's service glob; its definition carries the explicit
   `controller.service_arguments` and `container.service_subscriber` tags. The routes exist only through the
   documented import (REQ-SF-004 rule 7). Regression test with a kernel that only loads `routing.controllers`.
+
+[1.13.1]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.13.1
 
 ## [1.13.0] - 2026-10-28
 

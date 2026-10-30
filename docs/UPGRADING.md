@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.13.1](#to-1131)
 - [To 1.13.0](#to-1130)
 - [To 1.12.0](#to-1120)
   - [Background exports in a private directory](#background-exports-in-a-private-directory)
@@ -45,6 +46,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.13.1
+
+From **1.13.0**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 From **1.13.0**: no action needed if you import `@NowoHttpLogBundle/Resources/config/routes.yaml` (see
 [INSTALLATION](INSTALLATION.md)). If the admin was reachable in your app only through the default
