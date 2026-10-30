@@ -46,6 +46,10 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+From **1.13.0**: no action needed if you import `@NowoHttpLogBundle/Resources/config/routes.yaml` (see
+[INSTALLATION](INSTALLATION.md)). If the admin was reachable in your app only through the default
+`routing.controllers` import (Symfony >= 7.3), import `routes.yaml` explicitly.
+
 ## To 1.13.0
 
 From **1.12.0**:
