@@ -47,6 +47,13 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+- **Action forms are FormKit Types:** the export / purge / delete forms now use the `http_log` FormKit profile like the
+  filter. No change for hosts: field names, CSRF token ids and markup are the same. If you subclass
+  `AbstractHttpLogActionType`, your type inherits `#[FormKitConfig('http_log')]` and `FormOptionsTrait`
+  (`nowo-tech/form-kit-bundle` stays a required dependency, `NowoFormKitBundle` registered). Customise field classes
+  through `nowo_form_kit.profiles.http_log` ([CONFIGURATION](CONFIGURATION.md#form-profile-formkit)), not with a
+  `form_theme` in an overridden template.
+
 ## To 1.13.1
 
 From **1.13.0**:

@@ -12,6 +12,7 @@ All options live under the root key `nowo_http_log` (alias `nowo_http_log`).
 - [doctrine](#doctrine)
 - [export](#export)
 - [web_ui](#web_ui)
+  - [Form profile (FormKit)](#form-profile-formkit)
   - [Deprecated 1.x chrome keys](#deprecated-1x-chrome-keys)
 - [security](#security)
 - [Messenger retry and failure transport](#messenger-retry-and-failure-transport)
@@ -209,6 +210,33 @@ nowo_ui_kit:
 ```
 
 When `enabled: false`, the admin controller is removed from the container.
+
+### Form profile (FormKit)
+
+Every admin form is a FormKit Type (REQ-TWIG-005 rule 11): `HttpLogFilterType` and the CSRF-only actions
+(`HttpLogExportType`, `HttpLogPurgeType`, `HttpLogDeleteType`, all extending `AbstractHttpLogActionType`) carry
+`#[FormKitConfig('http_log')]` + `FormOptionsTrait`. The bundle prepends the profile
+**`nowo_form_kit.profiles.http_log`** (translation domain `NowoHttpLogBundle`, `convention_requires_translation: true`,
+UiKit / Bootstrap field classes) unless the host defines it. To change field classes or row attributes, define the
+profile yourself (nothing is seeded then, so set every key you need):
+
+```yaml
+# config/packages/nowo_form_kit.yaml
+nowo_form_kit:
+    profiles:
+        http_log:
+            alias: http_log
+            translation_domain: NowoHttpLogBundle
+            convention_requires_translation: true
+            defaults:
+                attr: { class: 'nowo-ui-input form-control' }
+            field_types:
+                choice: { attr: { class: 'form-select' } }
+```
+
+The action forms only carry hidden fields (`_token`, `format`, export criteria): they are added without profile
+defaults, so no field class reaches the hidden inputs. The admin templates set no `form_theme`: the host
+`twig.form_themes` applies.
 
 ### Deprecated 1.x chrome keys
 
