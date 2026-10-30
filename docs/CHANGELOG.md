@@ -37,6 +37,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Admin routes registered without the route import:** on Symfony >= 7.3 the `#[Route]` attributes on the
+  autoconfigured `HttpLogAdminController` gave it the `routing.controller` tag, so the host's default
+  `controllers: { resource: routing.controllers }` registered the `nowo_http_log_admin_*` routes even when the host
+  never imported `@NowoHttpLogBundle/Resources/config/routes.yaml` (access was still checked by the controller). The
+  controller is no longer autoconfigured nor matched by the bundle's service glob; its definition carries the explicit
+  `controller.service_arguments` and `container.service_subscriber` tags. The routes exist only through the
+  documented import (REQ-SF-004 rule 7). Regression test with a kernel that only loads `routing.controllers`.
+
 ## [1.13.0] - 2026-10-28
 
 Performance: the admin list counts and paginates at most 10 000 entries; exports skip the per-batch COUNT. See [UPGRADING](UPGRADING.md#to-1130).

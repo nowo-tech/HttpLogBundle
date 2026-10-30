@@ -12,6 +12,7 @@ services:
             - '../../Message/'
             - '../../View/'
             - '../../NowoHttpLogBundle.php'
+            - '../../Controller/'
 
     Nowo\HttpLogBundle\Repository\:
         resource: '../../Repository/'
@@ -66,14 +67,19 @@ services:
         arguments:
             $retentionConfig: '%nowo_http_log.retention%'
 
+    # autoconfigure: false (REQ-SF-004 rule 7) — on Symfony >= 7.3 a #[Route] class is autoconfigured with the
+    # routing.controller tag, and the host's `routing.controllers` resource would then expose the admin UI without
+    # the host importing @NowoHttpLogBundle/Resources/config/routes.yaml (opt-in only). The tags autoconfiguration
+    # used to add are explicit: controller.service_arguments + container.service_subscriber (AbstractController).
     Nowo\HttpLogBundle\Controller\HttpLogAdminController:
+        autoconfigure: false
         arguments:
             $allowUnauthenticated: '%nowo_http_log.security.allow_unauthenticated%'
             $maxSyncExportRows: '%nowo_http_log.export.max_sync_rows%'
             $pageSize: '%nowo_http_log.web_ui.page_size%'
             $webUi: '%nowo_http_log.web_ui%'
             $exportFormats: '%nowo_http_log.export.formats%'
-        tags: ['controller.service_arguments']
+        tags: ['controller.service_arguments', 'container.service_subscriber']
 
     # Form Kit injects FormOptionsMerger into tagged form types (FormOptionsMergerInjectorCompilerPass).
     Nowo\HttpLogBundle\Form\:
