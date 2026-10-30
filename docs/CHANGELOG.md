@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **FormKit action types (REQ-TWIG-005 rule 11):** `AbstractHttpLogActionType` (and so `HttpLogExportType`, `HttpLogPurgeType`, `HttpLogDeleteType`) is now a FormKit Type: `#[FormKitConfig('http_log')]` + `FormOptionsTrait`, like `HttpLogFilterType`. Field names, CSRF token ids (`http_log_export` / `http_log_purge` / `http_log_delete`) and the rendered hidden fields are unchanged. The `http_log` profile is documented in [CONFIGURATION](CONFIGURATION.md#form-profile-formkit).
+
 ## [1.13.1] - 2026-10-30
 
 Bundle routes are opt-in again: controllers are no longer autoconfigured, so a host's routing.controllers import does not expose them (REQ-SF-004 rule 7). See [UPGRADING](UPGRADING.md#to-1131).

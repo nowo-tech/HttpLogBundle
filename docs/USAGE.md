@@ -144,7 +144,9 @@ or merge your override. Prefer, in this order:
 
 Export, purge and delete are `FormView`-backed UiKit actions: they post the flat `_token` field with the CSRF token
 ids `http_log_export`, `http_log_purge` and `http_log_delete`; export also posts `format` and the active criteria as
-hidden fields (UiKit 2.1 prints them on every render, also through a host `page_header` override).
+hidden fields (UiKit 2.1 prints them on every render, also through a host `page_header` override). Every admin form
+(filter and the three actions) is a FormKit Type bound to the `http_log` profile (REQ-TWIG-005 rule 11, see
+[CONFIGURATION](CONFIGURATION.md#form-profile-formkit)).
 
 ## Customising the admin pages
 
