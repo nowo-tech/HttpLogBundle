@@ -251,8 +251,13 @@ the public service `Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataEraserInterfac
 | `countByUserIdentifier(string $userIdentifier): int` / `deleteByUserIdentifier(...)` | `user_identifier` (exact; `UserInterface::getUserIdentifier()` at request time) |
 | `countByClientIp(string $clientIp): int` / `deleteByClientIp(...)` | `client_ip` (exact) |
 
-Deletes run in keyset batches of `retention.purge_batch_size` rows and return the number of entries deleted; an empty
-identifier throws `InvalidArgumentException`. Only these two identifier columns are matched: personal data a third
+Matching is **exact, byte for byte**, whatever the database collation: the SQL `=` only pre-filters (a MySQL utf8mb4
+`*_ci` collation would also return `ANA`, `Ana`, `ána` for `ana`, or `ß` for `ss`) and every candidate is compared with
+`===` in PHP, so erasing one user never deletes another user's entries. IP addresses are compared **as logged, without
+normalisation**: pass the textual form `Request::getClientIp()` returned (`fe80::a` does not match `FE80::A` or
+`fe80:0:0:0:0:0:0:a`). Deletes run in keyset batches of `retention.purge_batch_size` rows and return the number of
+entries deleted; an empty value or one containing a NUL byte (PDO would cut it there) throws
+`InvalidArgumentException`. Only these two identifier columns are matched: personal data a third
 party sent in a body, header or query string of their own entries is not searched (redaction keeps most of it out).
 
 ```php

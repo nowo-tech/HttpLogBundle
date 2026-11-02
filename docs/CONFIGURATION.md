@@ -186,8 +186,8 @@ tables later.
 
 Rules: both options match `/^[a-z][a-z0-9_]*\z/` (`table_prefix` may be empty); `table_prefix` +
 `table_name_prefix` may not exceed 51 characters (the PostgreSQL sequence `<table>_id_seq` must stay within 63) and
-`table_prefix` alone 39 (the prefixed `idx_http_log_status_code`). Literal values are checked when the container is
-built, `%env()%` values when the listener is built (give the env var a default with an `env(NAME)` parameter).
+`table_prefix` alone 39 (the prefixed `idx_http_log_status_code`). Both are checked when the container is
+built. `%env()%` is **not supported** for either option (the table names are part of the schema, and every published table-name parameter must come from a validated literal): the container build fails.
 
 The resolved physical table name is published as the container parameter **`nowo_http_log.doctrine.entry_table`**
 (`nowo_http_log_entry` by default, `http_log_entry` with `table_name_prefix: http_log_`). For personal-data erasure use

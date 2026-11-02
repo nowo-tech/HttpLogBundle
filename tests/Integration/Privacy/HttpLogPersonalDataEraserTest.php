@@ -20,6 +20,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 use function dirname;
+use function str_replace;
 
 use const PHP_VERSION_ID;
 
@@ -90,6 +91,48 @@ final class HttpLogPersonalDataEraserTest extends TestCase
         $this->expectExceptionMessage('The userIdentifier to erase must not be empty.');
 
         $this->eraser([])->countByUserIdentifier('');
+    }
+
+    #[Test]
+    public function caseInsensitiveCollationsOnlyPreFilter(): void
+    {
+        // Fake of a MySQL utf8mb4 *_ci column: SQLite NOCASE makes `=` ignore case, like MySQL does.
+        $connection = $this->entityManager->getConnection();
+        $connection->executeStatement('DROP TABLE http_log_entry');
+        foreach ((new SchemaTool($this->entityManager))->getCreateSchemaSql([$this->entityManager->getClassMetadata(HttpLogEntry::class)]) as $sql) {
+            $connection->executeStatement(str_replace(
+                ['user_identifier VARCHAR(255) DEFAULT NULL', 'client_ip VARCHAR(45) DEFAULT NULL'],
+                ['user_identifier VARCHAR(255) DEFAULT NULL COLLATE NOCASE', 'client_ip VARCHAR(45) DEFAULT NULL COLLATE NOCASE'],
+                $sql,
+            ));
+        }
+        foreach ([['ana', 'fe80::a'], ['ANA', 'FE80::A'], ['Ana', 'fe80::a'], ['ana', 'fe80::b'], ['luis', 'fe80::a']] as [$user, $ip]) {
+            $entry = new HttpLogEntry();
+            $entry->setUserIdentifier($user);
+            $entry->setClientIp($ip);
+            $this->entityManager->persist($entry);
+        }
+        $this->entityManager->flush();
+        $this->entityManager->clear();
+        self::assertSame(4, (int) $connection->fetchOne("SELECT COUNT(*) FROM http_log_entry WHERE user_identifier = 'ana'"), 'the fake collation ignores case');
+
+        $eraser = $this->eraser(['purge_batch_size' => 1]);
+        self::assertSame(2, $eraser->countByUserIdentifier('ana'));
+        self::assertSame(2, $eraser->deleteByUserIdentifier('ana'));
+        self::assertSame(1, $eraser->countByUserIdentifier('ANA'), 'other users are kept');
+        self::assertSame(1, $eraser->countByUserIdentifier('Ana'));
+        self::assertSame(0, $eraser->countByUserIdentifier('ana'));
+        self::assertSame(1, $eraser->deleteByClientIp('FE80::A'), 'IP addresses are compared as logged');
+        self::assertSame(2, $eraser->countByClientIp('fe80::a'));
+    }
+
+    #[Test]
+    public function nulBytesAreRejected(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The clientIp to erase must not contain a NUL byte.');
+
+        $this->eraser([])->deleteByClientIp("10.0.0.1\0x");
     }
 
     /**

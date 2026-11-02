@@ -339,12 +339,14 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
      */
     private function registerTableName(ContainerBuilder $container, string $tablePrefix, string $tableNamePrefix): void
     {
-        if ($container->resolveEnvPlaceholders($tablePrefix) === $tablePrefix && $container->resolveEnvPlaceholders($tableNamePrefix) === $tableNamePrefix) {
-            try {
-                TablePrefixListener::validate($tablePrefix, $tableNamePrefix);
-            } catch (InvalidArgumentException $exception) {
-                throw new InvalidConfigurationException($exception->getMessage(), 0, $exception);
-            }
+        // Table names are part of the schema: %env()% is not supported, so every published name is validated.
+        if ($container->resolveEnvPlaceholders($tablePrefix) !== $tablePrefix || $container->resolveEnvPlaceholders($tableNamePrefix) !== $tableNamePrefix) {
+            throw new InvalidConfigurationException('doctrine.table_prefix and doctrine.table_name_prefix do not support %env()%: the table names are part of the schema; set literal values.');
+        }
+        try {
+            TablePrefixListener::validate($tablePrefix, $tableNamePrefix);
+        } catch (InvalidArgumentException $exception) {
+            throw new InvalidConfigurationException($exception->getMessage(), 0, $exception);
         }
 
         $container->setParameter($this->getAlias() . '.doctrine.entry_table', $tablePrefix . $tableNamePrefix . TablePrefixListener::ENTRY_TABLE_SUFFIX);

@@ -143,8 +143,11 @@ final class NowoHttpLogExtensionTest extends TestCase
     }
 
     #[Test]
-    public function envPlaceholdersAreLeftToTheListener(): void
+    public function envPlaceholdersAreRejected(): void
     {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('do not support %env()%');
+
         $bag       = new EnvPlaceholderParameterBag();
         $container = new ContainerBuilder($bag);
         $container->setParameter('kernel.environment', 'test');
@@ -157,8 +160,6 @@ final class NowoHttpLogExtensionTest extends TestCase
         } finally {
             BaseNode::resetPlaceholders();
         }
-
-        self::assertSame($placeholder . 'nowo_http_log_entry', $container->getParameter('nowo_http_log.doctrine.entry_table'));
     }
 
     #[Test]
