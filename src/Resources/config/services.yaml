@@ -17,10 +17,11 @@ services:
     Nowo\HttpLogBundle\Repository\:
         resource: '../../Repository/'
 
-    # REQ-ORM-002: removed by the extension when nowo_http_log.doctrine.table_prefix is empty.
+    # REQ-ORM-002: removed by the extension when doctrine.table_prefix and doctrine.table_name_prefix keep their defaults.
     Nowo\HttpLogBundle\Doctrine\TablePrefixListener:
         arguments:
             $tablePrefix: '%nowo_http_log.doctrine.table_prefix%'
+            $tableNamePrefix: '%nowo_http_log.doctrine.table_name_prefix%'
         tags:
             - { name: doctrine.event_listener, event: loadClassMetadata }
 

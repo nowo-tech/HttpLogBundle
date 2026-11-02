@@ -75,7 +75,35 @@ final class NowoHttpLogExtensionTest extends TestCase
         (new NowoHttpLogExtension())->load([['security' => ['allow_unauthenticated' => true]]], $container);
 
         self::assertSame('', $container->getParameter('nowo_http_log.doctrine.table_prefix'));
+        self::assertSame('nowo_http_log_', $container->getParameter('nowo_http_log.doctrine.table_name_prefix'));
         self::assertFalse($container->hasDefinition(TablePrefixListener::class));
+    }
+
+    #[Test]
+    public function tablePrefixListenerIsRegisteredWithTableNamePrefix(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.environment', 'test');
+
+        (new NowoHttpLogExtension())->load([[
+            'security' => ['allow_unauthenticated' => true],
+            'doctrine' => ['table_name_prefix' => 'http_log_'],
+        ]], $container);
+
+        self::assertSame('http_log_', $container->getParameter('nowo_http_log.doctrine.table_name_prefix'));
+        $definition = $container->getDefinition(TablePrefixListener::class);
+        self::assertSame('%nowo_http_log.doctrine.table_name_prefix%', $definition->getArgument('$tableNamePrefix'));
+    }
+
+    #[Test]
+    public function tableNamePrefixMustNotBeEmpty(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('one or more letters, digits and underscores');
+
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.environment', 'test');
+        (new NowoHttpLogExtension())->load([['doctrine' => ['table_name_prefix' => '']]], $container);
     }
 
     #[Test]

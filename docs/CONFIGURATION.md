@@ -74,6 +74,7 @@ nowo_http_log:
         days: 30                          # null = keep forever
         purge_batch_size: 1000            # Rows deleted per statement (keyset batches by id)
     doctrine:
+        table_name_prefix: nowo_http_log_ # Replaces the nowo_http_log_ part of the table name (REQ-ORM-002)
         table_prefix: ''                  # Prefix for nowo_http_log_entry + index names (REQ-ORM-002)
     export:
         formats:
@@ -159,20 +160,34 @@ Use `nowo:http-log:purge` or the admin UI to purge.
 
 ## doctrine
 
-Since 1.10 (REQ-ORM-002). Namespace the bundle-owned table when several applications share one database:
+Since 1.10 (REQ-ORM-002; `table_name_prefix` is new in Unreleased). Two options name the bundle-owned table, applied
+in this order:
+
+1. `table_name_prefix` (default `nowo_http_log_`; one or more letters, digits and underscores) **replaces** the
+   `nowo_http_log_` part of the table name. The `idx_http_log_*` index names do not contain it and do not change.
+2. `table_prefix` (default `''`) is prepended to the table and index names, to namespace them when several
+   applications share one database.
 
 ```yaml
 nowo_http_log:
     doctrine:
-        table_prefix: 'app_'   # default '' (no prefix); letters, digits and underscores only
+        table_name_prefix: http_log_   # table http_log_entry
 ```
 
-| Default | With `table_prefix: 'app_'` |
-|---------|-----------------------------|
-| table `nowo_http_log_entry` | `app_nowo_http_log_entry` |
-| indexes `idx_http_log_*` | `app_idx_http_log_*` |
+| `table_name_prefix` | `table_prefix` | Table | Indexes | `request_id` unique (Doctrine-generated) |
+|---|---|---|---|---|
+| `nowo_http_log_` (default) | `''` (default) | `nowo_http_log_entry` | `idx_http_log_*` | `UNIQ_A43F86E4427EB8A5` |
+| `http_log_` | `''` | `http_log_entry` | `idx_http_log_*` | `UNIQ_6855A9F4427EB8A5` |
+| `nowo_http_log_` | `app_` | `app_nowo_http_log_entry` | `app_idx_http_log_*` | `UNIQ_FA816E21427EB8A5` |
 
-`Nowo\HttpLogBundle\Doctrine\TablePrefixListener` (Doctrine `loadClassMetadata`, registered only when the prefix is not empty) rewrites the `HttpLogEntry` mapping only. Setting a prefix on an existing install renames the table: generate a migration (`doctrine:migrations:diff`) and rename instead of dropping.
+The bundle exposes a prefix rather than a full table name, like TaskBoard (`task_board_`), Wiki (`wiki_`) and the other
+nowo-tech bundles that name their tables `<prefix><name>`: one convention for every bundle, and room for more
+tables later.
+
+`Nowo\HttpLogBundle\Doctrine\TablePrefixListener` (Doctrine `loadClassMetadata`, registered only when an option differs
+from its default) rewrites the `HttpLogEntry` mapping only. Changing either option on an existing install renames the
+table: run the rename statements from [UPGRADING](UPGRADING.md#unreleased) (or generate a migration and turn the
+drop/create into a rename) instead of dropping the table.
 
 ## export
 

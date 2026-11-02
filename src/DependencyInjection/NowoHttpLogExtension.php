@@ -249,9 +249,10 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
             $container->removeDefinition(HttpLogAdminController::class);
         }
 
-        // REQ-ORM-002: the table prefix listener only exists when a prefix is configured.
+        // REQ-ORM-002: the table naming listener only exists when a name differs from the mapped one.
         $container->setParameter($alias . '.doctrine.table_prefix', $config['doctrine']['table_prefix']);
-        if ($config['doctrine']['table_prefix'] === '') {
+        $container->setParameter($alias . '.doctrine.table_name_prefix', $config['doctrine']['table_name_prefix']);
+        if ($config['doctrine']['table_prefix'] === '' && $config['doctrine']['table_name_prefix'] === TablePrefixListener::DEFAULT_TABLE_NAME_PREFIX) {
             $container->removeDefinition(TablePrefixListener::class);
         }
 

@@ -56,6 +56,37 @@ final class TablePrefixListenerTest extends TestCase
         $this->assertArrayNotHasKey('indexes', $metadata->table);
     }
 
+    public function testTableNamePrefixReplacesTheDefaultPartOfTheTableName(): void
+    {
+        $metadata                             = $this->metadata(HttpLogEntry::class);
+        $metadata->table['uniqueConstraints'] = ['uniq_nowo_http_log_entry_x' => ['columns' => ['id']]];
+
+        (new TablePrefixListener('', 'http_log_'))->loadClassMetadata($this->event($metadata));
+
+        $this->assertSame('http_log_entry', $metadata->getTableName());
+        $this->assertSame(['idx_http_log_route_name', 'idx_http_log_created_at'], array_keys($metadata->table['indexes'] ?? []), 'idx_http_log_* does not contain nowo_http_log_');
+        $this->assertSame(['uniq_http_log_entry_x'], array_keys($metadata->table['uniqueConstraints'] ?? []));
+    }
+
+    public function testTablePrefixIsPrependedAfterTheTableNamePrefix(): void
+    {
+        $metadata = $this->metadata(HttpLogEntry::class);
+
+        (new TablePrefixListener('app_', 'http_log_'))->loadClassMetadata($this->event($metadata));
+
+        $this->assertSame('app_http_log_entry', $metadata->getTableName());
+        $this->assertSame(['app_idx_http_log_route_name', 'app_idx_http_log_created_at'], array_keys($metadata->table['indexes'] ?? []));
+    }
+
+    public function testDefaultsLeaveNamesUnchanged(): void
+    {
+        $metadata = $this->metadata(HttpLogEntry::class);
+
+        (new TablePrefixListener('', TablePrefixListener::DEFAULT_TABLE_NAME_PREFIX))->loadClassMetadata($this->event($metadata));
+
+        $this->assertSame('nowo_http_log_entry', $metadata->getTableName());
+    }
+
     /**
      * @param class-string $class
      *

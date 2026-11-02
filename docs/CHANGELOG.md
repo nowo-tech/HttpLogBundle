@@ -39,6 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `doctrine.table_name_prefix` (default `nowo_http_log_`) replaces the `nowo_http_log_` part of the table name
+  (`http_log_` gives `http_log_entry`), so a host can name the table after its own conventions. With the default the
+  table, index and unique names are byte-identical (golden schema test). `doctrine.table_prefix` keeps prepending to
+  the result. Rename SQL for MySQL / MariaDB and PostgreSQL in [UPGRADING](UPGRADING.md#unreleased).
+
 ## [1.13.2] - 2026-10-30
 
 Admin action form types are FormKit types (REQ-TWIG-005 rule 11, no markup change). See [UPGRADING](UPGRADING.md#to-1132).
