@@ -4,25 +4,32 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\Tests\Unit\DependencyInjection;
 
+use InvalidArgumentException;
 use LogicException;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
 use Nowo\HttpLogBundle\DependencyInjection\NowoHttpLogExtension;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
 use Nowo\HttpLogBundle\EventSubscriber\HttpLogSubscriber;
+use Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataEraser;
+use Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataEraserInterface;
 use Nowo\HttpLogBundle\Security\ConfigurableHttpLogAccessChecker;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
 use Nowo\HttpLogBundle\View\AdminChrome;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
+use Symfony\Component\Config\Definition\BaseNode;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\Definition\Processor;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Extension\Extension;
+use Symfony\Component\DependencyInjection\ParameterBag\EnvPlaceholderParameterBag;
 
 use function dirname;
+use function str_repeat;
 
 final class NowoHttpLogExtensionTest extends TestCase
 {
@@ -96,10 +103,118 @@ final class NowoHttpLogExtensionTest extends TestCase
     }
 
     #[Test]
+    public function entryTableParameterFollowsBothPrefixes(): void
+    {
+        self::assertSame('nowo_http_log_entry', $this->loadDoctrine([])->getParameter('nowo_http_log.doctrine.entry_table'));
+        self::assertSame('http_log_entry', $this->loadDoctrine(['table_name_prefix' => 'http_log_'])->getParameter('nowo_http_log.doctrine.entry_table'));
+        self::assertSame('app_http_log_entry', $this->loadDoctrine(['table_name_prefix' => 'http_log_', 'table_prefix' => 'app_'])->getParameter('nowo_http_log.doctrine.entry_table'));
+    }
+
+    /**
+     * @return iterable<string, array{array<string, mixed>}>
+     */
+    public static function invalidPrefixes(): iterable
+    {
+        yield 'leading digit' => [['table_name_prefix' => '1log_']];
+        yield 'uppercase' => [['table_name_prefix' => 'Log_']];
+        yield 'trailing newline' => [['table_name_prefix' => "log_\n"]];
+        yield 'uppercase table_prefix' => [['table_prefix' => 'App_']];
+        yield 'too long' => [['table_name_prefix' => 'l' . str_repeat('x', 47), 'table_prefix' => 'app_']];
+        yield 'table_prefix too long for the indexes' => [['table_prefix' => 'a' . str_repeat('x', 39)]];
+    }
+
+    /**
+     * @param array<string, mixed> $doctrine
+     */
+    #[Test]
+    #[DataProvider('invalidPrefixes')]
+    public function invalidPrefixesAreRejected(array $doctrine): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+
+        $this->loadDoctrine($doctrine);
+    }
+
+    #[Test]
+    public function longestAllowedPrefixesFit(): void
+    {
+        // entry_id_seq leaves 51 characters; idx_http_log_status_code leaves 39 for table_prefix.
+        self::assertSame(str_repeat('t', 39) . 'l' . str_repeat('x', 11) . 'entry', $this->loadDoctrine(['table_prefix' => str_repeat('t', 39), 'table_name_prefix' => 'l' . str_repeat('x', 11)])->getParameter('nowo_http_log.doctrine.entry_table'));
+    }
+
+    #[Test]
+    public function envPlaceholdersAreLeftToTheListener(): void
+    {
+        $bag       = new EnvPlaceholderParameterBag();
+        $container = new ContainerBuilder($bag);
+        $container->setParameter('kernel.environment', 'test');
+        $placeholder = $bag->get('env(HTTP_LOG_TABLE_PREFIX)');
+        self::assertIsString($placeholder);
+
+        BaseNode::setPlaceholderUniquePrefix($bag->getEnvPlaceholderUniquePrefix());
+        try {
+            (new NowoHttpLogExtension())->load([['security' => ['allow_unauthenticated' => true], 'doctrine' => ['table_prefix' => $placeholder]]], $container);
+        } finally {
+            BaseNode::resetPlaceholders();
+        }
+
+        self::assertSame($placeholder . 'nowo_http_log_entry', $container->getParameter('nowo_http_log.doctrine.entry_table'));
+    }
+
+    #[Test]
+    public function listenerRejectsInvalidResolvedValues(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('the limit is 63');
+
+        new TablePrefixListener(str_repeat('a', 40));
+    }
+
+    #[Test]
+    public function listenerRejectsMalformedPrefixes(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid doctrine.table_prefix');
+
+        new TablePrefixListener('App_');
+    }
+
+    #[Test]
+    public function listenerRejectsMalformedTableNamePrefix(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid doctrine.table_name_prefix');
+
+        new TablePrefixListener('', '_log');
+    }
+
+    #[Test]
+    public function eraserIsAPublicService(): void
+    {
+        $container = $this->loadDoctrine([]);
+
+        self::assertTrue($container->getAlias(HttpLogPersonalDataEraserInterface::class)->isPublic());
+        self::assertSame(HttpLogPersonalDataEraser::class, (string) $container->getAlias(HttpLogPersonalDataEraserInterface::class));
+        self::assertSame('%nowo_http_log.retention%', $container->getDefinition(HttpLogPersonalDataEraser::class)->getArgument('$retentionConfig'));
+    }
+
+    /**
+     * @param array<string, mixed> $doctrine
+     */
+    private function loadDoctrine(array $doctrine): ContainerBuilder
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('kernel.environment', 'test');
+        (new NowoHttpLogExtension())->load([['security' => ['allow_unauthenticated' => true], 'doctrine' => $doctrine]], $container);
+
+        return $container;
+    }
+
+    #[Test]
     public function tableNamePrefixMustNotBeEmpty(): void
     {
         $this->expectException(InvalidConfigurationException::class);
-        $this->expectExceptionMessage('one or more letters, digits and underscores');
+        $this->expectExceptionMessage('use a lowercase letter, then lowercase letters');
 
         $container = new ContainerBuilder();
         $container->setParameter('kernel.environment', 'test');
@@ -127,7 +242,7 @@ final class NowoHttpLogExtensionTest extends TestCase
     public function tablePrefixRejectsInvalidCharacters(): void
     {
         $this->expectException(InvalidConfigurationException::class);
-        $this->expectExceptionMessage('letters, digits and underscores only');
+        $this->expectExceptionMessage('use a lowercase letter, then lowercase letters');
 
         $container = new ContainerBuilder();
         $container->setParameter('kernel.environment', 'test');

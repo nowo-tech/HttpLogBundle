@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\DependencyInjection;
 
+use InvalidArgumentException;
 use LogicException;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
@@ -11,6 +12,7 @@ use Nowo\HttpLogBundle\EventSubscriber\HttpLogSubscriber;
 use Nowo\HttpLogBundle\Security\ConfigurableHttpLogAccessChecker;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
 use Nowo\HttpLogBundle\View\AdminChrome;
+use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
@@ -252,6 +254,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         // REQ-ORM-002: the table naming listener only exists when a name differs from the mapped one.
         $container->setParameter($alias . '.doctrine.table_prefix', $config['doctrine']['table_prefix']);
         $container->setParameter($alias . '.doctrine.table_name_prefix', $config['doctrine']['table_name_prefix']);
+        $this->registerTableName($container, $config['doctrine']['table_prefix'], $config['doctrine']['table_name_prefix']);
         if ($config['doctrine']['table_prefix'] === '' && $config['doctrine']['table_name_prefix'] === TablePrefixListener::DEFAULT_TABLE_NAME_PREFIX) {
             $container->removeDefinition(TablePrefixListener::class);
         }
@@ -328,5 +331,22 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         $bundles = $container->getParameter('kernel.bundles');
 
         return isset($bundles['SecurityBundle']);
+    }
+
+    /**
+     * REQ-ORM-002: validates the literal prefixes (`%env()%` values are checked by the listener once resolved) and
+     * publishes `nowo_http_log.doctrine.entry_table`, the physical table name, for host SQL and reports.
+     */
+    private function registerTableName(ContainerBuilder $container, string $tablePrefix, string $tableNamePrefix): void
+    {
+        if ($container->resolveEnvPlaceholders($tablePrefix) === $tablePrefix && $container->resolveEnvPlaceholders($tableNamePrefix) === $tableNamePrefix) {
+            try {
+                TablePrefixListener::validate($tablePrefix, $tableNamePrefix);
+            } catch (InvalidArgumentException $exception) {
+                throw new InvalidConfigurationException($exception->getMessage(), 0, $exception);
+            }
+        }
+
+        $container->setParameter($this->getAlias() . '.doctrine.entry_table', $tablePrefix . $tableNamePrefix . TablePrefixListener::ENTRY_TABLE_SUFFIX);
     }
 }

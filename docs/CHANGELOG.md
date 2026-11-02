@@ -45,6 +45,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`http_log_` gives `http_log_entry`), so a host can name the table after its own conventions. With the default the
   table, index and unique names are byte-identical (golden schema test). `doctrine.table_prefix` keeps prepending to
   the result. Rename SQL for MySQL / MariaDB and PostgreSQL in [UPGRADING](UPGRADING.md#unreleased).
+- `nowo_http_log.doctrine.entry_table` container parameter: the physical table name.
+- `Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataEraserInterface` (public service): count and batched delete of the
+  entries of a user identifier or a client IP, for GDPR erasure without SQL on the bundle table.
+
+### Changed
+
+- `doctrine.table_prefix` / `doctrine.table_name_prefix` must match `/^[a-z][a-z0-9_]*\z/` (uppercase and a leading
+  digit are now rejected) and may not make a generated name longer than 63 characters; checked at compile time and,
+  for `%env()%` values, when the listener is built.
 
 ## [1.13.2] - 2026-10-30
 

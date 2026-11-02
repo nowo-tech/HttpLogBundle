@@ -184,6 +184,15 @@ The bundle exposes a prefix rather than a full table name, like TaskBoard (`task
 nowo-tech bundles that name their tables `<prefix><name>`: one convention for every bundle, and room for more
 tables later.
 
+Rules: both options match `/^[a-z][a-z0-9_]*\z/` (`table_prefix` may be empty); `table_prefix` +
+`table_name_prefix` may not exceed 51 characters (the PostgreSQL sequence `<table>_id_seq` must stay within 63) and
+`table_prefix` alone 39 (the prefixed `idx_http_log_status_code`). Literal values are checked when the container is
+built, `%env()%` values when the listener is built (give the env var a default with an `env(NAME)` parameter).
+
+The resolved physical table name is published as the container parameter **`nowo_http_log.doctrine.entry_table`**
+(`nowo_http_log_entry` by default, `http_log_entry` with `table_name_prefix: http_log_`). For personal-data erasure use
+the `HttpLogPersonalDataEraserInterface` service instead of SQL ([USAGE](USAGE.md#personal-data-erasure-gdpr)).
+
 `Nowo\HttpLogBundle\Doctrine\TablePrefixListener` (Doctrine `loadClassMetadata`, registered only when an option differs
 from its default) rewrites the `HttpLogEntry` mapping only. Changing either option on an existing install renames the
 table: run the rename statements from [UPGRADING](UPGRADING.md#unreleased) (or generate a migration and turn the

@@ -28,6 +28,7 @@ Maps **100%** of production files under `src/` (51 units; audit: `git ls-files s
 | `Entity/HttpLogEntry.php` | Doctrine entity | FR-ORM-001 |
 | `Repository/HttpLogEntryRepository.php` | Query / pagination | FR-ORM-001, FR-ADM-001 |
 | `Doctrine/TablePrefixListener.php` | `doctrine.table_name_prefix` / `doctrine.table_prefix` metadata listener | FR-ORM-002 |
+| `Privacy/HttpLogPersonalDataEraserInterface.php`, `Privacy/HttpLogPersonalDataEraser.php` | GDPR erasure API (count / batched delete by user identifier or client IP) | FR-ORM-002 |
 
 ## Domain model & enums
 

@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\Doctrine;
 
 use Doctrine\ORM\Event\LoadClassMetadataEventArgs;
+use InvalidArgumentException;
 
 use function is_string;
+use function max;
+use function preg_match;
+use function sprintf;
 use function str_starts_with;
 use function strlen;
 use function strpos;
@@ -26,6 +30,21 @@ final readonly class TablePrefixListener
     /** The name prefix every table (and every derived index / unique-constraint name) of the bundle is mapped with. */
     public const DEFAULT_TABLE_NAME_PREFIX = 'nowo_http_log_';
 
+    /** The table is `<table_prefix><table_name_prefix>entry` (published as `nowo_http_log.doctrine.entry_table`). */
+    public const ENTRY_TABLE_SUFFIX = 'entry';
+
+    /** Longest identifier PostgreSQL keeps (MySQL allows 64): every generated name must fit. */
+    public const MAX_IDENTIFIER_LENGTH = 63;
+
+    /** Allowed prefix: lowercase letter first, then lowercase letters, digits and underscores (no trailing newline). */
+    public const PREFIX_PATTERN = '/^[a-z][a-z0-9_]*\z/';
+
+    /** Longest mapped name once `DEFAULT_TABLE_NAME_PREFIX` is removed: `entry_id_seq`, the PostgreSQL identity sequence of the table, without `nowo_http_log_`. */
+    private const LONGEST_NAME_REST = 12;
+
+    /** Longest named index without `DEFAULT_TABLE_NAME_PREFIX` (only `table_prefix` lengthens it): idx_http_log_status_code. */
+    private const LONGEST_FIXED_NAME = 24;
+
     private const ENTITY_NAMESPACE = 'Nowo\\HttpLogBundle\\Entity\\';
 
     /**
@@ -38,6 +57,30 @@ final readonly class TablePrefixListener
         private string $tablePrefix,
         private string $tableNamePrefix = self::DEFAULT_TABLE_NAME_PREFIX,
     ) {
+        self::validate($this->tablePrefix, $this->tableNamePrefix);
+    }
+
+    /**
+     * Rejects prefixes that are not lowercase identifiers or that make a generated name longer than 63 characters.
+     * Run by the extension for literal values and by the constructor for resolved `%env()%` values.
+     *
+     * @param string $tablePrefix Optional prefix prepended to every name (empty for none)
+     * @param string $tableNamePrefix Replacement of `DEFAULT_TABLE_NAME_PREFIX`
+     *
+     * @throws InvalidArgumentException when a prefix is malformed or a name would be too long
+     */
+    public static function validate(string $tablePrefix, string $tableNamePrefix): void
+    {
+        if (preg_match(self::PREFIX_PATTERN, $tableNamePrefix) !== 1) {
+            throw new InvalidArgumentException(sprintf('Invalid doctrine.table_name_prefix "%s": use a lowercase letter, then lowercase letters, digits and underscores.', $tableNamePrefix));
+        }
+        if ($tablePrefix !== '' && preg_match(self::PREFIX_PATTERN, $tablePrefix) !== 1) {
+            throw new InvalidArgumentException(sprintf('Invalid doctrine.table_prefix "%s": use a lowercase letter, then lowercase letters, digits and underscores (or empty).', $tablePrefix));
+        }
+        $longest = max(strlen($tablePrefix) + strlen($tableNamePrefix) + self::LONGEST_NAME_REST, strlen($tablePrefix) + self::LONGEST_FIXED_NAME);
+        if ($longest > self::MAX_IDENTIFIER_LENGTH) {
+            throw new InvalidArgumentException(sprintf('doctrine.table_prefix "%s" + doctrine.table_name_prefix "%s" make a table, index or sequence name of %d characters; the limit is %d.', $tablePrefix, $tableNamePrefix, $longest, self::MAX_IDENTIFIER_LENGTH));
+        }
     }
 
     /**
