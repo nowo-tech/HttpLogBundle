@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.14.0] - 2026-11-03](#1140---2026-11-03)
 - [[1.13.2] - 2026-10-30](#1132---2026-10-30)
 - [[1.13.1] - 2026-10-30](#1131---2026-10-30)
 - [[1.13.0] - 2026-10-28](#1130---2026-10-28)
@@ -39,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-11-03
+
+replaceable table-name prefix (doctrine.table_name_prefix), stricter prefix validation
+
 ### Added
 
 - `doctrine.table_name_prefix` (default `nowo_http_log_`) replaces the `nowo_http_log_` part of the table name
@@ -56,6 +61,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `doctrine.table_prefix` / `doctrine.table_name_prefix` must match `/^[a-z][a-z0-9_]*\z/` (uppercase and a leading
   digit are now rejected) and may not make a generated name longer than 63 characters; checked at compile time;
   `%env()%` is rejected for both options (table names are part of the schema).
+
+[1.14.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.14.0
 
 ## [1.13.2] - 2026-10-30
 

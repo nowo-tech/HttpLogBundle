@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.14.0](#to-1140)
 - [To 1.13.2](#to-1132)
 - [To 1.13.1](#to-1131)
 - [To 1.13.0](#to-1130)
@@ -47,6 +48,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.14.0
+
+From **1.13.2**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 New option `nowo_http_log.doctrine.table_name_prefix` (default `nowo_http_log_`): it **replaces** the
 `nowo_http_log_` part of the table name. With the default nothing changes: the table, index and unique names stay
