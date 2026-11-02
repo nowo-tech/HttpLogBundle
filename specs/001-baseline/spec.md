@@ -108,7 +108,7 @@ As a maintainer, I run the Symfony 8 FrankenPHP demo and CI smoke checks to veri
 | ID | Requirement |
 | --- | --- |
 | FR-ORM-001 | Persist `HttpLogEntry` via Doctrine with paginated repository queries |
-| FR-ORM-002 | `doctrine.table_prefix` prefixes the `HttpLogEntry` table and its index names through `TablePrefixListener` (registered only when set; REQ-ORM-002) |
+| FR-ORM-002 | `doctrine.table_name_prefix` (default `nowo_http_log_`) replaces the `nowo_http_log_` part of the `HttpLogEntry` table name, then `doctrine.table_prefix` prefixes the table and its index names, through `TablePrefixListener` (registered only when an option differs from its default; REQ-ORM-002) |
 
 ### FrankenPHP worker / long-lived kernel (`FR-WORKER-*`)
 

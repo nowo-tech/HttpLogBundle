@@ -17,10 +17,11 @@ services:
     Nowo\HttpLogBundle\Repository\:
         resource: '../../Repository/'
 
-    # REQ-ORM-002: removed by the extension when nowo_http_log.doctrine.table_prefix is empty.
+    # REQ-ORM-002: removed by the extension when doctrine.table_prefix and doctrine.table_name_prefix keep their defaults.
     Nowo\HttpLogBundle\Doctrine\TablePrefixListener:
         arguments:
             $tablePrefix: '%nowo_http_log.doctrine.table_prefix%'
+            $tableNamePrefix: '%nowo_http_log.doctrine.table_name_prefix%'
         tags:
             - { name: doctrine.event_listener, event: loadClassMetadata }
 
@@ -66,6 +67,15 @@ services:
     Nowo\HttpLogBundle\Service\PurgeHttpLogService:
         arguments:
             $retentionConfig: '%nowo_http_log.retention%'
+
+    # Public API for personal-data erasure (GDPR): hosts never run SQL on the bundle table.
+    Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataEraser:
+        arguments:
+            $retentionConfig: '%nowo_http_log.retention%'
+
+    Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataEraserInterface:
+        alias: Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataEraser
+        public: true
 
     # autoconfigure: false (REQ-SF-004 rule 7) — on Symfony >= 7.3 a #[Route] class is autoconfigured with the
     # routing.controller tag, and the host's `routing.controllers` resource would then expose the admin UI without

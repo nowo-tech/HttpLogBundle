@@ -48,6 +48,53 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+New option `nowo_http_log.doctrine.table_name_prefix` (default `nowo_http_log_`): it **replaces** the
+`nowo_http_log_` part of the table name. With the default nothing changes: the table, index and unique names stay
+byte-identical, so no migration is needed. `doctrine.table_prefix` keeps its meaning and is prepended to the result.
+
+**Validation:** both options must match `/^[a-z][a-z0-9_]*\z/` (`table_prefix` was letters, digits and `_` in any
+case: an uppercase or digit-first `table_prefix` now fails the container build) and may not make a generated name
+longer than 63 characters.
+
+**New:** the `nowo_http_log.doctrine.entry_table` parameter and the public `HttpLogPersonalDataEraserInterface`
+service (count / batched delete by user identifier or client IP) for GDPR erasure without SQL.
+
+**Switching an existing database to another `table_name_prefix`** renames the table and the Doctrine-generated
+`request_id` unique index (Doctrine derives its name from the table name); the `idx_http_log_*` indexes keep their
+names. From `nowo_http_log_entry` to `http_log_entry` (`table_name_prefix: http_log_`, no `table_prefix`); the
+statements were checked against MySQL 8.0 and PostgreSQL 17 (the renamed schema matches a fresh install):
+
+Before you run it:
+
+- **Check that no host table already uses the new name** (`http_log_entry`): the rename fails on a clash.
+- **Entries recorded during the rename window are dropped**: while the table is being renamed, or while the old code
+  runs against the new name (or the reverse), the insert fails. Synchronous recording logs the error and drops the
+  entry (requests are never broken); with `async` Messenger retries the message and it may end in the failure
+  transport. Deploy the `table_name_prefix` change together with the migration, ideally in maintenance mode, and take a
+  backup first. On MySQL / MariaDB the two statements commit separately (`isTransactional(): false` in a Doctrine
+  migration); on PostgreSQL run them in one transaction.
+- Host code that runs SQL on `nowo_http_log_entry` (GDPR erasers, reports) silently stops matching after the rename:
+  switch it to `HttpLogPersonalDataEraserInterface` or to the `%nowo_http_log.doctrine.entry_table%` parameter first.
+
+MySQL 8 / MariaDB ≥ 10.5.2:
+
+```sql
+RENAME TABLE nowo_http_log_entry TO http_log_entry;
+ALTER TABLE http_log_entry RENAME INDEX UNIQ_A43F86E4427EB8A5 TO UNIQ_6855A9F4427EB8A5;
+```
+
+PostgreSQL (the identity sequence and primary key are renamed too so the names match a fresh install):
+
+```sql
+ALTER TABLE nowo_http_log_entry RENAME TO http_log_entry;
+ALTER SEQUENCE nowo_http_log_entry_id_seq RENAME TO http_log_entry_id_seq;
+ALTER INDEX nowo_http_log_entry_pkey RENAME TO http_log_entry_pkey;
+ALTER INDEX UNIQ_A43F86E4427EB8A5 RENAME TO UNIQ_6855A9F4427EB8A5;
+```
+
+For another prefix, take the new `UNIQ_*` name from `php bin/console doctrine:schema:update --dump-sql` on an empty
+database.
+
 ## To 1.13.2
 
 From **1.13.1**:

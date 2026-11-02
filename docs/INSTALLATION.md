@@ -58,7 +58,7 @@ Copy the default YAML from the recipe or from `src/Resources/config/packages/now
 
 ## Database schema
 
-The bundle registers a Doctrine mapping for `Nowo\HttpLogBundle\Entity\HttpLogEntry` (table `nowo_http_log_entry`).
+The bundle registers a Doctrine mapping for `Nowo\HttpLogBundle\Entity\HttpLogEntry` (table `nowo_http_log_entry` by default, renamed by `doctrine.table_name_prefix`: see [CONFIGURATION](CONFIGURATION.md#doctrine)).
 
 Generate and run a migration:
 

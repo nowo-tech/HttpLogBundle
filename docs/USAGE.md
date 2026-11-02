@@ -14,6 +14,7 @@ How to capture HTTP traffic, use the admin UI, export, purge, and exclude routes
 - [Translation overrides](#translation-overrides)
 - [Export](#export)
 - [Purge and retention](#purge-and-retention)
+- [Personal-data erasure (GDPR)](#personal-data-erasure-gdpr)
 - [Ignoring routes and paths](#ignoring-routes-and-paths)
 - [CLI commands](#cli-commands)
 - [Async processing](#async-processing)
@@ -239,6 +240,42 @@ Async purge uses `PurgeHttpLogMessage`.
 Every purge deletes in batches of `retention.purge_batch_size` rows (default `1000`, keyset on the id), so purging
 a large table does not hold one long lock or write one huge binlog event. The returned / printed count is the total
 number of rows deleted.
+
+## Personal-data erasure (GDPR)
+
+Do not run SQL on the bundle table: its name depends on `doctrine.table_name_prefix` / `doctrine.table_prefix`. Inject
+the public service `Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataEraserInterface` (since Unreleased):
+
+| Method | Matches |
+|---|---|
+| `countByUserIdentifier(string $userIdentifier): int` / `deleteByUserIdentifier(...)` | `user_identifier` (exact; `UserInterface::getUserIdentifier()` at request time) |
+| `countByClientIp(string $clientIp): int` / `deleteByClientIp(...)` | `client_ip` (exact) |
+
+Matching is **exact, byte for byte**, whatever the database collation: the SQL `=` only pre-filters (a MySQL utf8mb4
+`*_ci` collation would also return `ANA`, `Ana`, `ána` for `ana`, or `ß` for `ss`) and every candidate is compared with
+`===` in PHP, so erasing one user never deletes another user's entries. IP addresses are compared **as logged, without
+normalisation**: pass the textual form `Request::getClientIp()` returned (`fe80::a` does not match `FE80::A` or
+`fe80:0:0:0:0:0:0:a`). Deletes run in keyset batches of `retention.purge_batch_size` rows and return the number of
+entries deleted; an empty value or one containing a NUL byte (PDO would cut it there) throws
+`InvalidArgumentException`. Only these two identifier columns are matched: personal data a third
+party sent in a body, header or query string of their own entries is not searched (redaction keeps most of it out).
+
+```php
+use Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataEraserInterface;
+
+final class RequestLogsEraser
+{
+    public function __construct(private HttpLogPersonalDataEraserInterface $httpLog) {}
+
+    public function erase(string $userIdentifier): int
+    {
+        return $this->httpLog->deleteByUserIdentifier($userIdentifier);
+    }
+}
+```
+
+If a host still needs SQL (reports), take the physical name from the container parameter
+`%nowo_http_log.doctrine.entry_table%`.
 
 ## Ignoring routes and paths
 

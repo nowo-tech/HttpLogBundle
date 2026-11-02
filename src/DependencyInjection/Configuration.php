@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\DependencyInjection;
 
+use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
 use Nowo\HttpLogBundle\Enum\CssFramework;
 use Nowo\HttpLogBundle\Enum\ExportFormat;
 use Nowo\HttpLogBundle\View\AdminChrome;
@@ -154,12 +155,20 @@ final class Configuration implements ConfigurationInterface
                     ->info('Doctrine mapping of the bundle-owned table.')
                     ->addDefaultsIfNotSet()
                     ->children()
+                        ->scalarNode('table_name_prefix')
+                            ->defaultValue(TablePrefixListener::DEFAULT_TABLE_NAME_PREFIX)
+                            ->info('Replaces the "nowo_http_log_" part of the table name (e.g. "http_log_" yields http_log_entry). The idx_http_log_* index names do not change.')
+                            ->validate()
+                                ->ifTrue(static fn (mixed $value): bool => !is_string($value) || preg_match(TablePrefixListener::PREFIX_PATTERN, $value) !== 1)
+                                ->thenInvalid('Invalid "nowo_http_log.doctrine.table_name_prefix" %s: use a lowercase letter, then lowercase letters, digits and underscores.')
+                            ->end()
+                        ->end()
                         ->scalarNode('table_prefix')
                             ->defaultValue('')
-                            ->info('Prefix prepended to nowo_http_log_entry and its index names (e.g. "app_" yields app_nowo_http_log_entry). Empty: unprefixed.')
+                            ->info('Prefix prepended to the table and index names after table_name_prefix is applied (e.g. "app_" yields app_nowo_http_log_entry and app_idx_http_log_created_at). Empty: unprefixed.')
                             ->validate()
-                                ->ifTrue(static fn (mixed $value): bool => !is_string($value) || preg_match('/^[A-Za-z0-9_]*$/', $value) !== 1)
-                                ->thenInvalid('Invalid "nowo_http_log.doctrine.table_prefix" %s: use letters, digits and underscores only.')
+                                ->ifTrue(static fn (mixed $value): bool => !is_string($value) || ($value !== '' && preg_match(TablePrefixListener::PREFIX_PATTERN, $value) !== 1))
+                                ->thenInvalid('Invalid "nowo_http_log.doctrine.table_prefix" %s: use a lowercase letter, then lowercase letters, digits and underscores (or empty).')
                             ->end()
                         ->end()
                     ->end()
