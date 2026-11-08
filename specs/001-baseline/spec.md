@@ -60,7 +60,7 @@ As a maintainer, I run the Symfony 8 FrankenPHP demo and CI smoke checks to veri
 | ID | Requirement |
 | --- | --- |
 | FR-CAP-001 | On `kernel.terminate`, eligible requests create an `HttpLogEntry` with method, path, route, status, duration, IP, user, and headers |
-| FR-CAP-002 | Store client `X-Request-Id` (truncated to 64 chars) or generate a random hex id |
+| FR-CAP-002 | Store a bundle-generated random hex request id (the dedupe key); the client `X-Request-Id` is never used for it and is kept only in the captured request headers |
 | FR-CAP-003 | Store response bodies only for content types enabled in `capture.response_body_by_type`, subject to `max_body_bytes` |
 | FR-CAP-004 | Request bodies are off by default; stored only when `capture.request_body: true` |
 
