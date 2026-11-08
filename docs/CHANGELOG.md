@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.14.1] - 2026-11-09](#1141---2026-11-09)
 - [[1.14.0] - 2026-11-03](#1140---2026-11-03)
 - [[1.13.2] - 2026-10-30](#1132---2026-10-30)
 - [[1.13.1] - 2026-10-30](#1131---2026-10-30)
@@ -40,6 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.1] - 2026-11-09
+
 Target: **1.14.1** (patch; no schema change).
 
 ### Security
@@ -49,6 +52,8 @@ Target: **1.14.1** (patch; no schema change).
   client could send the same id on many requests and collapse them into a single log row, hiding its activity and
   skewing counts. The client's `X-Request-Id` is no longer used for the key or for dedupe; it stays in the captured
   request headers (`request_headers`) for correlation only. See [UPGRADING](UPGRADING.md#unreleased).
+
+[1.14.1]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.14.1
 
 ## [1.14.0] - 2026-11-03
 
