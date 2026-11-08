@@ -17,6 +17,7 @@ use function in_array;
 use function is_float;
 use function is_string;
 use function microtime;
+use function random_bytes;
 use function random_int;
 
 use const FNM_CASEFOLD;
@@ -66,7 +67,7 @@ final readonly class HttpLogSubscriber implements EventSubscriberInterface
 
         $request = $event->getRequest();
         $request->attributes->set(self::ATTR_START_TIME, microtime(true));
-        $request->attributes->set(self::ATTR_REQUEST_ID, $this->resolveRequestId($request));
+        $request->attributes->set(self::ATTR_REQUEST_ID, $this->generateRequestId());
     }
 
     public function onKernelTerminate(TerminateEvent $event): void
@@ -167,13 +168,14 @@ final readonly class HttpLogSubscriber implements EventSubscriberInterface
         return false;
     }
 
-    private function resolveRequestId(Request $request): string
+    /**
+     * The stored request id is the dedupe key of the log row (unique column, async retry guard), so it is
+     * always generated here and never taken from the client: a client-supplied X-Request-Id repeated on
+     * many requests would otherwise collapse them into one row. The client's header, when sent, stays in
+     * the captured request headers for correlation only.
+     */
+    private function generateRequestId(): string
     {
-        $header = $request->headers->get('X-Request-Id');
-        if (is_string($header) && $header !== '') {
-            return substr($header, 0, 64);
-        }
-
         return bin2hex(random_bytes(16));
     }
 }
