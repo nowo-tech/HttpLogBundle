@@ -40,6 +40,8 @@ use function sys_get_temp_dir;
 use function trim;
 use function unlink;
 
+use const PHP_VERSION_ID;
+
 /**
  * HL-1 §8.1 / §8.3: the rollup tables exist only while the rollup maps them, and the documented DDL (docs/UPGRADING.md,
  * read by this test) brings a 1.15 schema to exactly the mapped one: the schema diff is empty afterwards, with the
@@ -81,6 +83,9 @@ final class RollupSchemaTest extends TestCase
         // nor does one that cannot load the entity's metadata
         $configuration = ORMSetup::createAttributeMetadataConfiguration([sys_get_temp_dir()], true);
         $configuration->setMetadataDriverImpl(new MappingDriverChain());
+        if (PHP_VERSION_ID >= 80400) {
+            $configuration->enableNativeLazyObjects(true);
+        }
         $other = new EntityManager(DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true], $configuration), $configuration, new EventManager());
         $listener->postGenerateSchema(new GenerateSchemaEventArgs($other, $empty));
         self::assertSame([], $empty->getTables());
