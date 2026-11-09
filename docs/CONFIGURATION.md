@@ -15,6 +15,9 @@ All options live under the root key `nowo_http_log` (alias `nowo_http_log`).
   - [Form profile (FormKit)](#form-profile-formkit)
   - [Deprecated 1.x chrome keys](#deprecated-1x-chrome-keys)
 - [security](#security)
+- [outbound](#outbound)
+- [mailer](#mailer)
+- [messenger](#messenger)
 - [Messenger retry and failure transport](#messenger-retry-and-failure-transport)
 - [Environment-specific examples](#environment-specific-examples)
 
@@ -99,6 +102,15 @@ nowo_http_log:
             - ROLE_ADMIN
         access_checker: null                # Custom service id implementing HttpLogAccessCheckerInterface
         allow_unauthenticated: false      # true only for trusted internal networks
+    outbound:                             # Outbound HttpClient capture (off by default), see "outbound"
+        enabled: false
+    mailer:                               # Mailer capture (off by default), see "mailer"
+        enabled: false
+        retention_days: 30
+        providers: {}
+    messenger:                            # Context propagation, see "messenger"
+        middleware: true                  # Registers nowo_http_log.messenger.context_middleware
+        propagate_tenant: true
 ```
 
 ## Top-level options
@@ -292,6 +304,39 @@ Write a literal `%` in YAML values as `%%` (Symfony container parameters).
 | `access_checker` | `null` | Optional service id for fine-grained checks (`HttpLogAccessCheckerInterface`). |
 | `allow_unauthenticated` | `false` | When `true`, skips Symfony Security requirement for the UI (not recommended in production). |
 
+## outbound
+
+Off by default. See [USAGE](USAGE.md#outbound-and-mailer-usage). Enabling it maps the usage columns: deploy the
+migration of [UPGRADING](UPGRADING.md#unreleased) first. `enabled` must be a literal boolean.
+
+## mailer
+
+Off by default. See [USAGE](USAGE.md#outbound-and-mailer-usage). Enabling it maps the usage columns: deploy the
+migration of [UPGRADING](UPGRADING.md#unreleased) first. `enabled` must be a literal boolean.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `enabled` | `false` | One row per send attempt (channel `mailer`). Requires `symfony/mailer`. |
+| `retention_days` | `30` | Days mailer rows are kept (`null` = forever); purge scope `mailer`. |
+| `providers` | `{}` | Provider key => `{ schemes: [...] }`; a transport scheme no provider lists is stored as the provider itself (`smtp`, `resend+api`, …). |
+| `rollup` | `true` | Counted by the daily rollup (1.16); no effect in this version. |
+
+## messenger
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `middleware` | `true` | Registers the private service `nowo_http_log.messenger.context_middleware`. Add it to the buses whose handlers make outbound calls or send mail; unused, it is removed from the container. |
+| `propagate_tenant` | `true` | On dispatch, copies the tenant / project of the current `HttpLogContext` frame into the `HttpLogContextStamp`. |
+
+```yaml
+framework:
+    messenger:
+        buses:
+            messenger.bus.default:
+                middleware:
+                    - nowo_http_log.messenger.context_middleware
+```
+
 ## Messenger retry and failure transport
 
 When `async: true` (default), capture dispatches `PersistHttpLogMessage`; export and purge can use `ExportHttpLogMessage` and `PurgeHttpLogMessage`. Handlers are idempotent for redelivered persist/export jobs; purge deletes by retention cutoff.
@@ -320,6 +365,25 @@ framework:
 Run a worker on both transports: `php bin/console messenger:consume async failed -vv`. Inspect the `failed` queue after repeated handler errors; messages contain redacted capture arrays — treat failed exports like any other log export (filesystem permissions, no public sharing).
 
 Set `nowo_http_log.async: false` only when you accept inline persistence on `kernel.terminate` (simpler demos; not ideal under high load).
+
+With outbound or mailer capture enabled, every third-party call and every mail adds one `PersistHttpLogMessage`.
+Route `Nowo\HttpLogBundle\Message\*` to a **dedicated transport** (its own queue / stream and worker) so log traffic
+never delays the host's own messages:
+
+```yaml
+framework:
+    messenger:
+        transports:
+            async_http_log:
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
+                options: { stream: http_log }   # Redis; `queue_name` for Doctrine / AMQP
+                retry_strategy: { max_retries: 3, delay: 1000, multiplier: 2 }
+        routing:
+            'Nowo\HttpLogBundle\Message\PersistHttpLogMessage': async_http_log
+```
+
+Usage payloads carry only the allowlisted fields of a row, so a message in the failure transport holds no more than
+the row would.
 
 ## Environment-specific examples
 

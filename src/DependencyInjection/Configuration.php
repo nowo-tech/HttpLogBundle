@@ -9,10 +9,12 @@ use Nowo\HttpLogBundle\Enum\CssFramework;
 use Nowo\HttpLogBundle\Enum\ExportFormat;
 use Nowo\HttpLogBundle\View\AdminChrome;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
+use Symfony\Component\Config\Definition\Builder\NodeDefinition;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 
 use function array_diff;
+use function array_filter;
 use function array_keys;
 use function array_map;
 use function implode;
@@ -23,6 +25,9 @@ use function preg_match;
 use function rtrim;
 use function str_contains;
 use function str_starts_with;
+use function strlen;
+use function strtolower;
+use function substr_count;
 
 /**
  * Configuration tree for {@see NowoHttpLogExtension}.
@@ -284,6 +289,22 @@ final class Configuration implements ConfigurationInterface
                         ->end()
                     ->end()
                 ->end()
+                ->append($this->outboundNode())
+                ->append($this->mailerNode())
+                ->arrayNode('messenger')
+                    ->info('Context propagation for outbound and mailer rows (HL-1 §6.4).')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('middleware')
+                            ->info('Register the service nowo_http_log.messenger.context_middleware (add it to your buses).')
+                            ->defaultTrue()
+                        ->end()
+                        ->booleanNode('propagate_tenant')
+                            ->info('Copy the tenant / project in scope into the HttpLogContextStamp on dispatch.')
+                            ->defaultTrue()
+                        ->end()
+                    ->end()
+                ->end()
                 ->arrayNode('security')
                     ->addDefaultsIfNotSet()
                     ->children()
@@ -298,6 +319,176 @@ final class Configuration implements ConfigurationInterface
             ->end();
 
         return $treeBuilder;
+    }
+
+    /** Provider and channel keys (HL-1 §2). */
+    public const PROVIDER_KEY_PATTERN = '/^[a-z][a-z0-9_.-]{0,63}\z/';
+
+    /** Exact host, or one leading wildcard label, optional port; lower-case; no scheme, path or port wildcard. */
+    public const HOST_PATTERN = '/^(?:\*\.)?(?:[a-z0-9_](?:[a-z0-9_-]*[a-z0-9_])?)(?:\.[a-z0-9_](?:[a-z0-9_-]*[a-z0-9_])?)*(?::[0-9]{1,5})?\z|^\[[0-9a-f:.]{2,45}\](?::[0-9]{1,5})?\z/';
+
+    /** Literal segments and `{name}` placeholders. */
+    public const PATH_TEMPLATE_PATTERN = '/^(?:\/(?:[A-Za-z0-9._~!$&\'()*+,;=:@-]+|\{[A-Za-z_][A-Za-z0-9_]{0,31}\}))+\z/';
+
+    /** Mailer transport scheme (`smtp`, `resend+api`, …). */
+    public const SCHEME_PATTERN = '/^[a-z][a-z0-9+.-]{0,15}\z/';
+
+    /** Segments kept at most by a path template or a path depth. */
+    public const MAX_PATH_SEGMENTS = 16;
+
+    private function outboundNode(): ArrayNodeDefinition
+    {
+        $node = (new TreeBuilder('outbound'))->getRootNode();
+        $node
+            ->info('Outbound HttpClient capture (HL-1 §5): one allowlisted row per logical call; never headers, bodies or query strings.')
+            ->addDefaultsIfNotSet()
+            ->children()
+                ->booleanNode('enabled')->defaultFalse()->end()
+                ->arrayNode('clients')
+                    ->info('Service ids tagged http_client.client to decorate; "*" = all (http_client and every scoped client).')
+                    ->scalarPrototype()->cannotBeEmpty()->end()
+                    ->defaultValue(['*'])
+                ->end()
+                ->arrayNode('exclude_clients')
+                    ->scalarPrototype()->cannotBeEmpty()->end()
+                    ->defaultValue([])
+                ->end()
+                ->floatNode('sampling_rate')
+                    ->info('Successful calls kept (0.0..1.0); errors (status >= 400 or a transport error) are always recorded.')
+                    ->defaultValue(1.0)
+                    ->min(0.0)
+                    ->max(1.0)
+                ->end()
+                ->append($this->retentionDaysNode())
+                ->booleanNode('record_unmapped')
+                    ->info('Calls to a host no provider matches are recorded as provider "other"; false drops them.')
+                    ->defaultTrue()
+                ->end()
+                ->integerNode('default_path_depth')
+                    ->info('Path segments kept for unmapped hosts and providers without a matching template; the rest becomes /{…}.')
+                    ->defaultValue(2)
+                    ->min(0)
+                    ->max(self::MAX_PATH_SEGMENTS)
+                ->end()
+                ->integerNode('decoration_priority')
+                    ->info('Decoration priority: -1024 keeps the logger outermost (outside RetryableHttpClient and tracing decorators).')
+                    ->defaultValue(-1024)
+                ->end()
+                ->arrayNode('providers')
+                    ->useAttributeAsKey('name')
+                    ->normalizeKeys(false)
+                    ->validate()
+                        ->ifTrue(static fn (array $providers): bool => array_filter(array_keys($providers), static fn (int|string $key): bool => !is_string($key) || preg_match(self::PROVIDER_KEY_PATTERN, $key) !== 1) !== [])
+                        ->thenInvalid('outbound.providers keys must match ' . self::PROVIDER_KEY_PATTERN . '; got %s')
+                    ->end()
+                    ->arrayPrototype()
+                        ->children()
+                            ->arrayNode('clients')
+                                ->info('Scoped client service ids of this provider (matched before hosts).')
+                                ->scalarPrototype()->cannotBeEmpty()->end()
+                                ->defaultValue([])
+                            ->end()
+                            ->arrayNode('hosts')
+                                ->info('Exact host, or one leading wildcard label ("*.amazonaws.com"); optional port.')
+                                ->beforeNormalization()
+                                    ->ifArray()
+                                    ->then(static fn (array $hosts): array => array_map(static fn (mixed $h): mixed => is_string($h) ? strtolower($h) : $h, $hosts))
+                                ->end()
+                                ->scalarPrototype()
+                                    ->validate()
+                                        ->ifTrue(static fn (mixed $h): bool => !is_string($h) || preg_match(self::HOST_PATTERN, $h) !== 1)
+                                        ->thenInvalid('Invalid outbound provider host %s: a host name (one leading "*." label at most), optional port; no scheme, path or port wildcard.')
+                                    ->end()
+                                ->end()
+                                ->defaultValue([])
+                            ->end()
+                            ->arrayNode('path_templates')
+                                ->info('First match wins; placeholders keep their names, never the matched values.')
+                                ->scalarPrototype()
+                                    ->validate()
+                                        ->ifTrue(static fn (mixed $t): bool => !is_string($t) || strlen($t) > 512 || preg_match(self::PATH_TEMPLATE_PATTERN, $t) !== 1 || substr_count($t, '/') > self::MAX_PATH_SEGMENTS)
+                                        ->thenInvalid('Invalid outbound path template %s: start with "/", literal segments and {name} placeholders only, at most 16 segments.')
+                                    ->end()
+                                ->end()
+                                ->defaultValue([])
+                            ->end()
+                            ->integerNode('path_depth')
+                                ->info('null = default_path_depth')
+                                ->defaultNull()
+                                ->min(0)
+                                ->max(self::MAX_PATH_SEGMENTS)
+                            ->end()
+                            ->booleanNode('per_call')
+                                ->info('false = never a per-call row (uptime probes; counted by the 1.16 rollup only).')
+                                ->defaultTrue()
+                            ->end()
+                            ->booleanNode('rollup')
+                                ->info('Counted in the daily rollup (1.16); no effect in 1.15.')
+                                ->defaultTrue()
+                            ->end()
+                        ->end()
+                        ->validate()
+                            ->ifTrue(static fn (array $p): bool => $p['clients'] === [] && $p['hosts'] === [])
+                            ->thenInvalid('An outbound provider needs "clients" or "hosts": %s')
+                        ->end()
+                    ->end()
+                    ->defaultValue([])
+                ->end()
+            ->end();
+
+        return $node;
+    }
+
+    private function mailerNode(): ArrayNodeDefinition
+    {
+        $node = (new TreeBuilder('mailer'))->getRootNode();
+        $node
+            ->info('Mailer capture (HL-1 §12): one row per send attempt; never addresses, subject, headers or bodies.')
+            ->addDefaultsIfNotSet()
+            ->children()
+                ->booleanNode('enabled')->defaultFalse()->end()
+                ->append($this->retentionDaysNode())
+                ->arrayNode('providers')
+                    ->info('Provider key => transport schemes; an unmapped scheme is stored as the provider.')
+                    ->useAttributeAsKey('name')
+                    ->normalizeKeys(false)
+                    ->validate()
+                        ->ifTrue(static fn (array $providers): bool => array_filter(array_keys($providers), static fn (int|string $key): bool => !is_string($key) || preg_match(self::PROVIDER_KEY_PATTERN, $key) !== 1) !== [])
+                        ->thenInvalid('mailer.providers keys must match ' . self::PROVIDER_KEY_PATTERN . '; got %s')
+                    ->end()
+                    ->arrayPrototype()
+                        ->children()
+                            ->arrayNode('schemes')
+                                ->requiresAtLeastOneElement()
+                                ->scalarPrototype()
+                                    ->validate()
+                                        ->ifTrue(static fn (mixed $s): bool => !is_string($s) || preg_match(self::SCHEME_PATTERN, $s) !== 1)
+                                        ->thenInvalid('Invalid mailer transport scheme %s.')
+                                    ->end()
+                                ->end()
+                            ->end()
+                        ->end()
+                    ->end()
+                    ->defaultValue([])
+                ->end()
+                ->booleanNode('rollup')
+                    ->info('Counted in the daily rollup (1.16); no effect in 1.15.')
+                    ->defaultTrue()
+                ->end()
+            ->end();
+
+        return $node;
+    }
+
+    private function retentionDaysNode(): NodeDefinition
+    {
+        return (new TreeBuilder('retention_days', 'variable'))->getRootNode()
+            ->info('Days the rows of this channel are kept; null keeps them forever.')
+            ->defaultValue(30)
+            ->validate()
+                ->ifTrue(static fn (mixed $v): bool => $v !== null && (!is_int($v) || $v < 0))
+                ->thenInvalid('Retention days must be a non-negative integer or null')
+            ->end();
     }
 
     private function templatesNode(): ArrayNodeDefinition

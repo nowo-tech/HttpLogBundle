@@ -19,9 +19,11 @@ use Nowo\HttpLogBundle\Form\HttpLogPurgeType;
 use Nowo\HttpLogBundle\Message\ExportHttpLogMessage;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
+use Nowo\HttpLogBundle\Security\HttpLogChannelAccessCheckerInterface;
 use Nowo\HttpLogBundle\Service\ExportFileStore;
 use Nowo\HttpLogBundle\Service\ExportHttpLogService;
 use Nowo\HttpLogBundle\Service\PurgeHttpLogService;
+use Nowo\HttpLogBundle\Usage\HttpLogChannel;
 use Nowo\HttpLogBundle\View\AdminPages;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\FormView;
@@ -37,7 +39,10 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
+use function array_intersect;
 use function array_map;
+use function array_sum;
+use function array_values;
 use function filter_var;
 use function in_array;
 use function is_array;
@@ -67,6 +72,12 @@ final class HttpLogAdminController extends AbstractController
         'q',
         'createdFrom',
         'createdTo',
+        // HL-1 usage filters (ignored by the repository while the usage columns are not mapped).
+        'channel',
+        'provider',
+        'tenantKey',
+        'projectKey',
+        'credentialKind',
     ];
 
     public function __construct(
@@ -87,6 +98,8 @@ final class HttpLogAdminController extends AbstractController
         private readonly ?UrlGeneratorInterface $urlGenerator = null,
         // Private storage of background exports (export.directory / export.ttl_hours).
         private readonly ?ExportFileStore $exportStore = null,
+        /** @var list<string> HL-1 usage channels enabled (outbound, mailer); empty = usage columns not mapped. */
+        private readonly array $usageChannels = [],
     ) {
     }
 
@@ -95,7 +108,9 @@ final class HttpLogAdminController extends AbstractController
     {
         $this->denyUnlessGrantedAdmin();
 
-        $filterForm = $this->createForm(HttpLogFilterType::class);
+        $filterForm = $this->createForm(HttpLogFilterType::class, null, $this->usageChannels === [] ? [] : [
+            'usage_channels' => [HttpLogChannel::WEB, ...$this->usageChannels],
+        ]);
         $filterForm->handleRequest($request);
 
         $criteria = $filterForm->isSubmitted() && $filterForm->isValid()
@@ -105,7 +120,7 @@ final class HttpLogAdminController extends AbstractController
         $criteriaParams = $this->queryParamsFromCriteria($criteria);
         $page           = max(1, $request->query->getInt('page', 1));
         // Bounded page + count (HttpLogEntryRepository::MAX_LISTED): no full COUNT / deep OFFSET on a large log.
-        $result = $this->repository->findListPage($criteria, $page, $this->pageSize);
+        $result = $this->repository->findListPage($this->withChannelAccess($criteria), $page, $this->pageSize);
         $page   = $result['page'];
 
         $exportForms = [];
@@ -146,7 +161,8 @@ final class HttpLogAdminController extends AbstractController
         $this->denyUnlessGrantedAdmin();
 
         $entry = $this->repository->find($id);
-        if (!$entry instanceof HttpLogEntry) {
+        if (!$entry instanceof HttpLogEntry || !$this->canViewEntry($entry)) {
+            // a denied channel gives the same 404 as a missing entry
             throw $this->createNotFoundException();
         }
 
@@ -172,7 +188,7 @@ final class HttpLogAdminController extends AbstractController
             throw new LogicException('HttpLogAdminController needs a UrlGeneratorInterface (autowired from the router).');
         }
 
-        return new AdminPages($this->urlGenerator, $this->webUi);
+        return new AdminPages($this->urlGenerator, $this->webUi, $this->usageChannels !== []);
     }
 
     #[Route('/export', name: 'nowo_http_log_admin_export', methods: ['POST'])]
@@ -189,7 +205,7 @@ final class HttpLogAdminController extends AbstractController
         if (!$this->isExportFormatAllowed($format)) {
             throw new BadRequestHttpException(sprintf('Export format "%s" is not enabled (nowo_http_log.export.formats).', $format->value));
         }
-        $criteria = $this->criteriaFromRequest($request);
+        $criteria = $this->withChannelAccess($this->criteriaFromRequest($request));
 
         $count = $this->exportService->countForCriteria($criteria);
         if ($count > $this->maxSyncExportRows) {
@@ -285,13 +301,21 @@ final class HttpLogAdminController extends AbstractController
         $purgeAll = $request->request->getBoolean('purge_all');
         $days     = $request->request->get('older_than_days');
 
+        $allowed = $this->allowedChannels();
         if ($purgeAll) {
-            $criteria = $this->criteriaFromRequest($request);
+            $criteria = $this->withChannelAccess($this->criteriaFromRequest($request));
             $purged   = $this->purgeService->purgeByCriteria($criteria);
         } elseif ($days !== null && $days !== '') {
-            $purged = $this->purgeService->purgeByRetention($this->parseRetentionDays($days));
-        } else {
+            $days   = $this->parseRetentionDays($days);
+            $purged = $allowed === null
+                ? $this->purgeService->purgeByRetention($days)
+                : $this->purgeService->purgeByCriteria(['createdBefore' => $this->purgeService->cutoff($days), 'allowedChannels' => $allowed]);
+        } elseif ($allowed === null) {
             $purged = $this->purgeService->purgeByRetention();
+        } else {
+            // retention per scope, only for the channels this user may see
+            $scopes = array_values(array_intersect($this->purgeService->scopes(), $allowed));
+            $purged = $scopes === [] ? 0 : array_sum($this->purgeService->purgeScopes($scopes));
         }
 
         $this->addFlash('success', $this->translate('flash.purged', 'Purged %count% HTTP log entries.', ['%count%' => $purged]));
@@ -317,6 +341,16 @@ final class HttpLogAdminController extends AbstractController
     {
         $this->denyUnlessGrantedPurge();
         $this->validateActionForm($request, HttpLogDeleteType::class);
+
+        if ($this->allowedChannels() !== null) {
+            $entry = $this->repository->find($id);
+            if ($entry instanceof HttpLogEntry) {
+                $this->repository->detachAll([$entry]);
+                if (!$this->canViewEntry($entry)) {
+                    throw $this->createNotFoundException();
+                }
+            }
+        }
 
         $this->repository->deleteByIds([$id]);
         $this->addFlash('success', $this->translate('flash.deleted', 'HTTP log entry deleted.'));
@@ -347,6 +381,51 @@ final class HttpLogAdminController extends AbstractController
         }
 
         return $this->translator->trans($key, $parameters, 'NowoHttpLogBundle');
+    }
+
+    /**
+     * Channels the configured access checker lets the current user see (HL-1 §11.2), or null when it does not
+     * implement {@see HttpLogChannelAccessCheckerInterface} (no channel restriction, the 1.14 behaviour).
+     *
+     * @return list<string>|null
+     */
+    private function allowedChannels(): ?array
+    {
+        if ($this->allowUnauthenticated || !$this->accessChecker instanceof HttpLogChannelAccessCheckerInterface) {
+            return null;
+        }
+
+        $user    = $this->getUser();
+        $allowed = [];
+        foreach ([HttpLogChannel::WEB, ...$this->usageChannels] as $channel) {
+            if ($this->accessChecker->canViewChannel($user, $channel)) {
+                $allowed[] = $channel;
+            }
+        }
+
+        return $allowed;
+    }
+
+    /**
+     * @param array<string, mixed> $criteria
+     *
+     * @return array<string, mixed>
+     */
+    private function withChannelAccess(array $criteria): array
+    {
+        $allowed = $this->allowedChannels();
+        if ($allowed !== null) {
+            $criteria['allowedChannels'] = $allowed;
+        }
+
+        return $criteria;
+    }
+
+    private function canViewEntry(HttpLogEntry $entry): bool
+    {
+        $allowed = $this->allowedChannels();
+
+        return $allowed === null || in_array($entry->getChannel() ?? HttpLogChannel::WEB, $allowed, true);
     }
 
     /** Export actions are shown only to users who may export (the export route enforces it anyway). */

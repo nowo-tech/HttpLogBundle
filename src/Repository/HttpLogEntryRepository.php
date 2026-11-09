@@ -15,14 +15,18 @@ use InvalidArgumentException;
 use LogicException;
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
+use Nowo\HttpLogBundle\Usage\HttpLogChannel;
 use SortDirection;
 
+use function array_diff;
+use function array_filter;
 use function array_key_exists;
 use function array_keys;
 use function array_map;
 use function array_values;
 use function ceil;
 use function count;
+use function in_array;
 use function is_array;
 use function is_string;
 use function max;
@@ -39,6 +43,9 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
 {
     /** Entries the admin list paginates and counts at most (deeper results: narrow the filters). */
     public const MAX_LISTED = 10000;
+
+    /** HL-1 exact-match filters of the admin list (applied only while the usage columns are mapped). */
+    public const USAGE_EXACT_FILTERS = ['provider', 'tenantKey', 'projectKey', 'credentialKind'];
 
     public function __construct(private readonly ManagerRegistry $registry)
     {
@@ -216,29 +223,38 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
      * the last one seen (ordered by id, platform limit), delete that id list, repeat until a short batch.
      * Each statement stays small, so a large log is never locked or written to the binlog in one go.
      *
+     * `$channel` limits the purge to one channel (HL-1 §10): `web` = rows without a channel, `outbound`, `mailer`.
+     * null keeps the 1.14 meaning (every row). Without the usage columns mapped every row is a web row, and another
+     * channel has none.
+     *
      * @return int Rows deleted
      */
-    public function deleteOlderThan(DateTimeImmutable $before, int $batchSize = Configuration::DEFAULT_PURGE_BATCH_SIZE): int
+    public function deleteOlderThan(DateTimeImmutable $before, int $batchSize = Configuration::DEFAULT_PURGE_BATCH_SIZE, ?string $channel = null): int
     {
         if ($batchSize < 1) {
             throw new InvalidArgumentException(sprintf('The purge batch size must be a positive integer, got %d.', $batchSize));
+        }
+        if ($channel !== null && $channel !== HttpLogChannel::WEB && !$this->hasUsageColumns()) {
+            return 0;
         }
 
         $total   = 0;
         $afterId = 0;
 
         do {
-            /** @var list<int|string> $rows */
-            $rows = $this->createQueryBuilder('e')
+            $qb = $this->createQueryBuilder('e')
                 ->select('e.id')
                 ->where('e.createdAt < :before')
                 ->andWhere('e.id > :afterId')
                 ->setParameter('before', $before)
                 ->setParameter('afterId', $afterId)
                 ->orderBy('e.id', SortDirection::Ascending)
-                ->setMaxResults($batchSize)
-                ->getQuery()
-                ->getSingleColumnResult();
+                ->setMaxResults($batchSize);
+            if ($channel !== null) {
+                $this->applyCriteria($qb, ['channel' => $channel]);
+            }
+            /** @var list<int|string> $rows */
+            $rows = $qb->getQuery()->getSingleColumnResult();
 
             $ids = array_map(intval(...), $rows);
             if ($ids === []) {
@@ -285,6 +301,12 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
             ->select('COUNT(e.id)')
             ->getQuery()
             ->getSingleScalarResult();
+    }
+
+    /** True when the HL-1 usage columns (channel, provider, tenant…) are mapped: outbound or mailer capture enabled. */
+    public function hasUsageColumns(): bool
+    {
+        return $this->resolveEntityManager()->getClassMetadata(HttpLogEntry::class)->hasField('channel');
     }
 
     protected function getEntityManager(): EntityManagerInterface
@@ -360,6 +382,13 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
                 ->setParameter('createdTo', $criteria['createdTo']);
         }
 
+        if (isset($criteria['createdBefore']) && $criteria['createdBefore'] instanceof DateTimeImmutable) {
+            $qb->andWhere('e.createdAt < :createdBefore')
+                ->setParameter('createdBefore', $criteria['createdBefore']);
+        }
+
+        $this->applyUsageCriteria($qb, $criteria);
+
         if (isset($criteria['q']) && is_string($criteria['q']) && $criteria['q'] !== '') {
             $qb->andWhere(
                 $qb->expr()->orX(
@@ -368,6 +397,52 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
                     'e.clientIp LIKE :q',
                 ),
             )->setParameter('q', '%' . $criteria['q'] . '%');
+        }
+    }
+
+    /**
+     * HL-1 filters. `channel` (`web` = rows without a channel) and the exact-match keys apply only while the usage
+     * columns are mapped. `allowedChannels` (set by the admin when the access checker restricts channels) always
+     * applies: without the usage columns every row is a web row.
+     *
+     * @param array<string, mixed> $criteria
+     */
+    private function applyUsageCriteria(QueryBuilder $qb, array $criteria): void
+    {
+        $mapped = $this->hasUsageColumns();
+
+        if (isset($criteria['allowedChannels']) && is_array($criteria['allowedChannels'])) {
+            $allowed = array_values(array_filter($criteria['allowedChannels'], is_string(...)));
+            $withWeb = in_array(HttpLogChannel::WEB, $allowed, true);
+            $others  = array_values(array_diff($allowed, [HttpLogChannel::WEB]));
+            if (!$mapped) {
+                if (!$withWeb) {
+                    $qb->andWhere('1 = 0');
+                }
+            } elseif ($others === []) {
+                $qb->andWhere($withWeb ? 'e.channel IS NULL' : '1 = 0');
+            } else {
+                $qb->andWhere($withWeb ? '(e.channel IS NULL OR e.channel IN (:allowedChannels))' : 'e.channel IN (:allowedChannels)')
+                    ->setParameter('allowedChannels', $others);
+            }
+        }
+
+        if (!$mapped) {
+            return;
+        }
+
+        if (isset($criteria['channel']) && is_string($criteria['channel']) && $criteria['channel'] !== '') {
+            if ($criteria['channel'] === HttpLogChannel::WEB) {
+                $qb->andWhere('e.channel IS NULL');
+            } else {
+                $qb->andWhere('e.channel = :channel')->setParameter('channel', $criteria['channel']);
+            }
+        }
+
+        foreach (self::USAGE_EXACT_FILTERS as $field) {
+            if (isset($criteria[$field]) && is_string($criteria[$field]) && $criteria[$field] !== '') {
+                $qb->andWhere(sprintf('e.%1$s = :%1$s', $field))->setParameter($field, $criteria[$field]);
+            }
         }
     }
 }

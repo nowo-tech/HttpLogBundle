@@ -23,6 +23,9 @@ Security considerations for HTTP log capture, storage, and the admin UI.
 | Log injection / XSS in admin | Twig auto-escaping; treat stored bodies as untrusted when displaying |
 | Storage growth / DoS | `max_body_bytes`, sampling, retention purge |
 | Async queue exposure | Messenger transport access controls; messages contain redacted capture arrays |
+| Secrets in outbound / mailer rows (HL-1) | Allowlist, not redaction: a usage row has no column for headers, bodies, query strings, user info, addresses, subjects or exception messages; every stored value is validated against its charset / length and replaced by NULL (never cut). The Messenger payload is built from the same allowlist |
+| Logging breaking the host (HL-1) | Every capture step is wrapped: a failure logs one warning (exception class only) and drops the capture; writes are DBAL inserts after the request / message boundary, never a `flush()` of the shared manager |
+| Usage rows of another channel or tenant (HL-1) | Optional `HttpLogChannelAccessCheckerInterface` hides channels from list, entry page (404), export and purge; tenant scoping of host pages stays with the host |
 
 ## Redaction defaults
 
@@ -117,6 +120,9 @@ Before tagging a release, confirm:
 Record confirmation in the release PR or tag notes.
 
 ## AI security audit
+
+**HL-1 usage capture (Unreleased, slices S1–S3): re-verification pending.** An independent audit (A1) runs before the
+1.15.0 tag against the redaction list of the HL-1 contract §4.3 (cases 1–10, 13, 14, 16 on persisted rows).
 
 | Field | Value |
 | ----- | ----- |

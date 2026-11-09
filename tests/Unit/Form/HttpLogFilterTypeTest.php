@@ -85,6 +85,27 @@ final class HttpLogFilterTypeTest extends TestCase
         self::assertSame('datetime-local', $form->createView()['createdTo']->vars['type']);
     }
 
+    #[Test]
+    public function usageFiltersAreAddedOnlyWithUsageChannels(): void
+    {
+        $type = new HttpLogFilterType();
+        $type->setFormOptionsMerger($this->formOptionsMerger());
+        $factory = (new FormFactoryBuilder())->addType($type)->getFormFactory();
+
+        $plain = $factory->create(HttpLogFilterType::class);
+        self::assertFalse($plain->has('channel'));
+
+        $form = $factory->create(HttpLogFilterType::class, null, ['usage_channels' => ['web', 'outbound']]);
+        foreach (['channel', 'provider', 'tenantKey', 'projectKey', 'credentialKind'] as $field) {
+            self::assertTrue($form->has($field), $field);
+        }
+        self::assertSame(['web' => 'web', 'outbound' => 'outbound'], $form->get('channel')->getConfig()->getOption('choices'));
+
+        $form->submit(['channel' => 'outbound', 'tenantKey' => 'org-1']);
+        self::assertTrue($form->isValid());
+        self::assertSame('outbound', $form->getData()['channel']);
+    }
+
     private function formOptionsMerger(): FormOptionsMerger
     {
         return new FormOptionsMerger(

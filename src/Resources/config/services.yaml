@@ -13,6 +13,13 @@ services:
             - '../../View/'
             - '../../NowoHttpLogBundle.php'
             - '../../Controller/'
+            # HL-1 usage capture: registered by the extension, only for the features a host enables.
+            - '../../Context/'
+            - '../../HttpClient/'
+            - '../../Mailer/'
+            - '../../Messenger/'
+            - '../../Usage/'
+            - '../../Doctrine/UsageColumnsListener.php'
 
     Nowo\HttpLogBundle\Repository\:
         resource: '../../Repository/'
@@ -22,6 +29,7 @@ services:
         arguments:
             $tablePrefix: '%nowo_http_log.doctrine.table_prefix%'
             $tableNamePrefix: '%nowo_http_log.doctrine.table_name_prefix%'
+            $usageColumns: '%nowo_http_log.usage.enabled%'
         tags:
             - { name: doctrine.event_listener, event: loadClassMetadata }
 
@@ -67,6 +75,7 @@ services:
     Nowo\HttpLogBundle\Service\PurgeHttpLogService:
         arguments:
             $retentionConfig: '%nowo_http_log.retention%'
+            $channelRetention: '%nowo_http_log.usage.channel_retention%'
 
     # Public API for personal-data erasure (GDPR): hosts never run SQL on the bundle table.
     Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataEraser:
@@ -89,6 +98,7 @@ services:
             $pageSize: '%nowo_http_log.web_ui.page_size%'
             $webUi: '%nowo_http_log.web_ui%'
             $exportFormats: '%nowo_http_log.export.formats%'
+            $usageChannels: '%nowo_http_log.usage.channels%'
         tags: ['controller.service_arguments', 'container.service_subscriber']
 
     # Form Kit injects FormOptionsMerger into tagged form types (FormOptionsMergerInjectorCompilerPass).

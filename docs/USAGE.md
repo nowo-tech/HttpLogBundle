@@ -15,6 +15,8 @@ How to capture HTTP traffic, use the admin UI, export, purge, and exclude routes
 - [Export](#export)
 - [Purge and retention](#purge-and-retention)
 - [Personal-data erasure (GDPR)](#personal-data-erasure-gdpr)
+- [Outbound and mailer usage](#outbound-and-mailer-usage)
+  - [Tenant and project context](#tenant-and-project-context)
 - [Ignoring routes and paths](#ignoring-routes-and-paths)
 - [CLI commands](#cli-commands)
 - [Async processing](#async-processing)
@@ -237,6 +239,16 @@ php bin/console nowo:http-log:purge --dry-run
 
 Async purge uses `PurgeHttpLogMessage`.
 
+With outbound or mailer capture enabled, the retention runs **per scope**: `web` rows (no channel) by
+`retention.days`, `outbound` and `mailer` rows by their own `retention_days`, one output line per scope:
+
+```bash
+php bin/console nowo:http-log:purge                       # every scope, its own retention
+php bin/console nowo:http-log:purge --channel=outbound    # one scope (repeatable)
+php bin/console nowo:http-log:purge --channel=web --days=7
+php bin/console nowo:http-log:purge --days=7              # 1.14 meaning: every row of every channel
+```
+
 Every purge deletes in batches of `retention.purge_batch_size` rows (default `1000`, keyset on the id), so purging
 a large table does not hold one long lock or write one huge binlog event. The returned / printed count is the total
 number of rows deleted.
@@ -276,6 +288,51 @@ final class RequestLogsEraser
 
 If a host still needs SQL (reports), take the physical name from the container parameter
 `%nowo_http_log.doctrine.entry_table%`.
+
+## Outbound and mailer usage
+
+Opt-in (`outbound.enabled`, `mailer.enabled`): one row per outbound HttpClient call (channel `outbound`) or per mail
+send attempt (channel `mailer`), next to the web rows (channel NULL). Usage rows are an **allowlist**: method, scheme,
+host, a path template, provider, status, error kind, duration, response size, retries, content type, tenant,
+project, Messenger message id and the mail Message-ID. Never headers, bodies, query strings, user info, addresses,
+subjects or exception messages.
+
+Rows are buffered and written after the response is sent, after a command and after each worker message, so logging
+adds no query to a request and a host transaction that rolls back keeps the log of its failed call. A logging failure
+logs one warning (exception class only) on the `nowo_http_log` channel and drops that capture: it never breaks the
+call, the mail or the request.
+
+With a block enabled the admin list gains channel / provider columns and filters (channel, provider, tenant, project,
+credential kind), and an access checker that also implements `HttpLogChannelAccessCheckerInterface` can hide
+channels:
+
+```php
+final class AppHttpLogAccessChecker implements HttpLogAccessCheckerInterface, HttpLogChannelAccessCheckerInterface
+{
+    // canAccessAdmin(), canExport(), canPurge() …
+
+    public function canViewChannel(?object $user, string $channel): bool
+    {
+        return $channel !== 'mailer' || $this->security->isGranted('ROLE_SUPPORT');
+    }
+}
+```
+
+### Tenant and project context
+
+Rows carry the tenant (e.g. organization UUID) and, when known, the project of the work in progress. Wrap the work
+in `HttpLogContext::run()`; frames nest and are always popped:
+
+```php
+use Nowo\HttpLogBundle\Context\HttpLogContext;
+
+$this->httpLogContext->run($organization->getUuid(), fn () => $this->sync->pull($board), $project->getUuid());
+```
+
+Add `nowo_http_log.messenger.context_middleware` to your buses ([CONFIGURATION](CONFIGURATION.md#messenger)) so a
+message dispatched inside `run()` is handled inside the same tenant / project, with a stable message id stored on the
+rows of its calls and mails. Tenant and project keys are opaque ids (`[A-Za-z0-9._:@-]`, at most 64 characters);
+anything else is stored as NULL.
 
 ## Ignoring routes and paths
 
