@@ -151,6 +151,11 @@ CREATE INDEX idx_http_log_cred_created ON nowo_http_log_entry (credential_kind, 
 - **Admin UI:** the list gains channel / provider columns and channel, provider, tenant, project and credential-kind
   filters; the entry page shows the allowlisted usage fields; CSV / JSON exports append the usage columns. A host that
   forks `admin/index.html.twig` and enables a block should re-check its `nowo_ui_list_row` override (two more cells).
+- **Background exports:** the export store stays shared by every user allowed to export. With a channel access
+  checker, an export is listed and served only to users allowed every channel it was built for; exports finished
+  before the upgrade (no `.channels` file) count as unrestricted and are hidden from restricted users.
+- **Transports and drivers on a decorated client:** list their hosts in `outbound.exclude_hosts` (a transport that
+  polls through a decorated client would log every poll).
 - **Messenger:** route `Nowo\HttpLogBundle\Message\*` to a dedicated transport with retries and the failure transport
   ([CONFIGURATION](CONFIGURATION.md#messenger-retry-and-failure-transport)); outbound and mailer capture multiply the
   volume of `PersistHttpLogMessage`.

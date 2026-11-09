@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\HttpClient;
 
+use Closure;
 use DateTimeImmutable;
+use Generator;
 use Nowo\HttpLogBundle\Context\HttpLogContext;
 use Nowo\HttpLogBundle\Usage\HttpLogBuffer;
 use Nowo\HttpLogBundle\Usage\UsageFieldGuard;
@@ -13,16 +15,22 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Symfony\Component\HttpClient\AsyncDecoratorTrait;
 use Symfony\Component\HttpClient\Response\AsyncResponse;
+use Symfony\Component\HttpClient\Response\ResponseStream;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
+use Symfony\Contracts\HttpClient\ResponseStreamInterface;
 use Symfony\Contracts\Service\ResetInterface;
 use Throwable;
 
 use function array_key_exists;
+use function array_key_first;
+use function array_values;
+use function count;
 use function is_array;
 use function is_int;
 use function is_string;
 use function parse_url;
+use function spl_object_id;
 
 use const PHP_URL_HOST;
 
@@ -89,9 +97,58 @@ final class LoggingHttpClient implements HttpClientInterface, ResetInterface
         }
     }
 
+    /**
+     * Like {@see AsyncDecoratorTrait::stream()}, but responses of several decorated clients (a scoped client and
+     * `http_client` in one `stream()` call, IX-L2) are streamed one client after the other instead of failing with
+     * "Cannot stream AsyncResponse objects with many clients": the bare clients accept that call too.
+     */
+    public function stream(ResponseInterface|iterable $responses, ?float $timeout = null): ResponseStreamInterface
+    {
+        if ($responses instanceof ResponseInterface) {
+            $responses = [$responses];
+        }
+
+        $groups = [];
+        foreach ($responses as $response) {
+            if (!$response instanceof AsyncResponse) {
+                // same TypeError as AsyncDecoratorTrait
+                return new ResponseStream(AsyncResponse::stream($responses, $timeout, self::class));
+            }
+            $client                                                                        = $this->innerClient($response);
+            $groups[$client instanceof HttpClientInterface ? spl_object_id($client) : 0][] = $response;
+        }
+
+        if (count($groups) < 2) {
+            return new ResponseStream(AsyncResponse::stream($groups[array_key_first($groups)] ?? [], $timeout, self::class));
+        }
+
+        // finished responses (no client left) are streamed with the first live group
+        $done = $groups[0] ?? [];
+        unset($groups[0]);
+        $groups = array_values($groups);
+        if ($done !== []) {
+            $groups[0] = [...$done, ...$groups[0]];
+        }
+
+        return new ResponseStream((static function () use ($groups, $timeout): Generator {
+            foreach ($groups as $group) {
+                yield from AsyncResponse::stream($group, $timeout, self::class);
+            }
+        })());
+    }
+
     public function getClientId(): ?string
     {
         return $this->clientId;
+    }
+
+    /** The client an AsyncResponse streams through (null once it completed). */
+    private function innerClient(AsyncResponse $response): ?HttpClientInterface
+    {
+        /** @var Closure(AsyncResponse): ?HttpClientInterface $read */
+        $read = Closure::bind(static fn (AsyncResponse $r): ?HttpClientInterface => $r->client, null, AsyncResponse::class);
+
+        return $read($response);
     }
 
     /**

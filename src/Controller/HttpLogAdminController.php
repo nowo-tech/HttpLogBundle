@@ -109,7 +109,8 @@ final class HttpLogAdminController extends AbstractController
         $this->denyUnlessGrantedAdmin();
 
         $filterForm = $this->createForm(HttpLogFilterType::class, null, $this->usageChannels === [] ? [] : [
-            'usage_channels' => [HttpLogChannel::WEB, ...$this->usageChannels],
+            // only the channels this user may see (IX-I5)
+            'usage_channels' => $this->allowedChannels() ?? [HttpLogChannel::WEB, ...$this->usageChannels],
         ]);
         $filterForm->handleRequest($request);
 
@@ -210,7 +211,8 @@ final class HttpLogAdminController extends AbstractController
         $count = $this->exportService->countForCriteria($criteria);
         if ($count > $this->maxSyncExportRows) {
             $store = $this->exportStore();
-            $name  = $store->reserve($format);
+            // the store is shared: the file remembers the channels it holds (IX-M1)
+            $name = $store->reserve($format, $this->allowedChannels());
             $this->messageBus->dispatch(new ExportHttpLogMessage($criteria, $format->value, $store->partialPath($name), $name));
             $this->addFlash('success', $this->translate('flash.export_queued', 'Export queued for background processing. When it finishes, download it from the list header (kept for a limited time).'));
 
@@ -232,7 +234,7 @@ final class HttpLogAdminController extends AbstractController
     {
         $this->denyUnlessGrantedExport();
 
-        $path = $this->exportStore()->readyPath($name);
+        $path = $this->exportStore()->readyPath($name, $this->allowedChannels());
         if ($path === null) {
             throw $this->createNotFoundException();
         }
@@ -259,7 +261,7 @@ final class HttpLogAdminController extends AbstractController
         }
         $this->exportStore->purgeExpired();
 
-        return $this->exportStore->ready();
+        return $this->exportStore->ready(viewerChannels: $this->allowedChannels());
     }
 
     private function exportStore(): ExportFileStore

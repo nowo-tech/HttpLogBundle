@@ -14,6 +14,7 @@ use Nowo\HttpLogBundle\HttpClient\OutboundCapturePolicy;
 use Nowo\HttpLogBundle\HttpClient\OutboundClientFactory;
 use Nowo\HttpLogBundle\Mailer\MailerCaptureListener;
 use Nowo\HttpLogBundle\MessageHandler\PersistHttpLogHandler;
+use Nowo\HttpLogBundle\Service\HttpLogRecorder;
 use Nowo\HttpLogBundle\Usage\HttpLogBuffer;
 use Nowo\HttpLogBundle\Usage\UsageBufferFlushSubscriber;
 use Nowo\HttpLogBundle\Usage\UsageCaptureSink;
@@ -108,6 +109,8 @@ final class UsageExtensionTest extends TestCase
             'enabled'         => true,
             'sampling_rate'   => 0.25,
             'record_unmapped' => false,
+            'path_words'      => ['chat.postMessage'],
+            'exclude_hosts'   => ['SQS.example'],
             'clients'         => ['clickup.client'],
             'exclude_clients' => ['x'],
             'providers'       => ['clickup' => ['clients' => ['clickup.client'], 'rollup' => false]],
@@ -115,7 +118,8 @@ final class UsageExtensionTest extends TestCase
 
         $policy = $container->getDefinition(OutboundCapturePolicy::class);
         self::assertSame(['clickup' => ['clients' => ['clickup.client'], 'hosts' => [], 'path_templates' => [], 'path_depth' => null, 'per_call' => true]], $policy->getArgument(0));
-        self::assertSame([0.25, false, 2], [$policy->getArgument(1), $policy->getArgument(2), $policy->getArgument(3)]);
+        self::assertSame([0.25, false, 2, ['chat.postMessage'], ['sqs.example']], [$policy->getArgument(1), $policy->getArgument(2), $policy->getArgument(3), $policy->getArgument(4), $policy->getArgument(5)]);
+        self::assertArrayHasKey('$buffer', $container->getDefinition(HttpLogRecorder::class)->getArguments());
         self::assertTrue($container->hasDefinition(OutboundClientFactory::class));
         self::assertEquals(new Reference(OutboundClientFactory::class), $container->getDefinition(HttpLogHttpClientWrapper::class)->getArgument(0));
         self::assertSame(['clickup.client'], $container->getParameter('nowo_http_log.outbound.clients'));
@@ -206,6 +210,8 @@ final class UsageExtensionTest extends TestCase
             'retention_days'      => 30,
             'record_unmapped'     => true,
             'default_path_depth'  => 2,
+            'path_words'          => [],
+            'exclude_hosts'       => [],
             'decoration_priority' => -1024,
             'providers'           => [],
         ], $config['outbound']);
@@ -248,6 +254,8 @@ final class UsageExtensionTest extends TestCase
         yield 'template with partial placeholder' => [['outbound' => ['providers' => ['p' => ['hosts' => ['a.example'], 'path_templates' => ['/v2/user-{id}']]]]]];
         yield 'template with 17 segments' => [['outbound' => ['providers' => ['p' => ['hosts' => ['a.example'], 'path_templates' => [str_repeat('/a', 17)]]]]]];
         yield 'path depth' => [['outbound' => ['default_path_depth' => 17]]];
+        yield 'path word' => [['outbound' => ['path_words' => ['has space']]]];
+        yield 'excluded host with scheme' => [['outbound' => ['exclude_hosts' => ['redis://cache']]]];
         yield 'sampling' => [['outbound' => ['sampling_rate' => 1.5]]];
         yield 'retention' => [['outbound' => ['retention_days' => -1]]];
         yield 'mailer retention' => [['mailer' => ['retention_days' => 'x']]];

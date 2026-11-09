@@ -19,6 +19,7 @@ use Nowo\HttpLogBundle\MessageHandler\PersistHttpLogHandler;
 use Nowo\HttpLogBundle\Messenger\HttpLogContextMiddleware;
 use Nowo\HttpLogBundle\Security\ConfigurableHttpLogAccessChecker;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
+use Nowo\HttpLogBundle\Service\HttpLogRecorder;
 use Nowo\HttpLogBundle\Usage\HttpLogBuffer;
 use Nowo\HttpLogBundle\Usage\HttpLogChannel;
 use Nowo\HttpLogBundle\Usage\UsageBufferFlushSubscriber;
@@ -425,6 +426,9 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                 ->addTag('kernel.event_subscriber'));
             $container->getDefinition(PersistHttpLogHandler::class)
                 ->setArgument('$usageWriter', new Reference(UsageEntryWriter::class));
+            // the web channel's own dispatch / write suspends outbound capture as well (IX-L3)
+            $container->getDefinition(HttpLogRecorder::class)
+                ->setArgument('$buffer', new Reference(HttpLogBuffer::class));
         }
 
         if ($outboundEnabled) {
@@ -439,7 +443,14 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                 ];
             }
             $container->setDefinition(OutboundCapturePolicy::class, (new Definition(OutboundCapturePolicy::class))
-                ->setArguments([$providers, $config['outbound']['sampling_rate'], $config['outbound']['record_unmapped'], $config['outbound']['default_path_depth']]));
+                ->setArguments([
+                    $providers,
+                    $config['outbound']['sampling_rate'],
+                    $config['outbound']['record_unmapped'],
+                    $config['outbound']['default_path_depth'],
+                    $config['outbound']['path_words'],
+                    $config['outbound']['exclude_hosts'],
+                ]));
             $container->setDefinition(OutboundClientFactory::class, (new Definition(OutboundClientFactory::class))
                 ->setArguments([
                     new Reference(OutboundCapturePolicy::class),

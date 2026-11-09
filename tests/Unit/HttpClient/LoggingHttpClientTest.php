@@ -32,11 +32,16 @@ use Symfony\Contracts\HttpClient\ChunkInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 use Throwable;
+use TypeError;
 
 use function array_column;
+use function array_filter;
+use function array_map;
+use function array_values;
 use function count;
 use function is_string;
 use function iterator_to_array;
+use function sort;
 
 /**
  * HL-1 §5.1 / §7.1: the decorator is invisible to the caller (same status, headers, body, chunks and exceptions as
@@ -156,6 +161,52 @@ final class LoggingHttpClientTest extends TestCase
         self::assertSame('/v2/items/{…}', $rows[0]['path']);
         self::assertSame('api.example.com', $rows[0]['host']);
         self::assertNull($rows[0]['query_params']);
+    }
+
+    #[Test]
+    public function oneStreamOverResponsesOfTwoDecoratedClientsWorksLikeTheBareClients(): void
+    {
+        $bareA = new MockHttpClient(new MockResponse(['a1', 'a2']));
+        $bareB = new MockHttpClient(new MockResponse(['b1']));
+        $bare  = [];
+        foreach ($bareA->stream([$bareA->request('GET', self::URL), $bareB->request('GET', self::URL)]) as $chunk) {
+            $bare[] = $chunk->getContent();
+        }
+
+        $rig     = new UsageTestRig();
+        $clientA = $rig->client(new MockHttpClient([new MockResponse(['a1', 'a2']), new MockResponse('done')]), clientId: 'a.client');
+        $clientB = $rig->client(new MockHttpClient(new MockResponse(['b1'])), clientId: 'b.client');
+        $first   = $clientA->request('GET', self::URL);
+        $done    = $clientA->request('GET', self::URL . '&done=1');
+        $done->cancel(); // no client left: streamed with the first live group
+        $logged = [];
+        foreach ($clientA->stream([$first, $clientB->request('GET', self::URL), $done]) as $chunk) {
+            try {
+                $logged[] = $chunk->getContent();
+            } catch (TransportException) {
+                $logged[] = ''; // the cancelled response reports its error, as with a bare client
+            }
+        }
+
+        sort($bare);
+        sort($logged);
+        self::assertSame(array_values(array_filter($bare)), array_values(array_filter($logged)));
+        $rig->persist();
+        self::assertCount(3, $rig->rows());
+
+        // a single response and a single client keep the AsyncDecoratorTrait path
+        $single = $rig->client(new MockHttpClient(new MockResponse('x')));
+        self::assertSame(['', 'x', ''], array_map(static fn (ChunkInterface $c): string => $c->getContent(), iterator_to_array($single->stream($single->request('GET', self::URL)), false)));
+        self::assertSame([], iterator_to_array($single->stream([]), false));
+    }
+
+    #[Test]
+    public function streamingAForeignResponseFailsLikeTheTrait(): void
+    {
+        $client = (new UsageTestRig())->client(new MockHttpClient());
+
+        $this->expectException(TypeError::class);
+        iterator_to_array($client->stream([(new MockHttpClient(new MockResponse('x')))->request('GET', self::URL)]));
     }
 
     #[Test]

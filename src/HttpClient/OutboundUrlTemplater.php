@@ -14,6 +14,7 @@ use function count;
 use function explode;
 use function idn_to_ascii;
 use function implode;
+use function in_array;
 use function is_string;
 use function max;
 use function mb_strlen;
@@ -33,8 +34,10 @@ use const INTL_IDNA_VARIANT_UTS46;
  * - query string, fragment and user info are dropped, never redacted;
  * - the host is lower-cased (IDN as punycode), the port kept only when it is not the scheme's default;
  * - the path becomes a template: the first provider `path_templates` entry whose literal segments match, else the
- *   first `path_depth` segments, each kept verbatim only when it looks like a word (`v2`, `chat.postMessage`), else
- *   `{uuid}`, `{id}` (digits) or `{x}` (tokens, hashes, keys, e-mail addresses); the rest collapses to `/{…}`.
+ *   first `path_depth` segments, each kept verbatim only when it is a version (`v2`) or a known path word
+ *   ({@see DEFAULT_PATH_WORDS} plus `outbound.path_words`), else `{uuid}`, `{id}` (digits), `{seg}` (any other
+ *   word-like segment: it may be a webhook key or a topic name) or `{x}` (tokens, hashes, keys, e-mail addresses);
+ *   the rest collapses to `/{…}`.
  */
 final class OutboundUrlTemplater
 {
@@ -44,6 +47,25 @@ final class OutboundUrlTemplater
     public const REST = '{…}';
 
     private const WORD = '/^[A-Za-z][A-Za-z_.-]{0,31}[0-9]{0,2}\z/';
+
+    private const VERSION = '/^v[0-9]{1,2}\z/';
+
+    /**
+     * Path words kept verbatim (exact match) on every host (IX-L1): common REST nouns and verbs, never secrets. Any
+     * other word-like segment becomes `{seg}`; hosts add their own words with `outbound.path_words` or describe a
+     * provider's paths with `path_templates`.
+     *
+     * @var list<string>
+     */
+    public const DEFAULT_PATH_WORDS = [
+        'api', 'rest', 'rpc', 'graphql', 'oauth', 'oauth2', 'auth', 'token', 'tokens', 'users', 'user', 'me',
+        'accounts', 'account', 'items', 'item', 'files', 'file', 'upload', 'uploads', 'download', 'downloads',
+        'objects', 'object', 'messages', 'message', 'send', 'events', 'event', 'webhooks', 'webhook', 'hooks',
+        'services', 'search', 'list', 'lists', 'tasks', 'task', 'projects', 'project', 'teams', 'team', 'spaces',
+        'space', 'folders', 'folder', 'comments', 'comment', 'attachments', 'attachment', 'health', 'status', 'ping',
+        'metrics', 'emails', 'email', 'notifications', 'notification', 'subscriptions', 'subscription', 'customers',
+        'customer', 'invoices', 'invoice', 'payments', 'payment', 'orders', 'order', 'products', 'product',
+    ];
 
     private const UUID = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i';
 
@@ -85,8 +107,9 @@ final class OutboundUrlTemplater
      *
      * @param list<string> $segments percent-decoded once
      * @param list<string> $templates provider `path_templates`
+     * @param list<string> $words extra path words kept verbatim (`outbound.path_words`)
      */
-    public static function path(array $segments, array $templates, int $depth): string
+    public static function path(array $segments, array $templates, int $depth, array $words = []): string
     {
         foreach ($templates as $template) {
             if (self::matches($template, $segments)) {
@@ -101,7 +124,7 @@ final class OutboundUrlTemplater
         $depth = max(0, min($depth, Configuration::MAX_PATH_SEGMENTS));
         $kept  = [];
         foreach (array_slice($segments, 0, $depth) as $segment) {
-            $kept[] = self::segment($segment);
+            $kept[] = self::segment($segment, $words);
         }
         if (count($segments) > $depth) {
             $kept[] = self::REST;
@@ -112,14 +135,20 @@ final class OutboundUrlTemplater
         return mb_strlen($path) <= UsageFieldGuard::MAX_PATH_LENGTH ? $path : UsageFieldGuard::COLLAPSED_PATH;
     }
 
-    /** One segment kept verbatim only when it looks like a word, else a placeholder. */
-    public static function segment(string $segment): string
+    /**
+     * One segment kept verbatim only when it is a version or a known path word, else a placeholder.
+     *
+     * @param list<string> $words extra path words
+     */
+    public static function segment(string $segment, array $words = []): string
     {
         return match (true) {
-            preg_match(self::WORD, $segment) === 1   => $segment,
-            preg_match(self::UUID, $segment) === 1   => '{uuid}',
-            preg_match(self::DIGITS, $segment) === 1 => '{id}',
-            default                                  => '{x}',
+            preg_match(self::VERSION, $segment) === 1                                              => $segment,
+            in_array($segment, self::DEFAULT_PATH_WORDS, true) || in_array($segment, $words, true) => $segment,
+            preg_match(self::UUID, $segment) === 1                                                 => '{uuid}',
+            preg_match(self::DIGITS, $segment) === 1                                               => '{id}',
+            preg_match(self::WORD, $segment) === 1                                                 => '{seg}',
+            default                                                                                => '{x}',
         };
     }
 

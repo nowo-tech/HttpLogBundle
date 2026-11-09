@@ -89,7 +89,7 @@ final class OutboundKernelTest extends TestCase
 
             $rows = $em->getConnection()->fetchAllAssociative('SELECT provider, path, status_code, retry_count FROM nowo_http_log_entry ORDER BY id');
             self::assertSame(['clickup', 'other'], array_column($rows, 'provider'));
-            self::assertSame(['/api/v2/task/{id}', '/a/b/{…}'], array_column($rows, 'path'));
+            self::assertSame(['/api/v2/task/{id}', '/{seg}/{seg}/{…}'], array_column($rows, 'path'));
             self::assertSame(1, (int) $rows[0]['retry_count'], 'one row per logical call, after retries');
             self::assertSame(200, (int) $rows[0]['status_code']);
 

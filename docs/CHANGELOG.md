@@ -76,8 +76,8 @@ web payloads, rows, exports and admin pages (BC tests on a booted kernel).
   `connect`, `tls`, `transport`, `redirect_limit`, `cancelled`, `http_4xx`, `http_5xx`, `exception`), errors always
   kept and successes sampled (`sampling_rate`). Relative URLs of scoped clients are resolved from the response.
 - `OutboundUrlTemplater`: drops query string, fragment and user info; host lower-cased (IDN as punycode), port only
-  when not the default; path as a template (words kept, else `{uuid}`, `{id}`, `{x}`, rest `/{…}`, at most 16
-  segments / 512 characters).
+  when not the default; path as a template (versions and known path words kept, else `{uuid}`, `{id}`, `{seg}`, `{x}`, rest `/{…}`, at most 16
+  segments / 512 characters; see IX-L1 above for the word rule).
 - `HttpLogHttpClientWrapper::wrap($client, $provider, $clientId = null)` (public service) for clients built in code;
   inert while outbound capture is disabled, never wraps twice.
 - Per-request option `extra.nowo_http_log` (`tenant_key`, `project_key`, `provider`, `skip`), removed before the
@@ -93,6 +93,23 @@ web payloads, rows, exports and admin pages (BC tests on a booted kernel).
   filters, the usage fields on the entry page, usage columns appended to CSV / JSON exports.
 - `HttpLogChannelAccessCheckerInterface` (optional, on the configured access checker): denied channels are left out
   of the list, the entry page (same 404 as a missing entry), the export and the purge.
+
+### Security (audit IX, before the 1.15.0 tag)
+
+- **IX-M1:** background exports honour `HttpLogChannelAccessCheckerInterface`. The store stays shared by every
+  exporter (as in 1.14), but an export now remembers the channels it was built for (`<name>.channels`, 0600) and is
+  listed and downloadable (same 404 by direct URL) only by users allowed every one of them; unrestricted exports are
+  hidden from restricted users.
+- **IX-L1:** the URL templater keeps a path segment verbatim only when it is a version (`v2`) or a known path word
+  (built-in REST words plus the new `outbound.path_words`); any other word-like segment becomes `{seg}`, so short
+  letter-only webhook keys and topic names never reach `path`.
+- **IX-L2:** one `stream()` over responses of several decorated clients works like the bare clients (streamed per
+  client) instead of throwing "Cannot stream AsyncResponse objects with many clients".
+- **IX-L3:** the web channel's own `PersistHttpLogMessage` dispatch / write also suspends outbound capture; new
+  `outbound.exclude_hosts` for transport, database or secret hosts.
+- IX-I2: a call whose URL cannot be parsed still gets the provider of its client id. IX-I5: the channel filter lists
+  only the channels the user may see. IX-I1 / IX-I3 documented (host stored as is; size-triggered flush with
+  `async: false`).
 
 ### Changed
 

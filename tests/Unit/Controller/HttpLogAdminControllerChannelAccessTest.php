@@ -7,14 +7,19 @@ namespace Nowo\HttpLogBundle\Tests\Unit\Controller;
 use DateTimeImmutable;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
+use Nowo\HttpLogBundle\Enum\ExportFormat;
 use Nowo\HttpLogBundle\Form\HttpLogFilterType;
+use Nowo\HttpLogBundle\Message\ExportHttpLogMessage;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
 use Nowo\HttpLogBundle\Security\HttpLogChannelAccessCheckerInterface;
+use Nowo\HttpLogBundle\Service\ExportFileStore;
 use Nowo\HttpLogBundle\Service\ExportHttpLogService;
 use Nowo\HttpLogBundle\Service\PurgeHttpLogService;
 use Nowo\HttpLogBundle\Tests\Support\UsageTestDatabase;
 use Nowo\HttpLogBundle\Usage\UsageCapture;
 use Nowo\HttpLogBundle\Usage\UsageEntryWriter;
+use Nowo\UiKitBundle\View\Action;
+use Nowo\UiKitBundle\View\Label;
 use Nowo\UiKitBundle\View\ListPage;
 use Nowo\UiKitBundle\View\ShowPage;
 use PHPUnit\Framework\Attributes\Test;
@@ -32,6 +37,7 @@ use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\RouterInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
@@ -87,8 +93,66 @@ final class HttpLogAdminControllerChannelAccessTest extends TestCase
         $page = $this->rendered['page'];
         self::assertInstanceOf(ListPage::class, $page);
         self::assertSame(['/outbound', '/web'], $this->paths($page->rows));
-        self::assertSame(['usage_channels' => ['web', 'outbound', 'mailer']], $this->filterOptions);
+        self::assertSame(['usage_channels' => ['web', 'outbound']], $this->filterOptions, 'only the channels this user may see (IX-I5)');
         self::assertContains('channel', array_map(static fn (object $c): string => $c->key, $page->columns));
+    }
+
+    #[Test]
+    public function aPlainCheckerOffersEveryEnabledChannel(): void
+    {
+        $this->controller(null)->index(Request::create('/admin/http-log'));
+
+        self::assertSame(['usage_channels' => ['web', 'outbound', 'mailer']], $this->filterOptions);
+    }
+
+    #[Test]
+    public function aRestrictedUserNeitherListsNorDownloadsAnUnrestrictedExport(): void
+    {
+        $store = new ExportFileStore($this->exportDir());
+        $name  = $this->finishedExport($store, null); // queued by an unrestricted admin
+
+        $this->controller(['mailer'], store: $store)->index(Request::create('/admin/http-log'));
+        self::assertSame(0, $this->downloadActions(), 'not listed');
+
+        try {
+            $this->controller(['mailer'], store: $store)->downloadExport($name);
+            self::fail('a direct URL must 404');
+        } catch (NotFoundHttpException) {
+        }
+
+        $this->controller(null, store: $store)->index(Request::create('/admin/http-log'));
+        self::assertSame(1, $this->downloadActions(), 'an unrestricted viewer still sees it');
+        self::assertSame(200, $this->controller(null, store: $store)->downloadExport($name)->getStatusCode());
+    }
+
+    #[Test]
+    public function aRestrictedExportIsServedOnlyToViewersAllowedAllItsChannels(): void
+    {
+        $store = new ExportFileStore($this->exportDir());
+        $name  = $this->finishedExport($store, ['web', 'outbound']);
+
+        $this->controller(['web'], store: $store)->index(Request::create('/admin/http-log'));
+        self::assertSame(0, $this->downloadActions());
+        $this->controller(['web', 'outbound', 'mailer'], store: $store)->index(Request::create('/admin/http-log'));
+        self::assertSame(1, $this->downloadActions());
+        self::assertSame(200, $this->controller(['outbound', 'web'], store: $store)->downloadExport($name)->getStatusCode());
+
+        $this->expectException(NotFoundHttpException::class);
+        $this->controller(['outbound'], store: $store)->downloadExport($name);
+    }
+
+    #[Test]
+    public function aQueuedExportRemembersTheChannelsOfItsCreator(): void
+    {
+        $store   = new ExportFileStore($this->exportDir());
+        $request = Request::create('/admin/http-log/export', 'POST', ['_token' => 'valid-token', 'format' => 'csv']);
+        $this->controller(['web', 'outbound'], $request, store: $store, maxSyncExportRows: 1)->export($request);
+
+        $sidecars = glob($this->exportDir() . '/*' . ExportFileStore::CHANNELS_SUFFIX) ?: [];
+        self::assertCount(1, $sidecars);
+        $name = basename($sidecars[0], ExportFileStore::CHANNELS_SUFFIX);
+        self::assertSame(['web', 'outbound'], $store->channels($name));
+        self::assertSame(['web', 'outbound'], $this->queued[0]->criteria['allowedChannels'] ?? null);
     }
 
     #[Test]
@@ -180,6 +244,64 @@ final class HttpLogAdminControllerChannelAccessTest extends TestCase
         self::assertCount(3, $this->rendered['page']->rows);
     }
 
+    /** @var list<ExportHttpLogMessage> */
+    private array $queued = [];
+
+    private ?string $exportDir = null;
+
+    protected function tearDown(): void
+    {
+        if ($this->exportDir !== null) {
+            foreach (glob($this->exportDir . '/*') ?: [] as $file) {
+                unlink($file);
+            }
+            @rmdir($this->exportDir);
+        }
+    }
+
+    private function exportDir(): string
+    {
+        return $this->exportDir ??= sys_get_temp_dir() . '/http-log-ix-' . bin2hex(random_bytes(6));
+    }
+
+    /** @param list<string>|null $channels */
+    private function finishedExport(ExportFileStore $store, ?array $channels): string
+    {
+        $name = $store->reserve(ExportFormat::Csv, $channels);
+        file_put_contents($store->partialPath($name), "id\n1\n");
+        $store->complete($name);
+
+        return $name;
+    }
+
+    private function downloadActions(): int
+    {
+        $page = $this->rendered['page'];
+        self::assertInstanceOf(ListPage::class, $page);
+        $count = 0;
+        foreach ($page->header->actions as $action) {
+            if ($action instanceof Action && $action->label instanceof Label && $action->label->key === 'admin.action.download_export') {
+                ++$count;
+            }
+        }
+
+        return $count;
+    }
+
+    private function bus(): MessageBusInterface
+    {
+        $bus = $this->createMock(MessageBusInterface::class);
+        $bus->method('dispatch')->willReturnCallback(function (object $message): Envelope {
+            if ($message instanceof ExportHttpLogMessage) {
+                $this->queued[] = $message;
+            }
+
+            return new Envelope($message);
+        });
+
+        return $bus;
+    }
+
     /**
      * @param iterable<mixed> $rows
      *
@@ -199,7 +321,7 @@ final class HttpLogAdminControllerChannelAccessTest extends TestCase
     /**
      * @param list<string>|null $allowed channels the checker allows; null = a checker without the channel interface
      */
-    private function controller(?array $allowed, ?Request $request = null, bool $allowUnauthenticated = false): HttpLogAdminController
+    private function controller(?array $allowed, ?Request $request = null, bool $allowUnauthenticated = false, ?ExportFileStore $store = null, int $maxSyncExportRows = 100): HttpLogAdminController
     {
         $request ??= Request::create('/admin/http-log');
         $request->setSession(new Session(new MockArraySessionStorage()));
@@ -278,15 +400,15 @@ final class HttpLogAdminControllerChannelAccessTest extends TestCase
             $checker,
             new ExportHttpLogService($repository),
             new PurgeHttpLogService($repository, $clock, ['days' => 30], ['outbound' => 30, 'mailer' => 30]),
-            $this->createMock(MessageBusInterface::class),
+            $this->bus(),
             $allowUnauthenticated,
-            100,
+            $maxSyncExportRows,
             20,
             [],
             null,
             ['csv', 'json'],
             $router,
-            null,
+            $store,
             ['outbound', 'mailer'],
         );
         $controller->setContainer($container);

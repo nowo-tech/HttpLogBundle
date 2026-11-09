@@ -49,10 +49,30 @@ final class OutboundCapturePolicyTest extends TestCase
         $policy = new OutboundCapturePolicy(self::PROVIDERS);
 
         self::assertEquals(new OutboundTarget('clickup', 'https', 'api.clickup.com', '/api/v2/task/{id}'), $policy->target('https://API.clickup.com/api/v2/task/86abc?include=secret'));
-        self::assertSame('/bucket/{…}', $policy->target('https://b.s3.amazonaws.com/bucket/2026/key')?->path);
+        self::assertSame('/{seg}/{…}', $policy->target('https://b.s3.amazonaws.com/bucket/2026/key')?->path);
         self::assertSame('/{…}', $policy->target('https://x.example/a/b/c', 'uptime.http_client')?->path);
         self::assertFalse($policy->target('https://x.example/', 'uptime.http_client')?->perCall);
         self::assertEquals(new OutboundTarget('other', null, 'invalid', '/{…}'), $policy->target('::not a url::'));
+    }
+
+    #[Test]
+    public function excludedHostsAreNeverCapturedAndPathWordsAreKept(): void
+    {
+        $policy = new OutboundCapturePolicy(self::PROVIDERS, pathWords: ['bucket'], excludeHosts: ['sqs.eu-west-1.amazonaws.com', '*.redis.internal']);
+
+        self::assertNull($policy->target('https://sqs.eu-west-1.amazonaws.com/123/queue'));
+        self::assertNull($policy->target('https://node1.redis.internal/x'));
+        self::assertSame('/bucket/{…}', $policy->target('https://b.s3.amazonaws.com/bucket/2026/key')?->path);
+    }
+
+    #[Test]
+    public function anUnparsableUrlStillGetsTheProviderOfItsClient(): void
+    {
+        $policy = new OutboundCapturePolicy(self::PROVIDERS);
+
+        self::assertSame('clickup', $policy->target('/api/v2/task/1', 'clickup.client')?->provider);
+        self::assertSame('other', $policy->target('/x')?->provider);
+        self::assertSame('other', (new OutboundCapturePolicy(self::PROVIDERS, recordUnmapped: false))->target('/x')?->provider);
     }
 
     #[Test]

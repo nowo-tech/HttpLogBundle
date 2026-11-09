@@ -110,6 +110,8 @@ nowo_http_log:
         retention_days: 30
         record_unmapped: true             # unmapped host -> provider "other"
         default_path_depth: 2
+        path_words: []                    # extra path words kept verbatim
+        exclude_hosts: []                 # never captured (transport / database hosts)
         decoration_priority: -1024        # outermost
         providers: {}
     mailer:                               # Mailer capture (off by default), see "mailer"
@@ -326,6 +328,8 @@ migration of [UPGRADING](UPGRADING.md#unreleased) first. `enabled` must be a lit
 | `retention_days` | `30` | Days outbound rows are kept (`null` = forever); purge scope `outbound`. |
 | `record_unmapped` | `true` | A host no provider matches is recorded as provider `other`; `false` drops it. |
 | `default_path_depth` | `2` | Path segments kept (0–16) when no provider template matches; the rest becomes `/{…}`. |
+| `path_words` | `[]` | Extra path segments kept verbatim on every host, besides versions (`v2`) and the built-in REST words (`OutboundUrlTemplater::DEFAULT_PATH_WORDS`); any other word-like segment is stored as `{seg}`. |
+| `exclude_hosts` | `[]` | Hosts never captured: exact, or one leading `*.` label. List the host of a Messenger transport or database whose client is decorated (a transport that polls through a decorated client would otherwise log every poll), and hosts whose name is itself a secret. |
 | `decoration_priority` | `-1024` | Keeps the logger outermost: outside `RetryableHttpClient` (one row per logical call, `retry_count` from the response) and outside tracing decorators. |
 | `providers.<key>.clients` | `[]` | Scoped client service ids of the provider (matched before hosts). |
 | `providers.<key>.hosts` | `[]` | Exact hosts, or one leading wildcard label (`*.amazonaws.com`), optional port; no scheme or path. A provider needs `clients` or `hosts`. |
@@ -333,6 +337,10 @@ migration of [UPGRADING](UPGRADING.md#unreleased) first. `enabled` must be a lit
 | `providers.<key>.path_depth` | `null` | Overrides `default_path_depth` (`0` = host only, e.g. webhooks). |
 | `providers.<key>.per_call` | `true` | `false`: never a per-call row (uptime probes; the 1.16 rollup will count them). |
 | `providers.<key>.rollup` | `true` | Counted by the daily rollup (1.16); no effect in this version. |
+
+With `async: false`, a batch flushed because the buffer reached 100 captures inside host code (a long stream loop
+or handler) is inserted on the host's connection and joins a host transaction that is still open; the boundary
+flushes (after the response, command or message) never do.
 
 Provider keys match `^[a-z][a-z0-9_.-]{0,63}$`. Precedence: the request option `extra.nowo_http_log.provider` (when
 it names a configured provider), the provider given to `HttpLogHttpClientWrapper::wrap()`, the client service id,

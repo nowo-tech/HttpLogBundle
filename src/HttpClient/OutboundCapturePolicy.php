@@ -6,6 +6,8 @@ namespace Nowo\HttpLogBundle\HttpClient;
 
 use Nowo\HttpLogBundle\Usage\UsageFieldGuard;
 
+use function array_filter;
+use function array_values;
 use function in_array;
 use function is_string;
 use function random_int;
@@ -36,6 +38,10 @@ final readonly class OutboundCapturePolicy
         private float $samplingRate = 1.0,
         private bool $recordUnmapped = true,
         private int $defaultPathDepth = 2,
+        /** @var list<string> extra path words kept verbatim (`outbound.path_words`) */
+        private array $pathWords = [],
+        /** @var list<string> hosts never captured, exact or "*.suffix" (`outbound.exclude_hosts`) */
+        private array $excludeHosts = [],
     ) {
     }
 
@@ -50,7 +56,11 @@ final readonly class OutboundCapturePolicy
     {
         $parsed = OutboundUrlTemplater::parse($url);
         if ($parsed === null) {
-            return new OutboundTarget($clientProvider ?? self::OTHER, null, OutboundUrlTemplater::INVALID_HOST, UsageFieldGuard::COLLAPSED_PATH);
+            // unparsable (or relative, after a synchronous failure): the client id still names the provider (IX-I2)
+            return new OutboundTarget($this->resolve('', $clientId, $clientProvider, $requestProvider) ?? self::OTHER, null, OutboundUrlTemplater::INVALID_HOST, UsageFieldGuard::COLLAPSED_PATH);
+        }
+        if ($this->hostMatches($parsed['host'], $this->excludeHosts)) {
+            return null; // e.g. the Messenger transport or database host (IX-L3)
         }
 
         $provider = $this->resolve($parsed['host'], $clientId, $clientProvider, $requestProvider);
@@ -60,7 +70,7 @@ final readonly class OutboundCapturePolicy
 
         $config = $this->providers[$provider] ?? null;
         $depth  = $config['path_depth'] ?? $this->defaultPathDepth;
-        $path   = OutboundUrlTemplater::path($parsed['segments'], $config['path_templates'] ?? [], $depth);
+        $path   = OutboundUrlTemplater::path($parsed['segments'], $config['path_templates'] ?? [], $depth, $this->pathWords);
 
         return new OutboundTarget($provider, $parsed['scheme'], $parsed['host'], $path, $config['per_call'] ?? true);
     }
@@ -102,14 +112,28 @@ final readonly class OutboundCapturePolicy
             }
         }
         foreach ($this->providers as $key => $provider) {
-            foreach ($provider['hosts'] as $pattern) {
-                // "*.example.com" matches one or more labels before ".example.com", not the bare domain
-                if (str_starts_with($pattern, '*.') && str_ends_with($host, substr($pattern, 1))) {
-                    return $key;
-                }
+            $wildcards = array_values(array_filter($provider['hosts'], static fn (string $p): bool => str_starts_with($p, '*.')));
+            if ($host !== '' && $this->hostMatches($host, $wildcards)) {
+                return $key;
             }
         }
 
         return $this->recordUnmapped ? self::OTHER : null;
+    }
+
+    /**
+     * Exact hosts, or "*.example.com" (one or more labels before ".example.com", not the bare domain).
+     *
+     * @param list<string> $patterns
+     */
+    private function hostMatches(string $host, array $patterns): bool
+    {
+        foreach ($patterns as $pattern) {
+            if ($pattern === $host || (str_starts_with($pattern, '*.') && str_ends_with($host, substr($pattern, 1)))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

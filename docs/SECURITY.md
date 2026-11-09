@@ -25,7 +25,8 @@ Security considerations for HTTP log capture, storage, and the admin UI.
 | Async queue exposure | Messenger transport access controls; messages contain redacted capture arrays |
 | Secrets in outbound / mailer rows (HL-1) | Allowlist, not redaction: a usage row has no column for headers, bodies, query strings, user info, addresses, subjects or exception messages; every stored value is validated against its charset / length and replaced by NULL (never cut). The Messenger payload is built from the same allowlist |
 | Logging breaking the host (HL-1) | Every capture step is wrapped: a failure logs one warning (exception class only) and drops the capture; writes are DBAL inserts after the request / message boundary, never a `flush()` of the shared manager |
-| Usage rows of another channel or tenant (HL-1) | Optional `HttpLogChannelAccessCheckerInterface` hides channels from list, entry page (404), export and purge; tenant scoping of host pages stays with the host |
+| Usage rows of another channel or tenant (HL-1) | Optional `HttpLogChannelAccessCheckerInterface` hides channels from list, entry page (404), export (synchronous and background: each background export remembers its channels and is listed / served only to users allowed all of them) and purge; tenant scoping of host pages stays with the host |
+| Secrets in outbound paths and hosts (HL-1) | Path segments are kept only when they are versions or known path words, else templated (`{seg}`, `{x}`, `{id}`, `{uuid}`); host names are stored as is, so list secret hosts in `outbound.exclude_hosts` and give webhook providers `path_depth: 0` |
 
 ## Redaction defaults
 
@@ -121,8 +122,8 @@ Record confirmation in the release PR or tag notes.
 
 ## AI security audit
 
-**HL-1 usage capture (Unreleased, slices S1–S3): re-verification pending.** An independent audit (A1) runs before the
-1.15.0 tag against the redaction list of the HL-1 contract §4.3 (cases 1–10, 13, 14, 16 on persisted rows).
+**HL-1 usage capture (Unreleased, slices S1–S3):** audit A1 (Appendix IX, 2026-11-09) Pass-Medium on `df15dae`;
+IX-M1, IX-L1–L3, IX-I2 and IX-I5 fixed, IX-I1 / IX-I3 documented. **Re-verification of the fixes pending.**
 
 | Field | Value |
 | ----- | ----- |

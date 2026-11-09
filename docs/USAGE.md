@@ -331,7 +331,8 @@ cancelled or destroyed:
 | Column | Outbound value |
 | --- | --- |
 | `host` | lower-cased host (IDN as punycode), port only when not the default; never user info |
-| `path` | path template: a provider template, else up to `path_depth` segments, each kept only when it looks like a word (`v2`, `chat.postMessage`), else `{uuid}`, `{id}` or `{x}`; the rest `/{…}`. Query string and fragment are dropped |
+| `host` | stored as is: when the host name itself is the secret (per-endpoint request-bin style hosts), list it in `outbound.exclude_hosts` |
+| `path` | path template: a provider template, else up to `path_depth` segments, each kept only when it is a version (`v2`) or a known path word (built-in REST words such as `api`, `users`, `files`, plus `outbound.path_words`), else `{uuid}`, `{id}`, `{seg}` (any other word: it may be a webhook key or a topic name) or `{x}`; the rest `/{…}`. Query string and fragment are dropped. Webhook hosts should use `path_depth: 0` |
 | `status_code` / `error_kind` | final status; `timeout`, `dns`, `connect`, `tls`, `transport`, `redirect_limit`, `cancelled`, `http_4xx`, `http_5xx`, `exception` (no status for transport errors). Exception messages are never stored: they contain the full URL |
 | `retry_count`, `response_bytes`, `content_type`, `duration_ms` | from the response info |
 | `tenant_key`, `project_key`, `messenger_message_id` | from `HttpLogContext` at request time, or the request option below |
@@ -356,8 +357,14 @@ use Nowo\HttpLogBundle\HttpClient\HttpLogHttpClientWrapper;
 $s3 = new S3Client($config, httpClient: $this->httpLogWrapper->wrap(HttpClient::create(), 's3'));
 ```
 
-Outbound capture is suspended while the bundle itself dispatches or writes, so a Messenger transport or database
-driver that uses a decorated client cannot loop.
+Outbound capture is suspended while the bundle itself dispatches or writes (usage rows and the web channel's own
+`PersistHttpLogMessage`), so a Messenger transport or database driver that uses a decorated client cannot loop on a
+write. A transport that **receives** (polls, acks) through a decorated client is not covered: list its host in
+`outbound.exclude_hosts` (or `exclude_clients`), otherwise every poll becomes a row and the worker feeds itself one
+message per cycle.
+
+One `stream()` call may mix responses of several decorated clients (a scoped client and `http_client`): they are
+streamed one client after the other, as the bare clients allow.
 
 ### Mails
 
@@ -388,6 +395,11 @@ Add `nowo_http_log.messenger.context_middleware` to your buses ([CONFIGURATION](
 message dispatched inside `run()` is handled inside the same tenant / project, with a stable message id stored on the
 rows of its calls and mails. Tenant and project keys are opaque ids (`[A-Za-z0-9._:@-]`, at most 64 characters);
 anything else is stored as NULL.
+
+Background exports (more rows than `export.max_sync_rows`) land in one private store shared by every user allowed to
+export, as in 1.14 (no per-user store). With an access checker that implements `HttpLogChannelAccessCheckerInterface`
+each export remembers the channels it was built for and is listed and downloadable only by users allowed all of
+them; an export made by an unrestricted user is hidden from restricted users.
 
 ## Ignoring routes and paths
 
