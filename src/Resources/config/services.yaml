@@ -20,6 +20,8 @@ services:
             - '../../Messenger/'
             - '../../Usage/'
             - '../../Doctrine/UsageColumnsListener.php'
+            # HL-1 1.16: named channels, rollup, usage erasure and the backfill command (registered by the extension).
+            - '../../Inbound/'
 
     Nowo\HttpLogBundle\Repository\:
         resource: '../../Repository/'

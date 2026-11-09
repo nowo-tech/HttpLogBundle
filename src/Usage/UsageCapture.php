@@ -14,7 +14,8 @@ use function is_string;
 use function random_bytes;
 
 /**
- * One allowlisted call of a usage channel (outbound HttpClient call, sent or failed mail), HL-1 §4.1.
+ * One allowlisted call of a usage channel (outbound HttpClient call, sent or failed mail, named inbound channel
+ * request), HL-1 §4.1, or a count-only rollup event of one (HL-1 §9.1).
  *
  * Every value goes through {@see UsageFieldGuard} in the constructor, so an instance (and the
  * `PersistHttpLogMessage` payload built from it) can only carry the allowlisted columns: no header, body, query
@@ -43,10 +44,18 @@ final readonly class UsageCapture
     public ?string $projectKey;
     public ?string $messengerMessageId;
     public ?string $externalMessageId;
+    public ?string $routeName;
+    public ?string $clientIp;
+    public ?string $userIdentifier;
+    public ?string $credentialKind;
+    public ?string $credentialId;
 
     /**
-     * @param string $channel `outbound`, `mailer` (a channel name: lower-case, at most 16 characters)
+     * @param string $channel `outbound`, `mailer` or a named inbound channel (lower-case, at most 16 characters);
+     *                        `web` only for a count-only event (`row: false`, the web channel's rows keep their 1.14 path)
      * @param string|null $eventId 32 hex characters; null (or an invalid id) generates one
+     * @param bool $row true = a per-call row; false = a count-only rollup event (unsampled success, `per_call: false`)
+     * @param bool $rollup counted in the daily rollup (HL-1 §9) when the rollup is enabled
      *
      * @throws InvalidArgumentException when the channel name is invalid
      */
@@ -69,9 +78,16 @@ final readonly class UsageCapture
         ?string $messengerMessageId = null,
         ?string $externalMessageId = null,
         ?string $eventId = null,
+        ?string $routeName = null,
+        ?string $clientIp = null,
+        ?string $userIdentifier = null,
+        ?string $credentialKind = null,
+        ?string $credentialId = null,
+        public bool $row = true,
+        public bool $rollup = false,
     ) {
         $validChannel = UsageFieldGuard::channel($channel);
-        if ($validChannel === null || $validChannel === HttpLogChannel::WEB) {
+        if ($validChannel === null || ($validChannel === HttpLogChannel::WEB && $row)) {
             throw new InvalidArgumentException('Invalid usage channel name.');
         }
 
@@ -92,6 +108,11 @@ final readonly class UsageCapture
         $this->projectKey         = UsageFieldGuard::token($projectKey);
         $this->messengerMessageId = UsageFieldGuard::messageId($messengerMessageId);
         $this->externalMessageId  = UsageFieldGuard::externalMessageId($externalMessageId);
+        $this->routeName          = UsageFieldGuard::routeName($routeName);
+        $this->clientIp           = UsageFieldGuard::clientIp($clientIp);
+        $this->userIdentifier     = UsageFieldGuard::userIdentifier($userIdentifier);
+        $this->credentialKind     = UsageFieldGuard::token($credentialKind, 32);
+        $this->credentialId       = UsageFieldGuard::token($credentialId);
     }
 
     /** Server-generated event id (32 hex): the `request_id` of the row and its dedupe key. */
@@ -100,20 +121,24 @@ final readonly class UsageCapture
         return bin2hex(random_bytes(16));
     }
 
-    /** True when the call failed: an error kind, or a status >= 400. */
-    public function isError(): bool
+    /**
+     * True when the call failed: an error kind, or a status >= `$statusMin` (400; a named channel's
+     * `error_status_min`).
+     */
+    public function isError(int $statusMin = 400): bool
     {
-        return $this->errorKind !== null || ($this->statusCode !== null && $this->statusCode >= 400);
+        return $this->errorKind !== null || ($this->statusCode !== null && $this->statusCode >= $statusMin);
     }
 
     /**
-     * Messenger payload: the allowlisted fields only.
+     * Messenger payload: the allowlisted fields only. The 1.16 keys (route, IP, user, credential, `row`, `rollup`) are
+     * added only when they carry something, so a 1.15 capture keeps its 1.15 payload.
      *
-     * @return array<string, float|int|string|null>
+     * @return array<string, bool|float|int|string|null>
      */
     public function toArray(): array
     {
-        return [
+        $payload = [
             self::PAYLOAD_MARKER => $this->channel,
             'eventId'            => $this->eventId,
             'provider'           => $this->provider,
@@ -133,6 +158,26 @@ final readonly class UsageCapture
             'externalMessageId'  => $this->externalMessageId,
             'createdAt'          => $this->createdAt->format(DateTimeInterface::ATOM),
         ];
+        $optional = [
+            'routeName'      => $this->routeName,
+            'clientIp'       => $this->clientIp,
+            'userIdentifier' => $this->userIdentifier,
+            'credentialKind' => $this->credentialKind,
+            'credentialId'   => $this->credentialId,
+        ];
+        foreach ($optional as $key => $value) {
+            if ($value !== null) {
+                $payload[$key] = $value;
+            }
+        }
+        if (!$this->row) {
+            $payload['row'] = false;
+        }
+        if ($this->rollup) {
+            $payload['rollup'] = true;
+        }
+
+        return $payload;
     }
 
     /**
@@ -175,6 +220,13 @@ final readonly class UsageCapture
             messengerMessageId: self::string($data['messengerMessageId'] ?? null),
             externalMessageId: self::string($data['externalMessageId'] ?? null),
             eventId: self::string($data['eventId'] ?? null),
+            routeName: self::string($data['routeName'] ?? null),
+            clientIp: self::string($data['clientIp'] ?? null),
+            userIdentifier: self::string($data['userIdentifier'] ?? null),
+            credentialKind: self::string($data['credentialKind'] ?? null),
+            credentialId: self::string($data['credentialId'] ?? null),
+            row: ($data['row'] ?? true) !== false,
+            rollup: ($data['rollup'] ?? false) === true,
         );
     }
 

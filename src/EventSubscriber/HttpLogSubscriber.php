@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\EventSubscriber;
 
+use Nowo\HttpLogBundle\Inbound\InboundChannel;
+use Nowo\HttpLogBundle\Inbound\InboundRequestRecorder;
 use Nowo\HttpLogBundle\Service\HttpLogRecorder;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -25,6 +27,10 @@ use const PHP_INT_MAX;
 
 /**
  * Captures HTTP requests and responses on kernel terminate.
+ *
+ * With named channels (HL-1 §3) a request is matched against them first, after the admin UI prefix: a request a
+ * named channel records never reaches the web channel's ignores or sampling. Without named channels and without
+ * `rollup.web`, the 1.14 flow runs unchanged.
  */
 final readonly class HttpLogSubscriber implements EventSubscriberInterface
 {
@@ -48,6 +54,8 @@ final readonly class HttpLogSubscriber implements EventSubscriberInterface
         private string $kernelEnvironment,
         private bool $ignoreUnrouted = false,
         private ?string $webUiPathPrefix = null,
+        // HL-1: set while a named channel or rollup.web is configured
+        private ?InboundRequestRecorder $inbound = null,
     ) {
     }
 
@@ -78,6 +86,12 @@ final readonly class HttpLogSubscriber implements EventSubscriberInterface
 
         $request = $event->getRequest();
 
+        if ($this->inbound instanceof InboundRequestRecorder) {
+            $this->terminateWithChannels($event, $this->inbound);
+
+            return;
+        }
+
         if (!$this->passesSampling()) {
             return;
         }
@@ -96,6 +110,42 @@ final readonly class HttpLogSubscriber implements EventSubscriberInterface
         $requestId  = is_string($requestId) ? $requestId : null;
 
         $this->recorder->record($request, $event->getResponse(), $durationMs, $requestId);
+    }
+
+    /**
+     * Admin UI → named channels → web channel (ignores, then the `rollup.web` count, then sampling).
+     */
+    private function terminateWithChannels(TerminateEvent $event, InboundRequestRecorder $inbound): void
+    {
+        $request = $event->getRequest();
+        if ($this->isAdminPath($request->getPathInfo())) {
+            return;
+        }
+
+        $startTime = $request->attributes->get(self::ATTR_START_TIME);
+        $channel   = $inbound->match($request);
+        if ($channel instanceof InboundChannel) {
+            if (is_float($startTime)) {
+                $inbound->record($channel, $request, $event->getResponse(), (microtime(true) - $startTime) * 1000.0);
+            }
+
+            return;
+        }
+
+        if ($this->isIgnoredRoute($request) || $this->isIgnoredPath($request) || $this->isIgnoredUnrouted($request) || !is_float($startTime)) {
+            return;
+        }
+
+        $durationMs = (microtime(true) - $startTime) * 1000.0;
+        if ($inbound->countsWeb()) {
+            $inbound->countWeb($request, $event->getResponse(), $durationMs);
+        }
+        if (!$this->passesSampling()) {
+            return;
+        }
+
+        $requestId = $request->attributes->get(self::ATTR_REQUEST_ID);
+        $this->recorder->record($request, $event->getResponse(), $durationMs, is_string($requestId) ? $requestId : null);
     }
 
     private function matchesEnvironment(): bool
@@ -152,10 +202,7 @@ final readonly class HttpLogSubscriber implements EventSubscriberInterface
         $path = $request->getPathInfo();
 
         // The admin UI must never record its own requests, whatever ignore_path_prefixes says.
-        // Segment-aware: "/admin/http-log" matches "/admin/http-log" and "/admin/http-log/1", not "/admin/http-logger".
-        if ($this->webUiPathPrefix !== null && $this->webUiPathPrefix !== ''
-            && ($path === $this->webUiPathPrefix || str_starts_with($path, $this->webUiPathPrefix . '/'))
-        ) {
+        if ($this->isAdminPath($path)) {
             return true;
         }
 
@@ -166,6 +213,13 @@ final readonly class HttpLogSubscriber implements EventSubscriberInterface
         }
 
         return false;
+    }
+
+    /** Segment-aware: "/admin/http-log" matches "/admin/http-log" and "/admin/http-log/1", not "/admin/http-logger". */
+    private function isAdminPath(string $path): bool
+    {
+        return $this->webUiPathPrefix !== null && $this->webUiPathPrefix !== ''
+            && ($path === $this->webUiPathPrefix || str_starts_with($path, $this->webUiPathPrefix . '/'));
     }
 
     /**

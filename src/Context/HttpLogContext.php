@@ -8,6 +8,7 @@ use Symfony\Contracts\Service\ResetInterface;
 
 use function array_slice;
 use function count;
+use function max;
 
 /**
  * Stack of {@see HttpLogFrame} that outbound calls and mails read their tenant, project and Messenger message id
@@ -57,6 +58,26 @@ final class HttpLogContext implements ResetInterface
         } finally {
             $this->frames = array_slice($this->frames, 0, $depth);
         }
+    }
+
+    /**
+     * Pushes a frame that stays until {@see restore()} (or `kernel.reset`): the request frame of a named channel,
+     * popped at `kernel.terminate`. Prefer {@see run()}.
+     *
+     * @return int the depth to restore
+     */
+    public function push(HttpLogFrame $frame): int
+    {
+        $depth          = count($this->frames);
+        $this->frames[] = $frame;
+
+        return $depth;
+    }
+
+    /** Drops every frame above `$depth`. */
+    public function restore(int $depth): void
+    {
+        $this->frames = array_slice($this->frames, 0, max(0, $depth));
     }
 
     /** The innermost frame, or an empty one outside any `run()`. */
