@@ -661,6 +661,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                 new Reference('security.token_storage', ContainerInterface::NULL_ON_INVALID_REFERENCE),
                 new Reference('security.helper', ContainerInterface::NULL_ON_INVALID_REFERENCE),
                 new Reference('security.untracked_token_storage', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+                $config['redaction']['credential_headers'],
             ])
             ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
         $container->setDefinition(InboundRequestRecorder::class, (new Definition(InboundRequestRecorder::class))

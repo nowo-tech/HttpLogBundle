@@ -17,6 +17,7 @@ use Symfony\Component\Security\Core\Exception\LazyResponseException;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Throwable;
 
+use function array_diff;
 use function array_filter;
 use function array_map;
 use function array_unique;
@@ -41,10 +42,17 @@ use function trim;
  *
  * Guard: a credential kind, credential id, tenant key or project key is dropped (stored NULL, one warning naming the
  * resolver class and the field, never the value) when it fails the opaque-key rule (`^[A-Za-z0-9._:@-]+$`, 32 / 64
- * characters), or when it equals or contains a credential the request carried, or is a prefix (6+ characters) of
- * one: the `Authorization` value (whole, after its scheme, and the decoded Basic pair and password), each value of a
- * header in `redaction.headers` (and each cookie while `Cookie` is listed), each value of a query parameter in
- * `redaction.query_params`. A resolver that throws is skipped with one warning (its class and the exception class).
+ * characters), or when it leaks a credential the request carried:
+ *
+ * - the request's credential (the `Authorization` value: whole, after its scheme, the decoded Basic pair and password;
+ *   and each value of a header in `redaction.credential_headers`): equal to it, containing it, or a prefix (6+
+ *   characters) of it, at any length. A client cannot change these without losing its authentication (JAd-L1);
+ * - every other redacted value (headers in `redaction.headers`, cookies while `Cookie` is listed, query parameters in
+ *   `redaction.query_params`): only the credential id is checked against them, and only by exact equality (a resolver
+ *   that wrongly returns a token taken from such a source). The client controls them all, so a looser rule, or one
+ *   applied to the tenant, project or kind, would let it blank a value it knows (its tenant UUID sent as `?token=`).
+ *
+ * A resolver that throws is skipped with one warning (its class and the exception class).
  *
  * The token is passed only when a firewall with security enabled handled the request (the 1.14 rule of the user
  * identifier: a worker's token storage may still hold the previous request's token).
@@ -58,8 +66,8 @@ final readonly class HttpLogRequestContextResolution
     public const MIN_PREFIX_LENGTH = 6;
 
     /**
-     * Request credentials shorter than this are matched by exact equality only (JA-M1): a client must not blank its own
-     * context with `?token=-` or `X-Api-Key: 1`, while a short real credential is still never stored verbatim.
+     * @deprecated since 1.16.1, no longer used: values that are not the request's credential are matched by exact
+     *             equality only, whatever their length (JAd-L1); the credential itself by contains / prefix at any length.
      */
     public const MIN_SECRET_LENGTH = 8;
 
@@ -71,6 +79,7 @@ final readonly class HttpLogRequestContextResolution
      * @param list<string> $redactedQueryParams `redaction.query_params`
      * @param TokenStorageInterface|null $untrackedTokenStorage `security.untracked_token_storage`, to tell a lazy firewall that has
      *                                                          not authenticated yet
+     * @param list<string> $credentialHeaders `redaction.credential_headers`: headers that carry the request's credential, like `Authorization`
      */
     public function __construct(
         private iterable $resolvers = [],
@@ -81,6 +90,7 @@ final readonly class HttpLogRequestContextResolution
         private ?Security $security = null,
         // any implementation (a host may decorate it); only Symfony's TokenStorage tells a pending lazy authentication
         private ?TokenStorageInterface $untrackedTokenStorage = null,
+        private array $credentialHeaders = [],
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -200,23 +210,34 @@ final readonly class HttpLogRequestContextResolution
         }
 
         $identifier = $user->getUserIdentifier();
-        foreach ($this->secrets($request) as $secret) {
-            if ($this->leaks($identifier, $secret)) {
-                $this->logger->warning('HTTP log request context value dropped.', ['field' => 'user_identifier', 'reason' => 'credential']);
+        if ($this->leaks($identifier, ['credential' => $this->credentialSources($request)['credential'], 'redacted' => []])) {
+            $this->logger->warning('HTTP log request context value dropped.', ['field' => 'user_identifier', 'reason' => 'credential']);
 
-                return null;
-            }
+            return null;
         }
 
         return $identifier;
     }
 
     /**
-     * Credentials the request carried, which no stored key may equal, contain or start.
+     * Every credential-like value the request carried: {@see credentialSources()} plus the other redacted values.
      *
      * @return list<string>
      */
     public function secrets(Request $request): array
+    {
+        ['credential' => $credential, 'redacted' => $redacted] = $this->credentialSources($request);
+
+        return array_values(array_unique([...$credential, ...$redacted]));
+    }
+
+    /**
+     * The request's credential (Authorization-derived values and `redaction.credential_headers`), and the other redacted
+     * values (headers, cookies, query parameters).
+     *
+     * @return array{credential: list<string>, redacted: list<string>}
+     */
+    public function credentialSources(Request $request): array
     {
         $secrets = [];
         $auth    = $request->headers->get('Authorization');
@@ -235,6 +256,14 @@ final readonly class HttpLogRequestContextResolution
                 }
             }
         }
+
+        foreach (array_map(strtolower(...), $this->credentialHeaders) as $name) {
+            foreach ($request->headers->all($name) as $value) {
+                $secrets[] = trim((string) $value);
+            }
+        }
+        $credential = self::distinct($secrets);
+        $secrets    = [];
 
         $headers = array_map(strtolower(...), $this->redactedHeaders);
         foreach ($headers as $name) {
@@ -260,34 +289,42 @@ final readonly class HttpLogRequestContextResolution
             });
         }
 
-        return array_values(array_unique(array_filter($secrets, static fn (string $s): bool => $s !== '')));
+        return ['credential' => $credential, 'redacted' => array_values(array_diff(self::distinct($secrets), $credential))];
+    }
+
+    /**
+     * @param list<string> $values
+     *
+     * @return list<string>
+     */
+    private static function distinct(array $values): array
+    {
+        return array_values(array_unique(array_filter($values, static fn (string $s): bool => $s !== '')));
     }
 
     private function guard(Request $request, HttpLogRequestContext $context, string $resolver): HttpLogRequestContext
     {
-        $secrets = $this->secrets($request);
+        $secrets = $this->credentialSources($request);
+
+        // tenant, project and kind name the account, not a credential: checked against the request's credential only
+        $credentialOnly = ['credential' => $secrets['credential'], 'redacted' => []];
 
         return new HttpLogRequestContext(
-            $this->clean($context->credentialKind, 32, $secrets, 'credential_kind', $resolver),
+            $this->clean($context->credentialKind, 32, $credentialOnly, 'credential_kind', $resolver),
             $this->clean($context->credentialId, 64, $secrets, 'credential_id', $resolver),
-            $this->clean($context->tenantKey, 64, $secrets, 'tenant_key', $resolver),
-            $this->clean($context->projectKey, 64, $secrets, 'project_key', $resolver),
+            $this->clean($context->tenantKey, 64, $credentialOnly, 'tenant_key', $resolver),
+            $this->clean($context->projectKey, 64, $credentialOnly, 'project_key', $resolver),
         );
     }
 
-    /** @param list<string> $secrets */
+    /** @param array{credential: list<string>, redacted: list<string>} $secrets */
     private function clean(?string $value, int $maxLength, array $secrets, string $field, string $resolver): ?string
     {
         if ($value === null) {
             return null;
         }
 
-        $reason = UsageFieldGuard::token($value, $maxLength) === null ? 'invalid' : null;
-        foreach ($secrets as $secret) {
-            if ($reason === null && $this->leaks($value, $secret)) {
-                $reason = 'credential';
-            }
-        }
+        $reason = UsageFieldGuard::token($value, $maxLength) === null ? 'invalid' : ($this->leaks($value, $secrets) ? 'credential' : null);
         if ($reason !== null) {
             $this->logger->warning('HTTP log request context value dropped.', ['resolver' => $resolver, 'field' => $field, 'reason' => $reason]);
 
@@ -298,19 +335,20 @@ final readonly class HttpLogRequestContextResolution
     }
 
     /**
-     * `$value` equals `$secret`; or, for a secret of at least {@see MIN_SECRET_LENGTH} characters, contains it or is a
-     * prefix of it at least {@see MIN_PREFIX_LENGTH} long.
+     * `$value` equals, contains or is a prefix (at least {@see MIN_PREFIX_LENGTH} long) of the request's credential, or
+     * equals another redacted value.
+     *
+     * @param array{credential: list<string>, redacted: list<string>} $secrets
      */
-    private function leaks(string $value, string $secret): bool
+    private function leaks(string $value, array $secrets): bool
     {
-        if ($value === $secret) {
-            return true;
-        }
-        if (strlen($secret) < self::MIN_SECRET_LENGTH) {
-            return false;
+        foreach ($secrets['credential'] as $secret) {
+            if (str_contains($value, $secret) || (strlen($value) >= self::MIN_PREFIX_LENGTH && str_starts_with($secret, $value))) {
+                return true;
+            }
         }
 
-        return str_contains($value, $secret) || (strlen($value) >= self::MIN_PREFIX_LENGTH && str_starts_with($secret, $value));
+        return in_array($value, $secrets['redacted'], true);
     }
 
     private function hasResolvers(): bool

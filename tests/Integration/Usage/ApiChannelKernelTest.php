@@ -151,6 +151,22 @@ final class ApiChannelKernelTest extends TestCase
     }
 
     #[Test]
+    public function aClientCannotBlankItsOwnTenantOrCredentialItKnows(): void
+    {
+        [$kernel, $container] = $this->boot(self::CONFIG);
+
+        try {
+            // JAd-L1: the tenant key (and an 8-character slice) and the kind as redacted values
+            $this->request($kernel, '/api/tasks/404?token=org-auditor-tenant&api_key=org-audi', ['HTTP_AUTHORIZATION' => 'Bearer SEED14placeholder', 'HTTP_X_TEST_ORG' => 'org-auditor-tenant', 'HTTP_X_API_KEY' => 'project-1', 'HTTP_COOKIE' => 'k=personal_token'], 404);
+
+            $rows = $this->em($container)->getConnection()->fetchAllAssociative('SELECT credential_kind, credential_id, tenant_key, project_key FROM nowo_http_log_entry');
+            self::assertSame([['credential_kind' => 'personal_token', 'credential_id' => 'pt-17', 'tenant_key' => 'org-auditor-tenant', 'project_key' => 'project-1']], $rows);
+        } finally {
+            $kernel->shutdown();
+        }
+    }
+
+    #[Test]
     public function aPercentEncodedPathIsMatchedDecodedLikeTheRouter(): void
     {
         // web records everything here: a missed channel would show up as a web row with the raw path
