@@ -41,6 +41,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+HL-1 usage capture, part 1 (contract slices S1 Foundation, S2 Outbound, S3 Mailer). Every new block is off by default:
+a host that enables nothing gets no new listener, decorator or schema change, the 1.14 Doctrine mapping and the same
+web payloads, rows, exports and admin pages (BC tests on a booted kernel).
+
+### Added
+
+- **Usage columns, mapped only when a feature is enabled** (`UsageColumnsListener`, Q-O1): `channel`, `provider`,
+  `credential_kind`, `credential_id`, `tenant_key`, `project_key`, `response_bytes`, `retry_count`, `error_kind`,
+  `messenger_message_id`, `external_message_id` (all nullable) and five `idx_http_log_*_created` indexes. DDL for
+  MySQL / MariaDB, PostgreSQL and SQLite in [UPGRADING](UPGRADING.md#unreleased); a test applies it to a 1.14 table
+  and checks the schema diff is empty (default and prefixed names).
+- `project_key`: the project (e.g. a project UUID) of the call when the context knows it, so support can filter one
+  project's calls; the tenant stays the organization.
+- Usage rows are an **allowlist** (`UsageCapture`, `UsageFieldGuard`): only the listed columns exist in the capture and
+  in its `PersistHttpLogMessage` payload; every value is validated against its charset and length and replaced by
+  NULL (never cut) when it fails. Bodies, headers, query strings, user info and exception messages have no field.
+- Usage rows are written with one DBAL `INSERT` (`UsageEntryWriter`), never `flush()`: a log write cannot flush the
+  host's pending entities. Rows are deduplicated on a server-generated event id (32 hex).
+- `HttpLogBuffer`: captures are written at `kernel.terminate`, `console.terminate` and after each worker message
+  (handled or failed), or every 100 captures (cap 500, overflow counted in one warning); a host transaction rollback
+  does not roll back the log of its failed call. Capture is suspended while the bundle dispatches or writes.
+- `HttpLogContext` (public service): `run($tenantKey, $fn, $projectKey = null)` gives outbound calls and mails their
+  tenant and project; frames are always popped, `kernel.reset` empties the stack.
+- Messenger middleware `nowo_http_log.messenger.context_middleware` and `HttpLogContextStamp`: a stable message id
+  and the tenant / project in scope travel with the envelope; the handler runs inside that frame
+  (`messenger.middleware`, `messenger.propagate_tenant`).
+- **Outbound HttpClient capture** (`outbound`, S2): `LoggingHttpClient` decorates `http_client` and the scoped
+  clients selected by `outbound.clients` / `exclude_clients` at `decoration_priority` -1024 (outermost: one row per
+  logical call after retries, `retry_count` from the response; tracing decorators unaffected). The response is the
+  inner client's, unchanged and still lazy; the body is never read. Recorded exactly once at the last chunk, a fatal
+  error, `cancel()` or destruct. Provider map (`clients`, `hosts` with one leading wildcard label, `path_templates`,
+  `path_depth`, `per_call`), unmapped hosts as provider `other` (`record_unmapped`), error kinds (`timeout`, `dns`,
+  `connect`, `tls`, `transport`, `redirect_limit`, `cancelled`, `http_4xx`, `http_5xx`, `exception`), errors always
+  kept and successes sampled (`sampling_rate`). Relative URLs of scoped clients are resolved from the response.
+- `OutboundUrlTemplater`: drops query string, fragment and user info; host lower-cased (IDN as punycode), port only
+  when not the default; path as a template (versions and known path words kept, else `{uuid}`, `{id}`, `{seg}`, `{x}`, rest `/{…}`, at most 16
+  segments / 512 characters; see IX-L1 above for the word rule).
+- `HttpLogHttpClientWrapper::wrap($client, $provider, $clientId = null)` (public service) for clients built in code;
+  inert while outbound capture is disabled, never wraps twice.
+- Per-request option `extra.nowo_http_log` (`tenant_key`, `project_key`, `provider`, `skip`), removed before the
+  inner client sees the request.
+- **Mailer capture** (`mailer`, S3): `MailerCaptureListener` on `MessageEvent` (queued messages skipped),
+  `SentMessageEvent` and `FailedMessageEvent`: one row per send attempt (failover: one per attempt), transport scheme
+  and host without credentials, provider from `mailer.providers` (else the scheme), `external_message_id` from the
+  sent Message-ID, `http_4xx` / `http_5xx` with the provider status for `HttpTransportException`. Pending starts live
+  in a `WeakMap` keyed by the message (no growth when a send never completes).
+- Per-channel retention: `outbound.retention_days`, `mailer.retention_days`; `nowo:http-log:purge --channel=…`
+  (repeatable) with one output line per scope; `PurgeHttpLogService::purgeScopes()` / `scopes()` / `cutoff()`.
+- Admin UI with a feature enabled: channel / provider columns, channel, provider, tenant, project and credential-kind
+  filters, the usage fields on the entry page, usage columns appended to CSV / JSON exports.
+- `HttpLogChannelAccessCheckerInterface` (optional, on the configured access checker): denied channels are left out
+  of the list, the entry page (same 404 as a missing entry), the export and the purge.
+
+### Security (audit IX, before the 1.15.0 tag)
+
+- **IX-M1:** background exports honour `HttpLogChannelAccessCheckerInterface`. The store stays shared by every
+  exporter (as in 1.14), but an export now remembers the channels it was built for (`<name>.channels`, 0600) and is
+  listed and downloadable (same 404 by direct URL) only by users allowed every one of them; unrestricted exports are
+  hidden from restricted users.
+- **IX-L1:** the URL templater keeps a path segment verbatim only when it is a version (`v2`) or a known path word
+  (built-in REST words plus the new `outbound.path_words`); any other word-like segment becomes `{seg}`, so short
+  letter-only webhook keys and topic names never reach `path`.
+- **IX-L2:** one `stream()` over responses of several decorated clients works like the bare clients (streamed per
+  client) instead of throwing "Cannot stream AsyncResponse objects with many clients".
+- **IX-L3:** the web channel's own `PersistHttpLogMessage` dispatch / write also suspends outbound capture; new
+  `outbound.exclude_hosts` for transport, database or secret hosts.
+- IX-I2: a call whose URL cannot be parsed still gets the provider of its client id. IX-I5: the channel filter lists
+  only the channels the user may see. IX-I1 / IX-I3 documented (host stored as is; size-triggered flush with
+  `async: false`).
+
+### Changed
+
+- With a usage feature enabled, `doctrine.table_prefix` may be at most 34 characters (longest usage index name: 29).
+  Unchanged (39) otherwise.
+- `nowo:http-log:purge` and `PurgeHttpLogMessage` without arguments purge each scope by its own retention once a usage
+  feature is enabled; a bare `--days` still purges every row of every channel.
+
 ## [1.14.1] - 2026-11-09
 
 Target: **1.14.1** (patch; no schema change).
@@ -51,7 +128,7 @@ Target: **1.14.1** (patch; no schema change).
   bundle (32 random hex characters per logged request). It was taken from the client's `X-Request-Id` header, so a
   client could send the same id on many requests and collapse them into a single log row, hiding its activity and
   skewing counts. The client's `X-Request-Id` is no longer used for the key or for dedupe; it stays in the captured
-  request headers (`request_headers`) for correlation only. See [UPGRADING](UPGRADING.md#unreleased).
+  request headers (`request_headers`) for correlation only. See [UPGRADING](UPGRADING.md#to-1141).
 
 [1.14.1]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.14.1
 

@@ -12,6 +12,7 @@ use Nowo\HttpLogBundle\Enum\ExportFormat;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use RuntimeException;
 
+use function array_values;
 use function chmod;
 use function fclose;
 use function fputcsv;
@@ -28,6 +29,12 @@ use const JSON_THROW_ON_ERROR;
 final readonly class ExportHttpLogService
 {
     private const BATCH_SIZE = 500;
+
+    /** HL-1 usage columns, appended (CSV and JSON) only while they are mapped: 1.14 exports keep their column set. */
+    public const USAGE_FIELDS = [
+        'channel', 'provider', 'credentialKind', 'credentialId', 'tenantKey', 'projectKey',
+        'responseBytes', 'retryCount', 'errorKind', 'messengerMessageId', 'externalMessageId',
+    ];
 
     public function __construct(
         private HttpLogEntryRepository $repository,
@@ -114,6 +121,10 @@ final readonly class ExportHttpLogService
             'statusCode', 'clientIp', 'contentType', 'bodyContentType', 'durationMs',
             'userIdentifier', 'createdAt',
         ];
+        $usage = $this->repository->hasUsageColumns();
+        if ($usage) {
+            $headers = [...$headers, ...self::USAGE_FIELDS];
+        }
         fputcsv($resource, $headers);
 
         $page  = 1;
@@ -122,7 +133,7 @@ final readonly class ExportHttpLogService
         do {
             $result = $this->repository->findFiltered($criteria, $page, self::BATCH_SIZE, withTotal: false);
             foreach ($result['items'] as $entry) {
-                fputcsv($resource, $this->entryToCsvRow($entry));
+                fputcsv($resource, $usage ? [...$this->entryToCsvRow($entry), ...array_values($this->usageValues($entry))] : $this->entryToCsvRow($entry));
                 ++$total;
             }
             $this->repository->detachAll($result['items']);
@@ -136,6 +147,7 @@ final readonly class ExportHttpLogService
     private function exportJson(array $criteria, mixed $resource): int
     {
         fwrite($resource, '[');
+        $usage = $this->repository->hasUsageColumns();
         $page  = 1;
         $total = 0;
         $first = true;
@@ -146,7 +158,7 @@ final readonly class ExportHttpLogService
                 if (!$first) {
                     fwrite($resource, ',');
                 }
-                fwrite($resource, json_encode($this->entryToArray($entry), JSON_THROW_ON_ERROR));
+                fwrite($resource, json_encode($usage ? $this->entryToArray($entry) + $this->usageValues($entry) : $this->entryToArray($entry), JSON_THROW_ON_ERROR));
                 $first = false;
                 ++$total;
             }
@@ -206,6 +218,24 @@ final readonly class ExportHttpLogService
             'responseBodyTruncated' => $entry->isResponseBodyTruncated(),
             'responseBodyStored'    => $entry->isResponseBodyStored(),
             'createdAt'             => $entry->getCreatedAt()->format(DateTimeImmutable::ATOM),
+        ];
+    }
+
+    /** @return array<string, int|string|null> */
+    private function usageValues(HttpLogEntry $entry): array
+    {
+        return [
+            'channel'            => $entry->getChannel(),
+            'provider'           => $entry->getProvider(),
+            'credentialKind'     => $entry->getCredentialKind(),
+            'credentialId'       => $entry->getCredentialId(),
+            'tenantKey'          => $entry->getTenantKey(),
+            'projectKey'         => $entry->getProjectKey(),
+            'responseBytes'      => $entry->getResponseBytes(),
+            'retryCount'         => $entry->getRetryCount(),
+            'errorKind'          => $entry->getErrorKind(),
+            'messengerMessageId' => $entry->getMessengerMessageId(),
+            'externalMessageId'  => $entry->getExternalMessageId(),
         ];
     }
 }

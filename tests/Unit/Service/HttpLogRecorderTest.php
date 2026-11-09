@@ -16,6 +16,8 @@ use Nowo\HttpLogBundle\Service\CapturePolicy;
 use Nowo\HttpLogBundle\Service\ContentTypeClassifier;
 use Nowo\HttpLogBundle\Service\HttpLogRecorder;
 use Nowo\HttpLogBundle\Service\HttpLogRedactor;
+use Nowo\HttpLogBundle\Usage\HttpLogBuffer;
+use Nowo\HttpLogBundle\Usage\UsageCaptureSink;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -757,6 +759,7 @@ final class HttpLogRecorderTest extends TestCase
         ?TokenStorageInterface $tokenStorage = null,
         ?ManagerRegistry $managerRegistry = null,
         ?Security $security = null,
+        ?HttpLogBuffer $buffer = null,
     ): HttpLogRecorder {
         $clock = $this->createMock(ClockInterface::class);
         $clock->method('now')->willReturn(new DateTimeImmutable('2026-08-03T10:00:00+00:00'));
@@ -788,7 +791,27 @@ final class HttpLogRecorderTest extends TestCase
             $tokenStorage,
             $managerRegistry,
             $security,
+            $buffer,
         );
+    }
+
+    #[Test]
+    public function theWebDispatchSuspendsOutboundCapture(): void
+    {
+        $buffer = new HttpLogBuffer($this->createMock(UsageCaptureSink::class));
+        $seen   = null;
+        $bus    = $this->createMock(MessageBusInterface::class);
+        $bus->expects(self::once())->method('dispatch')->willReturnCallback(static function (object $message) use ($buffer, &$seen): Envelope {
+            $seen = $buffer->isSuspended(); // a transport using a decorated client is not captured (IX-L3)
+
+            return new Envelope($message);
+        });
+
+        $this->createRecorder($this->createMock(EntityManagerInterface::class), $bus, true, buffer: $buffer)
+            ->record(Request::create('/x'), new Response('ok'), 1.0, 'req-1');
+
+        self::assertTrue($seen);
+        self::assertFalse($buffer->isSuspended());
     }
 
     private function createFirewalledRequest(string $path): Request

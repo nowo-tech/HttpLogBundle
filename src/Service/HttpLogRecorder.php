@@ -10,6 +10,7 @@ use Doctrine\Persistence\ManagerRegistry;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Message\PersistHttpLogMessage;
 use Nowo\HttpLogBundle\Model\HttpLogCapture;
+use Nowo\HttpLogBundle\Usage\HttpLogBuffer;
 use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -45,6 +46,8 @@ final readonly class HttpLogRecorder
         private ?TokenStorageInterface $tokenStorage = null,
         private ?ManagerRegistry $managerRegistry = null,
         private ?Security $security = null,
+        // HL-1: set while outbound / mailer capture is enabled, so this dispatch / write is never captured itself
+        private ?HttpLogBuffer $buffer = null,
     ) {
     }
 
@@ -52,14 +55,17 @@ final readonly class HttpLogRecorder
     {
         try {
             $capture = $this->buildCapture($request, $response, $durationMs, $requestId);
+            $write   = function () use ($capture): void {
+                if ($this->async) {
+                    $this->messageBus->dispatch(new PersistHttpLogMessage($capture->toArray()));
 
-            if ($this->async) {
-                $this->messageBus->dispatch(new PersistHttpLogMessage($capture->toArray()));
+                    return;
+                }
 
-                return;
-            }
+                $this->persistCapture($capture);
+            };
 
-            $this->persistCapture($capture);
+            $this->buffer instanceof HttpLogBuffer ? $this->buffer->suspended($write) : $write();
         } catch (Throwable $exception) {
             $this->logger->error('Failed to record HTTP log entry.', [
                 'exception' => $exception,

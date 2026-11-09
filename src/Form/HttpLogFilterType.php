@@ -75,6 +75,28 @@ final class HttpLogFilterType extends AbstractType
                 'input'        => 'datetime_immutable',
             ]);
         });
+
+        /** @var list<string> $channels */
+        $channels = $options['usage_channels'];
+        if ($channels === []) {
+            return;
+        }
+
+        // HL-1 usage filters: only while outbound or mailer capture maps the usage columns.
+        $this->withBuilder($builder, function () use ($channels): void {
+            $this->addChoiceField('channel', [
+                'required'    => false,
+                'label'       => 'filter.channel',
+                'placeholder' => 'filter.any',
+                // Channel names are literals (web, outbound, mailer), not translation keys.
+                'choice_translation_domain' => false,
+                'choices'                   => array_combine($channels, $channels),
+            ]);
+            $this->addTextField('provider', ['required' => false, 'label' => 'filter.provider']);
+            $this->addTextField('tenantKey', ['required' => false, 'label' => 'filter.tenant_key']);
+            $this->addTextField('projectKey', ['required' => false, 'label' => 'filter.project_key']);
+            $this->addTextField('credentialKind', ['required' => false, 'label' => 'filter.credential_kind']);
+        });
     }
 
     public function configureOptions(OptionsResolver $resolver): void
@@ -83,6 +105,9 @@ final class HttpLogFilterType extends AbstractType
             'method'             => 'GET',
             'csrf_protection'    => false,
             'translation_domain' => 'NowoHttpLogBundle',
+            // HL-1: channels offered by the channel filter; empty = no usage filters (usage columns not mapped).
+            'usage_channels' => [],
         ]);
+        $resolver->setAllowedTypes('usage_channels', 'string[]');
     }
 }

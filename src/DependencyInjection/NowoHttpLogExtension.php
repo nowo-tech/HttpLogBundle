@@ -6,34 +6,81 @@ namespace Nowo\HttpLogBundle\DependencyInjection;
 
 use InvalidArgumentException;
 use LogicException;
+use Nowo\HttpLogBundle\Context\HttpLogContext;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
+use Nowo\HttpLogBundle\Doctrine\UsageColumnsListener;
 use Nowo\HttpLogBundle\EventSubscriber\HttpLogSubscriber;
+use Nowo\HttpLogBundle\HttpClient\HttpLogHttpClientWrapper;
+use Nowo\HttpLogBundle\HttpClient\OutboundCapturePolicy;
+use Nowo\HttpLogBundle\HttpClient\OutboundClientFactory;
+use Nowo\HttpLogBundle\Mailer\MailerCaptureListener;
+use Nowo\HttpLogBundle\MessageHandler\PersistHttpLogHandler;
+use Nowo\HttpLogBundle\Messenger\HttpLogContextMiddleware;
 use Nowo\HttpLogBundle\Security\ConfigurableHttpLogAccessChecker;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
+use Nowo\HttpLogBundle\Service\HttpLogRecorder;
+use Nowo\HttpLogBundle\Usage\HttpLogBuffer;
+use Nowo\HttpLogBundle\Usage\HttpLogChannel;
+use Nowo\HttpLogBundle\Usage\UsageBufferFlushSubscriber;
+use Nowo\HttpLogBundle\Usage\UsageCaptureSink;
+use Nowo\HttpLogBundle\Usage\UsageEntryWriter;
 use Nowo\HttpLogBundle\View\AdminChrome;
+use Psr\Clock\ClockInterface;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Extension\Extension;
 use Symfony\Component\DependencyInjection\Extension\PrependExtensionInterface;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
+use Symfony\Component\DependencyInjection\Reference;
+use Symfony\Component\HttpClient\AsyncDecoratorTrait;
+use Symfony\Component\Mailer\Event\MessageEvent;
 
 use function array_key_exists;
+use function array_keys;
 use function array_map;
 use function array_merge;
 use function array_unique;
 use function array_values;
+use function class_exists;
 use function is_array;
+use function is_bool;
 use function is_string;
+use function sprintf;
 use function str_replace;
+use function trait_exists;
 
 /**
  * Loads bundle configuration and registers services.
  */
 final class NowoHttpLogExtension extends Extension implements PrependExtensionInterface
 {
+    /** Messenger middleware service id of the HL-1 context (the host adds it to its buses). */
+    public const CONTEXT_MIDDLEWARE = 'nowo_http_log.messenger.context_middleware';
+
+    /** Logger channel of the usage capture warnings. */
+    public const LOGGER_CHANNEL = 'nowo_http_log';
+
+    /**
+     * Feature block => [class or trait that must exist, Composer package that provides it].
+     *
+     * @var array<string, array{0: string, 1: string}>
+     */
+    public const REQUIRED_SYMBOLS = [
+        'outbound' => [AsyncDecoratorTrait::class, 'symfony/http-client'],
+        'mailer'   => [MessageEvent::class, 'symfony/mailer'],
+    ];
+
+    /**
+     * @param array<string, array{0: string, 1: string}> $requiredSymbols {@see REQUIRED_SYMBOLS}
+     */
+    public function __construct(private readonly array $requiredSymbols = self::REQUIRED_SYMBOLS)
+    {
+    }
+
     public function prepend(ContainerBuilder $container): void
     {
         $this->prependFormKitDefaults($container);
@@ -251,10 +298,12 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
             $container->removeDefinition(HttpLogAdminController::class);
         }
 
+        $usageColumns = $this->registerUsage($container, $config);
+
         // REQ-ORM-002: the table naming listener only exists when a name differs from the mapped one.
         $container->setParameter($alias . '.doctrine.table_prefix', $config['doctrine']['table_prefix']);
         $container->setParameter($alias . '.doctrine.table_name_prefix', $config['doctrine']['table_name_prefix']);
-        $this->registerTableName($container, $config['doctrine']['table_prefix'], $config['doctrine']['table_name_prefix']);
+        $this->registerTableName($container, $config['doctrine']['table_prefix'], $config['doctrine']['table_name_prefix'], $usageColumns);
         if ($config['doctrine']['table_prefix'] === '' && $config['doctrine']['table_name_prefix'] === TablePrefixListener::DEFAULT_TABLE_NAME_PREFIX) {
             $container->removeDefinition(TablePrefixListener::class);
         }
@@ -292,6 +341,155 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         }
 
         return $value;
+    }
+
+    /**
+     * HL-1 usage capture (outbound HttpClient, Mailer). Every service of the feature is registered here, only when its
+     * block is enabled: hosts that enable nothing get no listener, decorator, middleware use or schema change. Always
+     * registered (inert until used): the {@see HttpLogContext}, the client wrapper and, with `messenger.middleware`,
+     * the context middleware (private: removed from the compiled container unless a bus references it).
+     *
+     * @param array<string, mixed> $config processed configuration
+     *
+     * @return bool true when the usage columns are mapped (outbound or mailer enabled)
+     */
+    private function registerUsage(ContainerBuilder $container, array $config): bool
+    {
+        /** @var array{enabled: mixed, retention_days: int|null} $outbound */
+        $outbound = $config['outbound'];
+        /** @var array{enabled: mixed, retention_days: int|null, providers: array<string, array{schemes: list<string>}>} $mailer */
+        $mailer = $config['mailer'];
+        /** @var array{middleware: bool, propagate_tenant: bool} $messenger */
+        $messenger = $config['messenger'];
+
+        foreach (['outbound' => $outbound['enabled'], 'mailer' => $mailer['enabled']] as $block => $enabled) {
+            if (!is_bool($enabled)) {
+                throw new InvalidConfigurationException(sprintf('nowo_http_log.%s.enabled must be a literal boolean: it decides the Doctrine mapping at compile time (no %%env()%%).', $block));
+            }
+        }
+        $outboundEnabled = $outbound['enabled'] === true;
+        $mailerEnabled   = $mailer['enabled'] === true;
+        foreach (['outbound' => $outboundEnabled, 'mailer' => $mailerEnabled] as $block => $enabled) {
+            [$symbol, $package] = $this->requiredSymbols[$block];
+            if ($enabled && !class_exists($symbol) && !trait_exists($symbol)) {
+                throw new LogicException(sprintf('nowo_http_log.%s.enabled requires %s.', $block, $package));
+            }
+        }
+
+        $alias        = Configuration::ALIAS;
+        $usageColumns = $outboundEnabled || $mailerEnabled;
+        $channels     = [];
+        if ($outboundEnabled) {
+            $channels[HttpLogChannel::OUTBOUND] = $outbound['retention_days'];
+        }
+        if ($mailerEnabled) {
+            $channels[HttpLogChannel::MAILER] = $mailer['retention_days'];
+        }
+        $container->setParameter($alias . '.usage.enabled', $usageColumns);
+        $container->setParameter($alias . '.usage.channels', array_keys($channels));
+        $container->setParameter($alias . '.usage.channel_retention', $channels);
+        $container->setParameter($alias . '.outbound.enabled', $outboundEnabled);
+        $container->setParameter($alias . '.outbound.clients', $config['outbound']['clients']);
+        $container->setParameter($alias . '.outbound.exclude_clients', $config['outbound']['exclude_clients']);
+        $container->setParameter($alias . '.outbound.decoration_priority', $config['outbound']['decoration_priority']);
+
+        $logger = new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE);
+
+        $container->setDefinition(HttpLogContext::class, (new Definition(HttpLogContext::class))
+            ->setPublic(true)
+            ->addTag('kernel.reset', ['method' => 'reset']));
+
+        if ($messenger['middleware']) {
+            $container->setDefinition(self::CONTEXT_MIDDLEWARE, (new Definition(HttpLogContextMiddleware::class))
+                ->setArguments([new Reference(HttpLogContext::class), $messenger['propagate_tenant'], $logger])
+                ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
+        }
+
+        if ($usageColumns) {
+            $container->setDefinition(UsageColumnsListener::class, (new Definition(UsageColumnsListener::class))
+                // Before TablePrefixListener (priority 0), which then prefixes the usage index names too.
+                ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata', 'priority' => 100]));
+            $container->setDefinition(UsageEntryWriter::class, (new Definition(UsageEntryWriter::class))
+                ->setArguments([new Reference('doctrine')]));
+            $container->setDefinition(UsageCaptureSink::class, (new Definition(UsageCaptureSink::class))
+                ->setArguments([
+                    new Reference(UsageEntryWriter::class),
+                    $config['async'],
+                    new Reference('messenger.default_bus', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+                ]));
+            $container->setDefinition(HttpLogBuffer::class, (new Definition(HttpLogBuffer::class))
+                ->setArguments([new Reference(UsageCaptureSink::class), $logger])
+                ->addTag('kernel.reset', ['method' => 'reset'])
+                ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
+            $container->setDefinition(UsageBufferFlushSubscriber::class, (new Definition(UsageBufferFlushSubscriber::class))
+                ->setArguments([new Reference(HttpLogBuffer::class)])
+                ->addTag('kernel.event_subscriber'));
+            $container->getDefinition(PersistHttpLogHandler::class)
+                ->setArgument('$usageWriter', new Reference(UsageEntryWriter::class));
+            // the web channel's own dispatch / write suspends outbound capture as well (IX-L3)
+            $container->getDefinition(HttpLogRecorder::class)
+                ->setArgument('$buffer', new Reference(HttpLogBuffer::class));
+        }
+
+        if ($outboundEnabled) {
+            $providers = [];
+            foreach ($config['outbound']['providers'] as $key => $provider) {
+                $providers[$key] = [
+                    'clients'        => $provider['clients'],
+                    'hosts'          => $provider['hosts'],
+                    'path_templates' => $provider['path_templates'],
+                    'path_depth'     => $provider['path_depth'],
+                    'per_call'       => $provider['per_call'],
+                ];
+            }
+            $container->setDefinition(OutboundCapturePolicy::class, (new Definition(OutboundCapturePolicy::class))
+                ->setArguments([
+                    $providers,
+                    $config['outbound']['sampling_rate'],
+                    $config['outbound']['record_unmapped'],
+                    $config['outbound']['default_path_depth'],
+                    $config['outbound']['path_words'],
+                    $config['outbound']['exclude_hosts'],
+                ]));
+            $container->setDefinition(OutboundClientFactory::class, (new Definition(OutboundClientFactory::class))
+                ->setArguments([
+                    new Reference(OutboundCapturePolicy::class),
+                    new Reference(HttpLogBuffer::class),
+                    new Reference(HttpLogContext::class),
+                    new Reference(ClockInterface::class),
+                    $logger,
+                ])
+                ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
+        }
+
+        if ($mailerEnabled) {
+            $schemes = [];
+            foreach ($mailer['providers'] as $key => $provider) {
+                foreach ($provider['schemes'] as $scheme) {
+                    $schemes[$scheme] = $key;
+                }
+            }
+            $container->setDefinition(MailerCaptureListener::class, (new Definition(MailerCaptureListener::class))
+                ->setArguments([
+                    new Reference(HttpLogBuffer::class),
+                    new Reference(HttpLogContext::class),
+                    new Reference(ClockInterface::class),
+                    $schemes,
+                    $logger,
+                ])
+                ->addTag('kernel.event_subscriber')
+                ->addTag('kernel.reset', ['method' => 'reset'])
+                ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
+        }
+
+        // Public wrapper for clients built in code: returns them unchanged while outbound capture is disabled.
+        if (trait_exists($this->requiredSymbols['outbound'][0])) {
+            $container->setDefinition(HttpLogHttpClientWrapper::class, (new Definition(HttpLogHttpClientWrapper::class))
+                ->setPublic(true)
+                ->setArguments([$outboundEnabled ? new Reference(OutboundClientFactory::class) : null]));
+        }
+
+        return $usageColumns;
     }
 
     public function getAlias(): string
@@ -337,14 +535,14 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
      * REQ-ORM-002: validates the literal prefixes (`%env()%` values are checked by the listener once resolved) and
      * publishes `nowo_http_log.doctrine.entry_table`, the physical table name, for host SQL and reports.
      */
-    private function registerTableName(ContainerBuilder $container, string $tablePrefix, string $tableNamePrefix): void
+    private function registerTableName(ContainerBuilder $container, string $tablePrefix, string $tableNamePrefix, bool $usageColumns = false): void
     {
         // Table names are part of the schema: %env()% is not supported, so every published name is validated.
         if ($container->resolveEnvPlaceholders($tablePrefix) !== $tablePrefix || $container->resolveEnvPlaceholders($tableNamePrefix) !== $tableNamePrefix) {
             throw new InvalidConfigurationException('doctrine.table_prefix and doctrine.table_name_prefix do not support %env()%: the table names are part of the schema; set literal values.');
         }
         try {
-            TablePrefixListener::validate($tablePrefix, $tableNamePrefix);
+            TablePrefixListener::validate($tablePrefix, $tableNamePrefix, $usageColumns);
         } catch (InvalidArgumentException $exception) {
             throw new InvalidConfigurationException($exception->getMessage(), 0, $exception);
         }

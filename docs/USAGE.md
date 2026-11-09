@@ -15,6 +15,10 @@ How to capture HTTP traffic, use the admin UI, export, purge, and exclude routes
 - [Export](#export)
 - [Purge and retention](#purge-and-retention)
 - [Personal-data erasure (GDPR)](#personal-data-erasure-gdpr)
+- [Outbound and mailer usage](#outbound-and-mailer-usage)
+  - [Outbound HttpClient calls](#outbound-httpclient-calls)
+  - [Mails](#mails)
+  - [Tenant and project context](#tenant-and-project-context)
 - [Ignoring routes and paths](#ignoring-routes-and-paths)
 - [CLI commands](#cli-commands)
 - [Async processing](#async-processing)
@@ -237,6 +241,16 @@ php bin/console nowo:http-log:purge --dry-run
 
 Async purge uses `PurgeHttpLogMessage`.
 
+With outbound or mailer capture enabled, the retention runs **per scope**: `web` rows (no channel) by
+`retention.days`, `outbound` and `mailer` rows by their own `retention_days`, one output line per scope:
+
+```bash
+php bin/console nowo:http-log:purge                       # every scope, its own retention
+php bin/console nowo:http-log:purge --channel=outbound    # one scope (repeatable)
+php bin/console nowo:http-log:purge --channel=web --days=7
+php bin/console nowo:http-log:purge --days=7              # 1.14 meaning: every row of every channel
+```
+
 Every purge deletes in batches of `retention.purge_batch_size` rows (default `1000`, keyset on the id), so purging
 a large table does not hold one long lock or write one huge binlog event. The returned / printed count is the total
 number of rows deleted.
@@ -276,6 +290,116 @@ final class RequestLogsEraser
 
 If a host still needs SQL (reports), take the physical name from the container parameter
 `%nowo_http_log.doctrine.entry_table%`.
+
+## Outbound and mailer usage
+
+Opt-in (`outbound.enabled`, `mailer.enabled`): one row per outbound HttpClient call (channel `outbound`) or per mail
+send attempt (channel `mailer`), next to the web rows (channel NULL). Usage rows are an **allowlist**: method, scheme,
+host, a path template, provider, status, error kind, duration, response size, retries, content type, tenant,
+project, Messenger message id and the mail Message-ID. Never headers, bodies, query strings, user info, addresses,
+subjects or exception messages.
+
+Rows are buffered and written after the response is sent, after a command and after each worker message, so logging
+adds no query to a request and a host transaction that rolls back keeps the log of its failed call. A logging failure
+logs one warning (exception class only) on the `nowo_http_log` channel and drops that capture: it never breaks the
+call, the mail or the request.
+
+With a block enabled the admin list gains channel / provider columns and filters (channel, provider, tenant, project,
+credential kind), and an access checker that also implements `HttpLogChannelAccessCheckerInterface` can hide
+channels:
+
+```php
+final class AppHttpLogAccessChecker implements HttpLogAccessCheckerInterface, HttpLogChannelAccessCheckerInterface
+{
+    // canAccessAdmin(), canExport(), canPurge() …
+
+    public function canViewChannel(?object $user, string $channel): bool
+    {
+        return $channel !== 'mailer' || $this->security->isGranted('ROLE_SUPPORT');
+    }
+}
+```
+
+### Outbound HttpClient calls
+
+`outbound.enabled` decorates `http_client` and every scoped client (`outbound.clients`) as the **outermost**
+decorator: a call retried by `RetryableHttpClient` is one row with its `retry_count`; tracing decorators are not
+affected. The decorator returns the inner client's response unchanged (same status, headers, body, chunks, exceptions;
+still lazy) and never reads or buffers the body. The row is recorded once, when the response completes, fails, is
+cancelled or destroyed:
+
+| Column | Outbound value |
+| --- | --- |
+| `host` | lower-cased host (IDN as punycode), port only when not the default; never user info |
+| `host` | stored as is: when the host name itself is the secret (per-endpoint request-bin style hosts), list it in `outbound.exclude_hosts` |
+| `path` | path template: a provider template, else up to `path_depth` segments, each kept only when it is a version (`v2`) or a known path word (built-in REST words such as `api`, `users`, `files`, plus `outbound.path_words`), else `{uuid}`, `{id}`, `{seg}` (any other word: it may be a webhook key or a topic name) or `{x}`; the rest `/{…}`. Query string and fragment are dropped. Webhook hosts should use `path_depth: 0` |
+| `status_code` / `error_kind` | final status; `timeout`, `dns`, `connect`, `tls`, `transport`, `redirect_limit`, `cancelled`, `http_4xx`, `http_5xx`, `exception` (no status for transport errors). Exception messages are never stored: they contain the full URL |
+| `retry_count`, `response_bytes`, `content_type`, `duration_ms` | from the response info |
+| `tenant_key`, `project_key`, `messenger_message_id` | from `HttpLogContext` at request time, or the request option below |
+
+Per-request options (removed before the inner client sees the request):
+
+```php
+$client->request('GET', $url, ['extra' => ['nowo_http_log' => [
+    'tenant_key'  => $organization->getUuid(),
+    'project_key' => $project->getUuid(),
+    'provider'    => 'clickup',   // only a configured provider
+    'skip'        => true,        // no row for this call
+]]]);
+```
+
+Clients built in code (not container services) are wrapped explicitly; with outbound disabled `wrap()` returns the
+client unchanged, and a wrapped client is never wrapped twice:
+
+```php
+use Nowo\HttpLogBundle\HttpClient\HttpLogHttpClientWrapper;
+
+$s3 = new S3Client($config, httpClient: $this->httpLogWrapper->wrap(HttpClient::create(), 's3'));
+```
+
+Outbound capture is suspended while the bundle itself dispatches or writes (usage rows and the web channel's own
+`PersistHttpLogMessage`), so a Messenger transport or database driver that uses a decorated client cannot loop on a
+write. A transport that **receives** (polls, acks) through a decorated client is not covered: list its host in
+`outbound.exclude_hosts` (or `exclude_clients`), otherwise every poll becomes a row and the worker feeds itself one
+message per cycle.
+
+One `stream()` call may mix responses of several decorated clients (a scoped client and `http_client`): they are
+streamed one client after the other, as the bare clients allow.
+
+### Mails
+
+`mailer.enabled` records one row per send attempt the Mailer transport events report (`MessageEvent`, then
+`SentMessageEvent` or `FailedMessageEvent`): `method` `SEND`, `path` `/`, the transport scheme and host (never its
+credentials), the provider (`mailer.providers`, else the scheme), the duration, `error_kind` (`http_4xx` / `http_5xx`
+with the provider status for an `HttpTransportException`, `transport`, `exception`) and, for a sent mail, the
+Message-ID without its angle brackets (`external_message_id`). Recipients, sender, subject, headers, bodies,
+attachments and exception messages are never read into a row.
+
+- A mail queued through Messenger (`SendEmailMessage`) is recorded once, when the worker sends it; with the context
+  middleware on the bus it carries the tenant / project of the code that sent it and the message id.
+- A failover or round-robin transport reports each attempt: one row per attempt.
+- An API transport over `http_client` (Resend, Postmark…) also produces an outbound row for its HTTP call.
+
+### Tenant and project context
+
+Rows carry the tenant (e.g. organization UUID) and, when known, the project of the work in progress. Wrap the work
+in `HttpLogContext::run()`; frames nest and are always popped:
+
+```php
+use Nowo\HttpLogBundle\Context\HttpLogContext;
+
+$this->httpLogContext->run($organization->getUuid(), fn () => $this->sync->pull($board), $project->getUuid());
+```
+
+Add `nowo_http_log.messenger.context_middleware` to your buses ([CONFIGURATION](CONFIGURATION.md#messenger)) so a
+message dispatched inside `run()` is handled inside the same tenant / project, with a stable message id stored on the
+rows of its calls and mails. Tenant and project keys are opaque ids (`[A-Za-z0-9._:@-]`, at most 64 characters);
+anything else is stored as NULL.
+
+Background exports (more rows than `export.max_sync_rows`) land in one private store shared by every user allowed to
+export, as in 1.14 (no per-user store). With an access checker that implements `HttpLogChannelAccessCheckerInterface`
+each export remembers the channels it was built for and is listed and downloadable only by users allowed all of
+them; an export made by an unrestricted user is hidden from restricted users.
 
 ## Ignoring routes and paths
 

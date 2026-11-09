@@ -15,6 +15,9 @@ All options live under the root key `nowo_http_log` (alias `nowo_http_log`).
   - [Form profile (FormKit)](#form-profile-formkit)
   - [Deprecated 1.x chrome keys](#deprecated-1x-chrome-keys)
 - [security](#security)
+- [outbound](#outbound)
+- [mailer](#mailer)
+- [messenger](#messenger)
 - [Messenger retry and failure transport](#messenger-retry-and-failure-transport)
 - [Environment-specific examples](#environment-specific-examples)
 
@@ -99,6 +102,25 @@ nowo_http_log:
             - ROLE_ADMIN
         access_checker: null                # Custom service id implementing HttpLogAccessCheckerInterface
         allow_unauthenticated: false      # true only for trusted internal networks
+    outbound:                             # Outbound HttpClient capture (off by default), see "outbound"
+        enabled: false
+        clients: ['*']                    # http_client.client services to decorate ('*' = all)
+        exclude_clients: []
+        sampling_rate: 1.0                # successes kept; errors always
+        retention_days: 30
+        record_unmapped: true             # unmapped host -> provider "other"
+        default_path_depth: 2
+        path_words: []                    # extra path words kept verbatim
+        exclude_hosts: []                 # never captured (transport / database hosts)
+        decoration_priority: -1024        # outermost
+        providers: {}
+    mailer:                               # Mailer capture (off by default), see "mailer"
+        enabled: false
+        retention_days: 30
+        providers: {}
+    messenger:                            # Context propagation, see "messenger"
+        middleware: true                  # Registers nowo_http_log.messenger.context_middleware
+        propagate_tenant: true
 ```
 
 ## Top-level options
@@ -292,6 +314,94 @@ Write a literal `%` in YAML values as `%%` (Symfony container parameters).
 | `access_checker` | `null` | Optional service id for fine-grained checks (`HttpLogAccessCheckerInterface`). |
 | `allow_unauthenticated` | `false` | When `true`, skips Symfony Security requirement for the UI (not recommended in production). |
 
+## outbound
+
+Off by default. See [USAGE](USAGE.md#outbound-httpclient-calls). Enabling it maps the usage columns: deploy the
+migration of [UPGRADING](UPGRADING.md#unreleased) first. `enabled` must be a literal boolean.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `enabled` | `false` | One row per logical outbound call (channel `outbound`). Requires `symfony/http-client`. |
+| `clients` | `['*']` | Service ids tagged `http_client.client` to decorate; `*` = `http_client` and every scoped client. |
+| `exclude_clients` | `[]` | Service ids never decorated. |
+| `sampling_rate` | `1.0` | Share of successful calls kept (`0.0`–`1.0`). Errors (status >= 400 or a transport error) are always kept. |
+| `retention_days` | `30` | Days outbound rows are kept (`null` = forever); purge scope `outbound`. |
+| `record_unmapped` | `true` | A host no provider matches is recorded as provider `other`; `false` drops it. |
+| `default_path_depth` | `2` | Path segments kept (0–16) when no provider template matches; the rest becomes `/{…}`. |
+| `path_words` | `[]` | Extra path segments kept verbatim on every host, besides versions (`v2`) and the built-in REST words (`OutboundUrlTemplater::DEFAULT_PATH_WORDS`); any other word-like segment is stored as `{seg}`. |
+| `exclude_hosts` | `[]` | Hosts never captured: exact, or one leading `*.` label. List the host of a Messenger transport or database whose client is decorated (a transport that polls through a decorated client would otherwise log every poll), and hosts whose name is itself a secret. |
+| `decoration_priority` | `-1024` | Keeps the logger outermost: outside `RetryableHttpClient` (one row per logical call, `retry_count` from the response) and outside tracing decorators. |
+| `providers.<key>.clients` | `[]` | Scoped client service ids of the provider (matched before hosts). |
+| `providers.<key>.hosts` | `[]` | Exact hosts, or one leading wildcard label (`*.amazonaws.com`), optional port; no scheme or path. A provider needs `clients` or `hosts`. |
+| `providers.<key>.path_templates` | `[]` | `/api/v2/task/{id}`: first template whose literal segments match wins; placeholders keep their names. |
+| `providers.<key>.path_depth` | `null` | Overrides `default_path_depth` (`0` = host only, e.g. webhooks). |
+| `providers.<key>.per_call` | `true` | `false`: never a per-call row (uptime probes; the 1.16 rollup will count them). |
+| `providers.<key>.rollup` | `true` | Counted by the daily rollup (1.16); no effect in this version. |
+
+With `async: false`, a batch flushed because the buffer reached 100 captures inside host code (a long stream loop
+or handler) is inserted on the host's connection and joins a host transaction that is still open; the boundary
+flushes (after the response, command or message) never do.
+
+Provider keys match `^[a-z][a-z0-9_.-]{0,63}$`. Precedence: the request option `extra.nowo_http_log.provider` (when
+it names a configured provider), the provider given to `HttpLogHttpClientWrapper::wrap()`, the client service id,
+exact hosts, wildcard hosts (config order), then `other`.
+
+```yaml
+nowo_http_log:
+    outbound:
+        enabled: true
+        providers:
+            clickup:
+                clients: [clickup.client]
+                hosts: [api.clickup.com]
+                path_templates: ['/api/v2/task/{id}', '/api/v2/list/{id}/task']
+            s3:
+                hosts: ['*.amazonaws.com']
+                path_depth: 1                 # bucket only
+            slack:
+                hosts: [hooks.slack.com, slack.com]
+                path_depth: 0                 # host only: the webhook path is a secret
+            uptime:
+                clients: [uptime.http_client]
+                per_call: false
+```
+
+## mailer
+
+Off by default. See [USAGE](USAGE.md#mails). Enabling it maps the usage columns: deploy the migration of
+[UPGRADING](UPGRADING.md#unreleased) first. `enabled` must be a literal boolean.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `enabled` | `false` | One row per send attempt (channel `mailer`). Requires `symfony/mailer`. |
+| `retention_days` | `30` | Days mailer rows are kept (`null` = forever); purge scope `mailer`. |
+| `providers` | `{}` | Provider key => `{ schemes: [...] }`; a transport scheme no provider lists is stored as the provider itself (`smtp`, `resend+api`, …). |
+
+```yaml
+nowo_http_log:
+    mailer:
+        enabled: true
+        providers:
+            resend: { schemes: [resend, resend+api, resend+smtp] }
+```
+| `rollup` | `true` | Counted by the daily rollup (1.16); no effect in this version. |
+
+## messenger
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `middleware` | `true` | Registers the private service `nowo_http_log.messenger.context_middleware`. Add it to the buses whose handlers make outbound calls or send mail; unused, it is removed from the container. |
+| `propagate_tenant` | `true` | On dispatch, copies the tenant / project of the current `HttpLogContext` frame into the `HttpLogContextStamp`. |
+
+```yaml
+framework:
+    messenger:
+        buses:
+            messenger.bus.default:
+                middleware:
+                    - nowo_http_log.messenger.context_middleware
+```
+
 ## Messenger retry and failure transport
 
 When `async: true` (default), capture dispatches `PersistHttpLogMessage`; export and purge can use `ExportHttpLogMessage` and `PurgeHttpLogMessage`. Handlers are idempotent for redelivered persist/export jobs; purge deletes by retention cutoff.
@@ -320,6 +430,25 @@ framework:
 Run a worker on both transports: `php bin/console messenger:consume async failed -vv`. Inspect the `failed` queue after repeated handler errors; messages contain redacted capture arrays — treat failed exports like any other log export (filesystem permissions, no public sharing).
 
 Set `nowo_http_log.async: false` only when you accept inline persistence on `kernel.terminate` (simpler demos; not ideal under high load).
+
+With outbound or mailer capture enabled, every third-party call and every mail adds one `PersistHttpLogMessage`.
+Route `Nowo\HttpLogBundle\Message\*` to a **dedicated transport** (its own queue / stream and worker) so log traffic
+never delays the host's own messages:
+
+```yaml
+framework:
+    messenger:
+        transports:
+            async_http_log:
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
+                options: { stream: http_log }   # Redis; `queue_name` for Doctrine / AMQP
+                retry_strategy: { max_retries: 3, delay: 1000, multiplier: 2 }
+        routing:
+            'Nowo\HttpLogBundle\Message\PersistHttpLogMessage': async_http_log
+```
+
+Usage payloads carry only the allowlisted fields of a row, so a message in the failure transport holds no more than
+the row would.
 
 ## Environment-specific examples
 

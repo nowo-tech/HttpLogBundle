@@ -65,6 +65,8 @@ final readonly class AdminPages
     public function __construct(
         private UrlGeneratorInterface $urls,
         private array $webUi = [],
+        // HL-1: the usage columns are mapped (outbound or mailer capture enabled)
+        private bool $usageColumns = false,
     ) {
     }
 
@@ -125,17 +127,41 @@ final readonly class AdminPages
             visible: $canPurge,
         );
 
+        $columns = [
+            new Column('id', $this->label('admin.column.id'), required: true),
+            new Column('createdAt', $this->label('admin.column.created_at'), priority: 2),
+            new Column('method', $this->label('admin.column.method'), required: true),
+            new Column('path', $this->label('admin.column.path'), required: true),
+            new Column('statusCode', $this->label('admin.column.status'), required: true),
+            new Column('durationMs', $this->label('admin.column.duration'), align: 'end', priority: 2),
+            new Column('clientIp', $this->label('admin.column.client_ip'), priority: 3),
+        ];
+        $filterFields = [
+            'q'               => new FilterField('q', width: 'lg'),
+            'method'          => new FilterField('method', width: 'xs'),
+            'statusCode'      => new FilterField('statusCode', width: 'xs'),
+            'clientIp'        => new FilterField('clientIp', width: 'sm'),
+            'path'            => new FilterField('path', width: 'lg'),
+            'routeName'       => new FilterField('routeName', width: 'md'),
+            'bodyContentType' => new FilterField('bodyContentType', width: 'sm'),
+            'createdFrom'     => new FilterField('createdFrom', width: 'md'),
+            'createdTo'       => new FilterField('createdTo', width: 'md'),
+        ];
+        if ($this->usageColumns) {
+            $columns[] = new Column('channel', $this->label('admin.column.channel'), priority: 2);
+            $columns[] = new Column('provider', $this->label('admin.column.provider'), priority: 2);
+            $filterFields += [
+                'channel'        => new FilterField('channel', width: 'sm'),
+                'provider'       => new FilterField('provider', width: 'sm'),
+                'tenantKey'      => new FilterField('tenantKey', width: 'md'),
+                'projectKey'     => new FilterField('projectKey', width: 'md'),
+                'credentialKind' => new FilterField('credentialKind', width: 'sm'),
+            ];
+        }
+
         return new ListPage(
             new PageHeader($this->label('admin.index.title'), $this->label('admin.index.total', ['%count%' => $totalCapped ? $total . '+' : $total]), $actions),
-            [
-                new Column('id', $this->label('admin.column.id'), required: true),
-                new Column('createdAt', $this->label('admin.column.created_at'), priority: 2),
-                new Column('method', $this->label('admin.column.method'), required: true),
-                new Column('path', $this->label('admin.column.path'), required: true),
-                new Column('statusCode', $this->label('admin.column.status'), required: true),
-                new Column('durationMs', $this->label('admin.column.duration'), align: 'end', priority: 2),
-                new Column('clientIp', $this->label('admin.column.client_ip'), priority: 3),
-            ],
+            $columns,
             $entries,
             $filters,
             fn (HttpLogEntry $entry): array => [
@@ -147,17 +173,7 @@ final readonly class AdminPages
             bundle: LegacyThemeBridge::BUNDLE,
             layout: $this->layout(),
             attributes: ['data-testid' => 'http-log-list'] + LegacyThemeBridge::pageAttributes($this->webUi, 'results'),
-            filterFields: [
-                'q'               => new FilterField('q', width: 'lg'),
-                'method'          => new FilterField('method', width: 'xs'),
-                'statusCode'      => new FilterField('statusCode', width: 'xs'),
-                'clientIp'        => new FilterField('clientIp', width: 'sm'),
-                'path'            => new FilterField('path', width: 'lg'),
-                'routeName'       => new FilterField('routeName', width: 'md'),
-                'bodyContentType' => new FilterField('bodyContentType', width: 'sm'),
-                'createdFrom'     => new FilterField('createdFrom', width: 'md'),
-                'createdTo'       => new FilterField('createdTo', width: 'md'),
-            ],
+            filterFields: $filterFields,
             filtersSubmit: new Action('filter', $this->label('admin.action.filter')),
         );
     }
@@ -203,7 +219,7 @@ final readonly class AdminPages
         $contentType = (string) $entry->getContentType();
         $bodyType    = (string) $entry->getBodyContentType();
 
-        return [
+        $items = [
             new DetailItem($this->label('admin.column.id'), $entry->getId()),
             new DetailItem($this->label('admin.field.request_id'), $entry->getRequestId()),
             new DetailItem($this->label('admin.column.created_at'), $entry->getCreatedAt()->format('Y-m-d H:i:s')),
@@ -215,6 +231,26 @@ final readonly class AdminPages
             new DetailItem($this->label('admin.column.client_ip'), $entry->getClientIp()),
             new DetailItem($this->label('admin.field.user'), $entry->getUserIdentifier()),
             new DetailItem($this->label('admin.field.content_type'), $contentType === '' || $bodyType === '' ? $contentType . $bodyType : sprintf('%s (%s)', $contentType, $bodyType)),
+        ];
+        if (!$this->usageColumns) {
+            return $items;
+        }
+
+        // HL-1 allowlisted usage fields (outbound / mailer rows have no headers, bodies or query string).
+        $credential = $entry->getCredentialKind() === null ? null : $entry->getCredentialKind() . ($entry->getCredentialId() === null ? '' : ':' . $entry->getCredentialId());
+
+        return [
+            ...$items,
+            new DetailItem($this->label('admin.column.channel'), $entry->getChannel() ?? 'web'),
+            new DetailItem($this->label('admin.column.provider'), $entry->getProvider()),
+            new DetailItem($this->label('admin.field.error_kind'), $entry->getErrorKind()),
+            new DetailItem($this->label('admin.field.retry_count'), $entry->getRetryCount()),
+            new DetailItem($this->label('admin.field.response_bytes'), $entry->getResponseBytes()),
+            new DetailItem($this->label('admin.field.tenant_key'), $entry->getTenantKey()),
+            new DetailItem($this->label('admin.field.project_key'), $entry->getProjectKey()),
+            new DetailItem($this->label('admin.field.credential'), $credential),
+            new DetailItem($this->label('admin.field.messenger_message_id'), $entry->getMessengerMessageId()),
+            new DetailItem($this->label('admin.field.external_message_id'), $entry->getExternalMessageId()),
         ];
     }
 

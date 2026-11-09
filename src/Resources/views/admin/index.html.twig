@@ -38,4 +38,13 @@
     <td class="{{ _cell }}{{ row.clientIp ? '' : ' ' ~ nowo_ui_class('table_cell_muted', _b) }} nowo-ui-cell--start" data-label="{{ 'admin.column.client_ip'|trans({}, 'NowoHttpLogBundle') }}" data-nowo-ui-priority="3">
         {{ row.clientIp ?: '—' }}
     </td>
+    {%- if page.columns|filter(c => c.key == 'channel')|length > 0 %}
+        {#- HL-1 usage columns (outbound / mailer capture enabled) -#}
+        <td class="{{ _cell }} nowo-ui-cell--start" data-label="{{ 'admin.column.channel'|trans({}, 'NowoHttpLogBundle') }}" data-nowo-ui-priority="2">
+            <span class="{{ nowo_ui_class('badge_neutral', _b) }} nowo-http-log-channel">{{ row.channel ?? 'web' }}</span>
+        </td>
+        <td class="{{ _cell }}{{ row.provider ? '' : ' ' ~ nowo_ui_class('table_cell_muted', _b) }} nowo-ui-cell--start" data-label="{{ 'admin.column.provider'|trans({}, 'NowoHttpLogBundle') }}" data-nowo-ui-priority="2">
+            {{ row.provider ?: '—' }}
+        </td>
+    {%- endif %}
 {% endblock %}

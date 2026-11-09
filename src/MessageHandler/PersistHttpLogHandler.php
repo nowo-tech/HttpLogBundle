@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\MessageHandler;
 
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use InvalidArgumentException;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Message\PersistHttpLogMessage;
 use Nowo\HttpLogBundle\Model\HttpLogCapture;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Service\HttpLogRecorder;
+use Nowo\HttpLogBundle\Usage\UsageCapture;
+use Nowo\HttpLogBundle\Usage\UsageEntryWriter;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 
@@ -20,11 +23,19 @@ final readonly class PersistHttpLogHandler
         private HttpLogEntryRepository $repository,
         private HttpLogRecorder $recorder,
         private LoggerInterface $logger,
+        // HL-1: set by the extension when outbound or mailer capture is enabled.
+        private ?UsageEntryWriter $usageWriter = null,
     ) {
     }
 
     public function __invoke(PersistHttpLogMessage $message): void
     {
+        if (isset($message->payload[UsageCapture::PAYLOAD_MARKER])) {
+            $this->persistUsage($message->payload);
+
+            return;
+        }
+
         $capture = HttpLogCapture::fromArray($message->payload);
 
         if ($capture->requestId !== null && $this->findExistingByRequestId($capture->requestId) instanceof HttpLogEntry) {
@@ -37,6 +48,33 @@ final readonly class PersistHttpLogHandler
             $this->logger->debug('HTTP log entry already persisted.', [
                 'requestId' => $capture->requestId,
             ]);
+        }
+    }
+
+    /**
+     * Usage rows (outbound, mailer): one DBAL insert, deduplicated on the server-generated event id, so a redelivered
+     * message writes nothing twice. A payload of a feature that is no longer enabled is dropped with a warning.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function persistUsage(array $payload): void
+    {
+        if (!$this->usageWriter instanceof UsageEntryWriter) {
+            $this->logger->warning('HTTP log usage message dropped: outbound and mailer capture are disabled.');
+
+            return;
+        }
+
+        try {
+            $capture = UsageCapture::fromArray($payload);
+        } catch (InvalidArgumentException) {
+            $this->logger->warning('HTTP log usage message dropped: invalid payload.');
+
+            return;
+        }
+
+        if (!$this->usageWriter->write($capture)) {
+            $this->logger->debug('HTTP log usage entry already persisted.');
         }
     }
 

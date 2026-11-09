@@ -5,6 +5,9 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+  - [Outbound and mailer capture (opt-in)](#outbound-and-mailer-capture-opt-in)
+  - [Behaviour once a block is enabled](#behaviour-once-a-block-is-enabled)
+  - [New optional APIs (available with every block disabled)](#new-optional-apis-available-with-every-block-disabled)
 - [To 1.14.1](#to-1141)
 - [To 1.14.0](#to-1140)
 - [To 1.13.2](#to-1132)
@@ -49,6 +52,121 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+**Nothing changes unless you enable a new block.** With `outbound` and `mailer` left disabled (the default) the
+container gets no listener, decorator or schema listener of the new features, the Doctrine mapping of the entry is
+byte-identical to 1.14 (`doctrine:schema:update --dump-sql` is empty) and web requests produce the same message
+payload, row, export and admin pages.
+
+### Outbound and mailer capture (opt-in)
+
+`nowo_http_log.outbound` records one allowlisted row per outbound HttpClient call and `nowo_http_log.mailer` one per
+mail send attempt (see [CONFIGURATION](CONFIGURATION.md#outbound) and [USAGE](USAGE.md#outbound-and-mailer-usage)).
+Enabling either maps eleven nullable columns and five indexes on the entry table:
+
+1. **Deploy the migration before you enable a block.** Enabling without it fails at the first write: the capture is
+   logged (one warning, exception class only) and dropped; the HTTP call or the mail is never affected.
+2. Generate it with `doctrine:migrations:diff` once the block is enabled, or use the statements below (default table
+   name; with `doctrine.table_name_prefix: http_log_`, as Symfony Beacon uses, replace `nowo_http_log_entry` with
+   `http_log_entry`; with `doctrine.table_prefix`, prefix the table and every index name). The statements are checked
+   by the test suite: the schema diff is empty after them.
+3. `enabled` must be a literal boolean (no `%env()%`): it decides the Doctrine mapping at compile time.
+4. While the usage columns are mapped, `doctrine.table_prefix` may be at most 34 characters (the longest index name,
+   `idx_http_log_provider_created`, has 29).
+
+MySQL 8 / MariaDB 10.6+ (MySQL 8 adds the columns with `ALGORITHM=INSTANT`):
+
+<!-- hl1-ddl:mysql -->
+```sql
+ALTER TABLE nowo_http_log_entry
+  ADD channel VARCHAR(16) DEFAULT NULL,
+  ADD provider VARCHAR(64) DEFAULT NULL,
+  ADD credential_kind VARCHAR(32) DEFAULT NULL,
+  ADD credential_id VARCHAR(64) DEFAULT NULL,
+  ADD tenant_key VARCHAR(64) DEFAULT NULL,
+  ADD project_key VARCHAR(64) DEFAULT NULL,
+  ADD response_bytes BIGINT DEFAULT NULL,
+  ADD retry_count SMALLINT DEFAULT NULL,
+  ADD error_kind VARCHAR(32) DEFAULT NULL,
+  ADD messenger_message_id VARCHAR(64) DEFAULT NULL,
+  ADD external_message_id VARCHAR(255) DEFAULT NULL;
+CREATE INDEX idx_http_log_chan_created ON nowo_http_log_entry (channel, created_at);
+CREATE INDEX idx_http_log_tenant_created ON nowo_http_log_entry (tenant_key, created_at);
+CREATE INDEX idx_http_log_project_created ON nowo_http_log_entry (project_key, created_at);
+CREATE INDEX idx_http_log_provider_created ON nowo_http_log_entry (provider, created_at);
+CREATE INDEX idx_http_log_cred_created ON nowo_http_log_entry (credential_kind, credential_id, created_at);
+```
+
+PostgreSQL (on a large table, run each `CREATE INDEX` as `CREATE INDEX CONCURRENTLY` outside a transaction):
+
+<!-- hl1-ddl:postgresql -->
+```sql
+ALTER TABLE nowo_http_log_entry
+  ADD channel VARCHAR(16) DEFAULT NULL,
+  ADD provider VARCHAR(64) DEFAULT NULL,
+  ADD credential_kind VARCHAR(32) DEFAULT NULL,
+  ADD credential_id VARCHAR(64) DEFAULT NULL,
+  ADD tenant_key VARCHAR(64) DEFAULT NULL,
+  ADD project_key VARCHAR(64) DEFAULT NULL,
+  ADD response_bytes BIGINT DEFAULT NULL,
+  ADD retry_count SMALLINT DEFAULT NULL,
+  ADD error_kind VARCHAR(32) DEFAULT NULL,
+  ADD messenger_message_id VARCHAR(64) DEFAULT NULL,
+  ADD external_message_id VARCHAR(255) DEFAULT NULL;
+CREATE INDEX idx_http_log_chan_created ON nowo_http_log_entry (channel, created_at);
+CREATE INDEX idx_http_log_tenant_created ON nowo_http_log_entry (tenant_key, created_at);
+CREATE INDEX idx_http_log_project_created ON nowo_http_log_entry (project_key, created_at);
+CREATE INDEX idx_http_log_provider_created ON nowo_http_log_entry (provider, created_at);
+CREATE INDEX idx_http_log_cred_created ON nowo_http_log_entry (credential_kind, credential_id, created_at);
+```
+
+SQLite (one column per statement):
+
+<!-- hl1-ddl:sqlite -->
+```sql
+ALTER TABLE nowo_http_log_entry ADD COLUMN channel VARCHAR(16) DEFAULT NULL;
+ALTER TABLE nowo_http_log_entry ADD COLUMN provider VARCHAR(64) DEFAULT NULL;
+ALTER TABLE nowo_http_log_entry ADD COLUMN credential_kind VARCHAR(32) DEFAULT NULL;
+ALTER TABLE nowo_http_log_entry ADD COLUMN credential_id VARCHAR(64) DEFAULT NULL;
+ALTER TABLE nowo_http_log_entry ADD COLUMN tenant_key VARCHAR(64) DEFAULT NULL;
+ALTER TABLE nowo_http_log_entry ADD COLUMN project_key VARCHAR(64) DEFAULT NULL;
+ALTER TABLE nowo_http_log_entry ADD COLUMN response_bytes BIGINT DEFAULT NULL;
+ALTER TABLE nowo_http_log_entry ADD COLUMN retry_count SMALLINT DEFAULT NULL;
+ALTER TABLE nowo_http_log_entry ADD COLUMN error_kind VARCHAR(32) DEFAULT NULL;
+ALTER TABLE nowo_http_log_entry ADD COLUMN messenger_message_id VARCHAR(64) DEFAULT NULL;
+ALTER TABLE nowo_http_log_entry ADD COLUMN external_message_id VARCHAR(255) DEFAULT NULL;
+CREATE INDEX idx_http_log_chan_created ON nowo_http_log_entry (channel, created_at);
+CREATE INDEX idx_http_log_tenant_created ON nowo_http_log_entry (tenant_key, created_at);
+CREATE INDEX idx_http_log_project_created ON nowo_http_log_entry (project_key, created_at);
+CREATE INDEX idx_http_log_provider_created ON nowo_http_log_entry (provider, created_at);
+CREATE INDEX idx_http_log_cred_created ON nowo_http_log_entry (credential_kind, credential_id, created_at);
+```
+
+### Behaviour once a block is enabled
+
+- **Purge per channel:** `nowo:http-log:purge` (and `PurgeHttpLogMessage` without arguments) purges web rows by
+  `retention.days` and outbound / mailer rows by their own `retention_days`, one output line per scope. `--channel`
+  (repeatable: `web`, `outbound`, `mailer`) limits it; `--days` together with `--channel` overrides only those scopes.
+  A bare `--days` keeps its 1.14 meaning: every row of every channel.
+- **Admin UI:** the list gains channel / provider columns and channel, provider, tenant, project and credential-kind
+  filters; the entry page shows the allowlisted usage fields; CSV / JSON exports append the usage columns. A host that
+  forks `admin/index.html.twig` and enables a block should re-check its `nowo_ui_list_row` override (two more cells).
+- **Background exports:** the export store stays shared by every user allowed to export. With a channel access
+  checker, an export is listed and served only to users allowed every channel it was built for; exports finished
+  before the upgrade (no `.channels` file) count as unrestricted and are hidden from restricted users.
+- **Transports and drivers on a decorated client:** list their hosts in `outbound.exclude_hosts` (a transport that
+  polls through a decorated client would log every poll).
+- **Messenger:** route `Nowo\HttpLogBundle\Message\*` to a dedicated transport with retries and the failure transport
+  ([CONFIGURATION](CONFIGURATION.md#messenger-retry-and-failure-transport)); outbound and mailer capture multiply the
+  volume of `PersistHttpLogMessage`.
+
+### New optional APIs (available with every block disabled)
+
+- `Nowo\HttpLogBundle\Context\HttpLogContext` (public service): `run($tenantKey, $fn, $projectKey = null)`.
+- `nowo_http_log.messenger.context_middleware`: add it to your buses to carry the tenant / project and a stable message
+  id to the handler (private service, removed from the container while no bus uses it).
+- `Nowo\HttpLogBundle\Security\HttpLogChannelAccessCheckerInterface`: implement it on your access checker to hide
+  channels from the admin list, entry page, export and purge.
 
 ## To 1.14.1
 

@@ -45,6 +45,9 @@ final readonly class TablePrefixListener
     /** Longest named index without `DEFAULT_TABLE_NAME_PREFIX` (only `table_prefix` lengthens it): idx_http_log_status_code. */
     private const LONGEST_FIXED_NAME = 24;
 
+    /** Longest named index while the usage columns are mapped ({@see UsageColumnsListener}): idx_http_log_provider_created. */
+    public const LONGEST_USAGE_NAME = 29;
+
     private const ENTITY_NAMESPACE = 'Nowo\\HttpLogBundle\\Entity\\';
 
     /**
@@ -52,12 +55,14 @@ final readonly class TablePrefixListener
      *
      * @param string $tablePrefix Optional prefix prepended to every name (empty for none)
      * @param string $tableNamePrefix Replaces `nowo_http_log_` in every table, index and unique-constraint name
+     * @param bool $usageColumns The usage columns and their longer index names are mapped (outbound / mailer enabled)
      */
     public function __construct(
         private string $tablePrefix,
         private string $tableNamePrefix = self::DEFAULT_TABLE_NAME_PREFIX,
+        bool $usageColumns = false,
     ) {
-        self::validate($this->tablePrefix, $this->tableNamePrefix);
+        self::validate($this->tablePrefix, $this->tableNamePrefix, $usageColumns);
     }
 
     /**
@@ -66,10 +71,11 @@ final readonly class TablePrefixListener
      *
      * @param string $tablePrefix Optional prefix prepended to every name (empty for none)
      * @param string $tableNamePrefix Replacement of `DEFAULT_TABLE_NAME_PREFIX`
+     * @param bool $usageColumns The usage indexes (up to {@see LONGEST_USAGE_NAME} characters) are mapped as well
      *
      * @throws InvalidArgumentException when a prefix is malformed or a name would be too long
      */
-    public static function validate(string $tablePrefix, string $tableNamePrefix): void
+    public static function validate(string $tablePrefix, string $tableNamePrefix, bool $usageColumns = false): void
     {
         if (preg_match(self::PREFIX_PATTERN, $tableNamePrefix) !== 1) {
             throw new InvalidArgumentException(sprintf('Invalid doctrine.table_name_prefix "%s": use a lowercase letter, then lowercase letters, digits and underscores.', $tableNamePrefix));
@@ -77,7 +83,7 @@ final readonly class TablePrefixListener
         if ($tablePrefix !== '' && preg_match(self::PREFIX_PATTERN, $tablePrefix) !== 1) {
             throw new InvalidArgumentException(sprintf('Invalid doctrine.table_prefix "%s": use a lowercase letter, then lowercase letters, digits and underscores (or empty).', $tablePrefix));
         }
-        $longest = max(strlen($tablePrefix) + strlen($tableNamePrefix) + self::LONGEST_NAME_REST, strlen($tablePrefix) + self::LONGEST_FIXED_NAME);
+        $longest = max(strlen($tablePrefix) + strlen($tableNamePrefix) + self::LONGEST_NAME_REST, strlen($tablePrefix) + ($usageColumns ? self::LONGEST_USAGE_NAME : self::LONGEST_FIXED_NAME));
         if ($longest > self::MAX_IDENTIFIER_LENGTH) {
             throw new InvalidArgumentException(sprintf('doctrine.table_prefix "%s" + doctrine.table_name_prefix "%s" make a table, index or sequence name of %d characters; the limit is %d.', $tablePrefix, $tableNamePrefix, $longest, self::MAX_IDENTIFIER_LENGTH));
         }

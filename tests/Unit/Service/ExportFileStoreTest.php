@@ -10,6 +10,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
+use function array_column;
 use function bin2hex;
 use function chmod;
 use function file_put_contents;
@@ -18,6 +19,7 @@ use function glob;
 use function is_dir;
 use function random_bytes;
 use function rmdir;
+use function sort;
 use function str_repeat;
 use function sys_get_temp_dir;
 use function time;
@@ -44,6 +46,61 @@ final class ExportFileStoreTest extends TestCase
         if (is_dir($this->dir)) {
             rmdir($this->dir);
         }
+    }
+
+    #[Test]
+    public function restrictedExportsAreOfferedOnlyToViewersAllowedAllTheirChannels(): void
+    {
+        $store      = new ExportFileStore($this->dir);
+        $open       = $store->reserve(ExportFormat::Csv);
+        $restricted = $store->reserve(ExportFormat::Json, ['web', 'outbound', 'web']);
+        $broken     = $store->reserve(ExportFormat::Csv, ['mailer']);
+        foreach ([$open, $restricted, $broken] as $name) {
+            file_put_contents($store->partialPath($name), 'x');
+            $store->complete($name);
+        }
+        file_put_contents($this->dir . '/' . $broken . ExportFileStore::CHANNELS_SUFFIX, 'not json');
+
+        self::assertNull($store->channels($open));
+        self::assertSame(['web', 'outbound'], $store->channels($restricted));
+        self::assertNull($store->channels($broken), 'unreadable: counts as unrestricted');
+        self::assertSame(0o600, fileperms($this->dir . '/' . $restricted . ExportFileStore::CHANNELS_SUFFIX) & 0o777);
+
+        self::assertCount(3, $store->ready(10));
+        self::assertSame([$restricted], $this->names($store->ready(10, ['web', 'outbound', 'mailer'])), 'unrestricted (and unreadable) exports hidden');
+        self::assertSame([], $store->ready(10, ['web']));
+        self::assertNull($store->readyPath($open, ['web', 'outbound', 'mailer']));
+        self::assertNotNull($store->readyPath($restricted, ['outbound', 'web']));
+        self::assertNull($store->readyPath($restricted, ['web']));
+        self::assertNotNull($store->readyPath($open));
+    }
+
+    #[Test]
+    public function expiredSidecarsArePurgedWithTheirExport(): void
+    {
+        $store = new ExportFileStore($this->dir, 60);
+        $name  = $store->reserve(ExportFormat::Csv, ['web']);
+        file_put_contents($store->partialPath($name), 'x');
+        $store->complete($name);
+        foreach ([$name, $name . ExportFileStore::CHANNELS_SUFFIX] as $file) {
+            touch($this->dir . '/' . $file, time() - 3600);
+        }
+
+        self::assertSame(2, $store->purgeExpired());
+        self::assertFileDoesNotExist($this->dir . '/' . $name . ExportFileStore::CHANNELS_SUFFIX);
+    }
+
+    /**
+     * @param list<array{name: string}> $ready
+     *
+     * @return list<string>
+     */
+    private function names(array $ready): array
+    {
+        $names = array_column($ready, 'name');
+        sort($names);
+
+        return $names;
     }
 
     #[Test]

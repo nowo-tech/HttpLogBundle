@@ -24,6 +24,12 @@ final class HttpLogExportType extends AbstractHttpLogActionType
         'q',
         'createdFrom',
         'createdTo',
+        // HL-1 usage filters (ignored by the repository while the usage columns are not mapped).
+        'channel',
+        'provider',
+        'tenantKey',
+        'projectKey',
+        'credentialKind',
     ];
 
     /**

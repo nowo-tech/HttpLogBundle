@@ -79,7 +79,7 @@
                                     <span class="{{ nowo_ui_class('badge_neutral', _b) }} nowo-http-log-method">{{ item.value }}</span>
                                 {%- elseif _key == 'admin.column.status' -%}
                                     <span class="{{ nowo_ui_class(_status_slot, _b) }} nowo-http-log-status">{{ item.value }}</span>
-                                {%- elseif _key in ['admin.field.url', 'admin.field.request_id', 'admin.field.route'] -%}
+                                {%- elseif _key in ['admin.field.url', 'admin.field.request_id', 'admin.field.route', 'admin.field.messenger_message_id', 'admin.field.external_message_id'] -%}
                                     <code class="{{ nowo_ui_class('code', _b) }}">{{ item.value }}</code>
                                 {%- else -%}
                                     {{ item.value|nowo_ui_trans }}

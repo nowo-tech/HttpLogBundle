@@ -89,6 +89,42 @@ class HttpLogEntry
     #[ORM\Column(name: 'created_at', type: Types::DATETIME_IMMUTABLE)]
     private DateTimeImmutable $createdAt;
 
+    // Usage columns (HL-1, since 1.15): NOT mapped by these attributes. UsageColumnsListener maps them only when an
+    // outbound or mailer feature is enabled, so hosts that enable nothing keep the 1.14 metadata and schema.
+
+    /** @phpstan-ignore property.unusedType (hydrated by Doctrine once UsageColumnsListener maps it) */
+    private ?string $channel = null;
+
+    /** @phpstan-ignore property.unusedType (hydrated by Doctrine once UsageColumnsListener maps it) */
+    private ?string $provider = null;
+
+    /** @phpstan-ignore property.unusedType (hydrated by Doctrine once UsageColumnsListener maps it) */
+    private ?string $credentialKind = null;
+
+    /** @phpstan-ignore property.unusedType (hydrated by Doctrine once UsageColumnsListener maps it) */
+    private ?string $credentialId = null;
+
+    /** @phpstan-ignore property.unusedType (hydrated by Doctrine once UsageColumnsListener maps it) */
+    private ?string $tenantKey = null;
+
+    /** @phpstan-ignore property.unusedType (hydrated by Doctrine once UsageColumnsListener maps it) */
+    private ?string $projectKey = null;
+
+    /** @phpstan-ignore property.unusedType, property.unusedType (BIGINT: DBAL 3 hydrates a numeric string, DBAL 4 an int) */
+    private int|string|null $responseBytes = null;
+
+    /** @phpstan-ignore property.unusedType (hydrated by Doctrine once UsageColumnsListener maps it) */
+    private ?int $retryCount = null;
+
+    /** @phpstan-ignore property.unusedType (hydrated by Doctrine once UsageColumnsListener maps it) */
+    private ?string $errorKind = null;
+
+    /** @phpstan-ignore property.unusedType (hydrated by Doctrine once UsageColumnsListener maps it) */
+    private ?string $messengerMessageId = null;
+
+    /** @phpstan-ignore property.unusedType (hydrated by Doctrine once UsageColumnsListener maps it) */
+    private ?string $externalMessageId = null;
+
     public function __construct()
     {
         $this->createdAt = new DateTimeImmutable();
@@ -376,5 +412,61 @@ class HttpLogEntry
         $this->createdAt = $createdAt;
 
         return $this;
+    }
+
+    /** Channel of the row (`outbound`, `mailer`); null for web requests and when the usage columns are not mapped. */
+    public function getChannel(): ?string
+    {
+        return $this->channel;
+    }
+
+    public function getProvider(): ?string
+    {
+        return $this->provider;
+    }
+
+    public function getCredentialKind(): ?string
+    {
+        return $this->credentialKind;
+    }
+
+    public function getCredentialId(): ?string
+    {
+        return $this->credentialId;
+    }
+
+    public function getTenantKey(): ?string
+    {
+        return $this->tenantKey;
+    }
+
+    public function getProjectKey(): ?string
+    {
+        return $this->projectKey;
+    }
+
+    public function getResponseBytes(): ?int
+    {
+        return $this->responseBytes === null ? null : (int) $this->responseBytes;
+    }
+
+    public function getRetryCount(): ?int
+    {
+        return $this->retryCount;
+    }
+
+    public function getErrorKind(): ?string
+    {
+        return $this->errorKind;
+    }
+
+    public function getMessengerMessageId(): ?string
+    {
+        return $this->messengerMessageId;
+    }
+
+    public function getExternalMessageId(): ?string
+    {
+        return $this->externalMessageId;
     }
 }
