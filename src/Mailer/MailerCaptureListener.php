@@ -53,6 +53,8 @@ final class MailerCaptureListener implements EventSubscriberInterface, ResetInte
         private readonly ClockInterface $clock,
         private readonly array $providers = [],
         ?LoggerInterface $logger = null,
+        // rollup.enabled and mailer.rollup: every message is also counted in the daily rollup
+        private readonly bool $rollup = false,
     ) {
         $this->pending = new WeakMap();
         $this->logger  = $logger ?? new NullLogger();
@@ -157,6 +159,7 @@ final class MailerCaptureListener implements EventSubscriberInterface, ResetInte
             projectKey: $start['frame']->projectKey,
             messengerMessageId: $start['frame']->messengerMessageId,
             externalMessageId: $messageId,
+            rollup: $this->rollup,
         ));
     }
 

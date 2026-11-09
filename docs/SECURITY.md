@@ -27,6 +27,15 @@ Security considerations for HTTP log capture, storage, and the admin UI.
 | Logging breaking the host (HL-1) | Every capture step is wrapped: a failure logs one warning (exception class only) and drops the capture; writes are DBAL inserts after the request / message boundary, never a `flush()` of the shared manager |
 | Usage rows of another channel or tenant (HL-1) | Optional `HttpLogChannelAccessCheckerInterface` hides channels from list, entry page (404), export (synchronous and background: each background export remembers its channels and is listed / served only to users allowed all of them) and purge; tenant scoping of host pages stays with the host |
 | Secrets in outbound paths and hosts (HL-1) | Path segments are kept only when they are versions or known path words, else templated (`{seg}`, `{x}`, `{id}`, `{uuid}`); host names are stored as is, so list secret hosts in `outbound.exclude_hosts` and give webhook providers `path_depth: 0` |
+| Secrets in named-channel rows (HL-1 1.16) | Allowlist: the route path template (never the raw path: tokens in `/share/{token}` stay out), no query string, headers or bodies, a truncated client IP by default; the client's `X-Request-Id` is neither stored nor a dedupe key (it cannot suppress rows or counts) |
+| Token leakage through the resolver hook (HL-1 1.16) | `HttpLogRequestContextResolution` drops (stores NULL, warns with the resolver class and field only) any credential kind / id, tenant or project key that fails the opaque-key rule or equals, contains or starts (6+ chars) a credential of the request: the `Authorization` value (whole, after its scheme, decoded Basic pair and password), each `redaction.headers` value and cookie, each `redaction.query_params` value. The same guard drops a user identifier equal to the request's credential. Credentials sent in other headers are guarded only once listed in `redaction.headers` |
+| Resolver changing the request (HL-1 1.16) | The resolver runs before the controller only when reading the token cannot start a lazy firewall's authentication (`security.untracked_token_storage` has no pending initializer); otherwise at `kernel.terminate`. A resolver that throws is skipped (exception class logged). The token is passed only behind a firewall with security enabled (worker rule of 1.14) |
+| Another tenant's usage on a host page (HL-1 1.16) | `HttpLogUsageReaderInterface` requires an explicit scope (`forTenant()` / `platform()`, no default); a tenant query filters on the exact key (binary comparison on MySQL, whose rollup key columns are `utf8mb4_bin`, so keys differing in case are separate buckets). Authorisation of the page stays with the host |
+| Double counting or suppressed counts (HL-1 1.16) | Exactly-once rollup: the per-call row (unique server event id) or the ledger row and the bucket upsert in one transaction; a redelivery is a unique violation and counts nothing. The ledger forgets an event after `rollup.dedupe_days`: replay the failure transport within it |
+| Hiding usage from the rollup (HL-1 1.16, audit JA) | Short request values (< 8 characters) are secrets only by exact equality, so `?token=-` cannot blank the context (JA-M1); channel prefixes and web ignores use the decoded path, so `/%61pi/…` cannot leave the API channel (JA-M2) |
+| Write hot spot (HL-1 1.16, JA-L3) | One bucket serialises its writes; failed-auth requests of a channel share the `''` bucket. Until the §9.6 batch handler lands: `async: true` on a dedicated transport and host rate limits for public channels |
+| Resolver reading client input (JA-I7) | The bundle takes tenant and credential only from the resolver. Resolve them from the authenticated credential, never from a header or route parameter, and return null when authentication failed; never derive a credential id from the token except as a one-way hash (JA-I1) |
+| Personal data in the rollup (HL-1 1.16) | Buckets hold no user identifier, IP, path or host: only channel, provider, credential kind / id and tenant keys plus counters. `HttpLogUsageEraserInterface` erases a credential (rows deleted, buckets folded into `~erased`) or a tenant (rows and buckets deleted); `HttpLogPersonalDataEraserInterface` also covers named-channel rows |
 
 ## Redaction defaults
 
@@ -121,6 +130,10 @@ Before tagging a release, confirm:
 Record confirmation in the release PR or tag notes.
 
 ## AI security audit
+
+**HL-1 named channels, rollup, retention and erasure (Unreleased, slices S4–S6):** audit A2 (Appendix JA, 2026-11-09)
+Pass-Medium on `d7f99ad`; JA-M1, JA-M2, JA-L1, JA-L2, JA-I2, JA-I3, JA-I4 fixed, JA-L3 and the other Info items
+documented. Delta: **re-verification pending**.
 
 **HL-1 usage capture (1.15.0, slices S1–S3):** audit A1 (Appendix IX, 2026-11-09) Pass-Medium on `df15dae`;
 IX-M1, IX-L1–L3, IX-I2 and IX-I5 fixed, IX-I1 / IX-I3 documented. Delta IX on `8270a0e`: **Pass**. Open Info: IXd-I1 (a multi-client `stream()` delivers one client group after another), IXd-I2 (`exclude_hosts` misses a trailing dot or an unlisted non-default port; such a call is logged with a templated path).

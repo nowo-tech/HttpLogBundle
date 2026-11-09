@@ -11,6 +11,7 @@ use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\Events;
 use Doctrine\ORM\ORMSetup;
 use Doctrine\ORM\Tools\SchemaTool;
+use Doctrine\ORM\Tools\ToolEvents;
 use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\Persistence\ObjectManager;
 use Doctrine\Persistence\ObjectRepository;
@@ -18,17 +19,22 @@ use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
 use Nowo\HttpLogBundle\Doctrine\UsageColumnsListener;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
+use Nowo\HttpLogBundle\Rollup\RollupSchemaListener;
+use Nowo\HttpLogBundle\Rollup\RollupTables;
 
 use function dirname;
 
 use const PHP_VERSION_ID;
 
 /**
- * In-memory SQLite database of the entry, with or without the HL-1 usage columns, behind a minimal ManagerRegistry.
+ * In-memory SQLite database of the entry, with or without the HL-1 usage columns and the rollup tables, behind a
+ * minimal ManagerRegistry.
  */
 final readonly class UsageTestDatabase implements ManagerRegistry
 {
     public EntityManager $entityManager;
+
+    public RollupTables $rollupTables;
 
     /**
      * @param array<string, mixed> $connectionParams DBAL parameters (default: in-memory SQLite)
@@ -39,8 +45,13 @@ final readonly class UsageTestDatabase implements ManagerRegistry
         string $tableNamePrefix = TablePrefixListener::DEFAULT_TABLE_NAME_PREFIX,
         array $connectionParams = ['driver' => 'pdo_sqlite', 'memory' => true],
         bool $createSchema = true,
+        bool $rollup = false,
     ) {
-        $events = new EventManager();
+        $events             = new EventManager();
+        $this->rollupTables = RollupTables::fromPrefixes($tablePrefix, $tableNamePrefix);
+        if ($rollup) {
+            $events->addEventListener(ToolEvents::postGenerateSchema, new RollupSchemaListener($this->rollupTables));
+        }
         if ($usageColumns) {
             $events->addEventListener(Events::loadClassMetadata, new UsageColumnsListener());
         }

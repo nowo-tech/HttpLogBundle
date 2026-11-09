@@ -103,6 +103,39 @@ final class UsageBcKernelTest extends TestCase
         }
     }
 
+    #[Test]
+    public function withNamedChannelsAndTheRollupWebPayloadsStayAsIn114(): void
+    {
+        $messages = [];
+        $kernel   = new UsageKernel(['channels' => ['api' => ['path_prefixes' => ['/api']]], 'rollup' => ['enabled' => true]], [], null, 'bc-116');
+        $kernel->boot();
+
+        try {
+            $container = $this->testContainer($kernel);
+            $bus       = new class($messages) implements MessageBusInterface {
+                /** @param list<object> $messages */
+                public function __construct(private array &$messages)
+                {
+                }
+
+                public function dispatch(object $message, array $stamps = []): Envelope
+                {
+                    $this->messages[] = $message;
+
+                    return new Envelope($message);
+                }
+            };
+            $container->set('messenger.default_bus', $bus);
+
+            $this->handle($kernel, '/hello');
+            self::assertCount(1, $messages, 'rollup.web is off: the web request is only its 1.14 message');
+            self::assertInstanceOf(PersistHttpLogMessage::class, $messages[0]);
+            self::assertSame(self::WEB_PAYLOAD_KEYS, array_keys($messages[0]->payload));
+        } finally {
+            $kernel->shutdown();
+        }
+    }
+
     private function handle(UsageKernel $kernel, string $path): void
     {
         $request  = Request::create($path);

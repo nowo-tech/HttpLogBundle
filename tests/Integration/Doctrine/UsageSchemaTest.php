@@ -180,7 +180,8 @@ final class UsageSchemaTest extends TestCase
     private function dropEntryTables(array $params): void
     {
         $connection = DriverManager::getConnection($params);
-        foreach (['nowo_http_log_entry', 'http_log_entry', 'app_nowo_http_log_entry'] as $table) {
+        // the rollup tests on the same database may have left their tables (JA-I8)
+        foreach (['nowo_http_log_entry', 'http_log_entry', 'app_nowo_http_log_entry', 'nowo_http_log_daily', 'http_log_daily', 'app_nowo_http_log_daily', 'nowo_http_log_event_seen', 'http_log_event_seen', 'app_nowo_http_log_event_seen'] as $table) {
             $connection->executeStatement('DROP TABLE IF EXISTS ' . $table);
         }
         $connection->close();

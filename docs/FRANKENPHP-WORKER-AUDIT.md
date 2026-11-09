@@ -138,7 +138,7 @@ No other findings. Good patterns: request start time and request id are stored i
 
 Re-run this audit when a change adds: properties to `HttpLogRecorder` or the subscriber (buffers, batching), a dedicated entity manager or DBAL writer, new Doctrine listeners, capture of session or user data beyond the identifier, or any use of `$_SERVER` / `getenv()` at runtime.
 
-## HL-1 usage capture (Unreleased)
+## HL-1 usage capture (1.15.0)
 
 | Service | State | Reset |
 | --- | --- | --- |
@@ -152,4 +152,18 @@ Worker tests run 1 000 sequential requests / messages on the same instances: no 
 next request, an empty buffer after each boundary, flat memory, an empty `WeakMap`. Igor reports one warning for
 `MailerCaptureListener` (it calls `HttpLogBuffer::add()`, a service that has its own `kernel.reset`); reviewed, not a
 leak.
+
+## HL-1 named channels and rollup (Unreleased)
+
+| Service | State | Reset |
+| --- | --- | --- |
+| `InboundRequestSubscriber` | none; pushes the request's `HttpLogContext` frame before the controller | the frame depth is kept on the request and restored at `kernel.terminate`; `kernel.reset` empties the stack anyway |
+| `InboundRequestRecorder`, `InboundChannelMatcher`, `HttpLogRequestContextResolution` | none (the resolved context is a request attribute, resolved once per request) | n/a; the token is read only when a firewall with security enabled handled the request |
+| `RouteTemplateMap` | the loaded route template map (read-only file contents; not kept in debug) | `kernel.reset` drops it |
+| `UsageRollupStore`, `HttpLogUsageReader`, `HttpLogUsageEraser` | none | DBAL statements, no entity kept |
+
+`ApiChannelKernelTest` runs 1 000 sequential named-channel requests (tenant on every other one) on one kernel with
+`services_resetter` between them: the frame stack is empty after each, no tenant or credential reaches the next
+request, memory stays flat. Igor: the remaining warning is still `MailerCaptureListener` (above); the closures run by
+`Connection::transactional()` are annotated (run once, never kept).
 

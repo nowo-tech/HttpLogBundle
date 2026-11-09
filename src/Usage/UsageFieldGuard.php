@@ -6,6 +6,7 @@ namespace Nowo\HttpLogBundle\Usage;
 
 use Nowo\HttpLogBundle\Enum\OutboundErrorKind;
 
+use function filter_var;
 use function is_finite;
 use function is_float;
 use function is_int;
@@ -19,6 +20,7 @@ use function strtolower;
 use function strtoupper;
 use function trim;
 
+use const FILTER_VALIDATE_IP;
 use const PHP_INT_MAX;
 
 /**
@@ -53,6 +55,12 @@ final class UsageFieldGuard
 
     /** Path stored when the templated path is not valid. */
     public const COLLAPSED_PATH = '/{…}';
+
+    /** Path of a named-channel row whose route has no template (HL-1 §6.2): never the raw path. */
+    public const UNROUTED_PATH = '{unrouted}';
+
+    /** Route names: printable ASCII, the `route_name` column is 255 characters. */
+    private const ROUTE_NAME = '/^[\x21-\x7E]{1,255}\z/';
 
     public const MAX_PATH_LENGTH = 512;
 
@@ -102,6 +110,10 @@ final class UsageFieldGuard
 
     public static function path(mixed $value): string
     {
+        if ($value === self::UNROUTED_PATH) {
+            return $value;
+        }
+
         return is_string($value) && mb_strlen($value) <= self::MAX_PATH_LENGTH && preg_match(self::PATH, $value) === 1 ? $value : self::COLLAPSED_PATH;
     }
 
@@ -167,6 +179,23 @@ final class UsageFieldGuard
         }
 
         return preg_match(self::EXTERNAL_ID, $value) === 1 ? $value : null;
+    }
+
+    public static function routeName(mixed $value): ?string
+    {
+        return is_string($value) && preg_match(self::ROUTE_NAME, $value) === 1 ? $value : null;
+    }
+
+    /** An IPv4 or IPv6 address (as stored by the web channel: the `client_ip` column is 45 characters). */
+    public static function clientIp(mixed $value): ?string
+    {
+        return is_string($value) && strlen($value) <= 45 && filter_var($value, FILTER_VALIDATE_IP) !== false ? $value : null;
+    }
+
+    /** User identifier: valid UTF-8 without control characters, at most 255 characters (the web channel stores it as is). */
+    public static function userIdentifier(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' && mb_strlen($value) <= 255 && preg_match('/^[^\x00-\x1F\x7F]+\z/u', $value) === 1 ? $value : null;
     }
 
     public static function eventId(mixed $value): ?string

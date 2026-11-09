@@ -180,6 +180,13 @@ final class OutboundCall
                 $status = null; // transport error: no final status
             }
 
+            // errors always get a row; successes by sampling_rate; never for per_call: false. Every call is a rollup
+            // event while the rollup is on: without a row it is a count-only event (HL-1 §9.1).
+            $row = $this->policy->keep($target, $kind instanceof OutboundErrorKind || ($status !== null && $status >= 400));
+            if (!$row && !$target->rollup) {
+                return;
+            }
+
             $capture = new UsageCapture(
                 channel: HttpLogChannel::OUTBOUND,
                 createdAt: $this->createdAt,
@@ -197,12 +204,12 @@ final class OutboundCall
                 tenantKey: $this->tenantKey ?? $this->frame->tenantKey,
                 projectKey: $this->projectKey ?? $this->frame->projectKey,
                 messengerMessageId: $this->frame->messengerMessageId,
+                row: $row,
+                rollup: $target->rollup,
             );
 
-            if ($this->policy->keep($target, $capture->isError())) {
-                // @igor-ignore - per-call state owned by the response passthru closure; OutboundCall is never a container service
-                $this->buffer->add($capture);
-            }
+            // @igor-ignore - per-call state owned by the response passthru closure; OutboundCall is never a container service
+            $this->buffer->add($capture);
         } catch (Throwable $exception) {
             $this->logger->warning('HTTP log outbound capture dropped.', ['exception_class' => $exception::class]);
         }

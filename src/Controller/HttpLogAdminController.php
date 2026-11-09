@@ -313,10 +313,11 @@ final class HttpLogAdminController extends AbstractController
                 ? $this->purgeService->purgeByRetention($days)
                 : $this->purgeService->purgeByCriteria(['createdBefore' => $this->purgeService->cutoff($days), 'allowedChannels' => $allowed]);
         } elseif ($allowed === null) {
-            $purged = $this->purgeService->purgeByRetention();
+            // per-call rows only: the admin form never purges the rollup
+            $purged = $this->purgeService->purgeEntriesByRetention();
         } else {
             // retention per scope, only for the channels this user may see
-            $scopes = array_values(array_intersect($this->purgeService->scopes(), $allowed));
+            $scopes = array_values(array_intersect($this->purgeService->entryScopes(), $allowed));
             $purged = $scopes === [] ? 0 : array_sum($this->purgeService->purgeScopes($scopes));
         }
 

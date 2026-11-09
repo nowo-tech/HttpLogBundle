@@ -31,7 +31,7 @@ final readonly class OutboundCapturePolicy
     public const OTHER = 'other';
 
     /**
-     * @param array<string, array{clients: list<string>, hosts: list<string>, path_templates: list<string>, path_depth: int|null, per_call: bool}> $providers
+     * @param array<string, array{clients: list<string>, hosts: list<string>, path_templates: list<string>, path_depth: int|null, per_call: bool, rollup?: bool}> $providers
      */
     public function __construct(
         private array $providers = [],
@@ -42,6 +42,8 @@ final readonly class OutboundCapturePolicy
         private array $pathWords = [],
         /** @var list<string> hosts never captured, exact or "*.suffix" (`outbound.exclude_hosts`) */
         private array $excludeHosts = [],
+        // rollup.enabled: every recorded call is a rollup event, with or without a row (HL-1 §5.5)
+        private bool $rollupEnabled = false,
     ) {
     }
 
@@ -57,7 +59,9 @@ final readonly class OutboundCapturePolicy
         $parsed = OutboundUrlTemplater::parse($url);
         if ($parsed === null) {
             // unparsable (or relative, after a synchronous failure): the client id still names the provider (IX-I2)
-            return new OutboundTarget($this->resolve('', $clientId, $clientProvider, $requestProvider) ?? self::OTHER, null, OutboundUrlTemplater::INVALID_HOST, UsageFieldGuard::COLLAPSED_PATH);
+            $provider = $this->resolve('', $clientId, $clientProvider, $requestProvider) ?? self::OTHER;
+
+            return new OutboundTarget($provider, null, OutboundUrlTemplater::INVALID_HOST, UsageFieldGuard::COLLAPSED_PATH, $this->providers[$provider]['per_call'] ?? true, $this->countsInRollup($provider));
         }
         if ($this->hostMatches($parsed['host'], $this->excludeHosts)) {
             return null; // e.g. the Messenger transport or database host (IX-L3)
@@ -72,7 +76,13 @@ final readonly class OutboundCapturePolicy
         $depth  = $config['path_depth'] ?? $this->defaultPathDepth;
         $path   = OutboundUrlTemplater::path($parsed['segments'], $config['path_templates'] ?? [], $depth, $this->pathWords);
 
-        return new OutboundTarget($provider, $parsed['scheme'], $parsed['host'], $path, $config['per_call'] ?? true);
+        return new OutboundTarget($provider, $parsed['scheme'], $parsed['host'], $path, $config['per_call'] ?? true, $this->countsInRollup($provider));
+    }
+
+    /** Unmapped calls (`other`) count like a provider with the default `rollup: true`. */
+    private function countsInRollup(string $provider): bool
+    {
+        return $this->rollupEnabled && ($this->providers[$provider]['rollup'] ?? true);
     }
 
     /** Errors are always kept; successes by `sampling_rate`; `per_call: false` providers never get a row. */

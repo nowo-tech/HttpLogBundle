@@ -6,6 +6,7 @@ namespace Nowo\HttpLogBundle\DependencyInjection;
 
 use InvalidArgumentException;
 use LogicException;
+use Nowo\HttpLogBundle\Command\RollupBackfillCommand;
 use Nowo\HttpLogBundle\Context\HttpLogContext;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
@@ -14,14 +15,30 @@ use Nowo\HttpLogBundle\EventSubscriber\HttpLogSubscriber;
 use Nowo\HttpLogBundle\HttpClient\HttpLogHttpClientWrapper;
 use Nowo\HttpLogBundle\HttpClient\OutboundCapturePolicy;
 use Nowo\HttpLogBundle\HttpClient\OutboundClientFactory;
+use Nowo\HttpLogBundle\Inbound\HttpLogRequestContextResolution;
+use Nowo\HttpLogBundle\Inbound\HttpLogRequestContextResolverInterface;
+use Nowo\HttpLogBundle\Inbound\InboundChannelMatcher;
+use Nowo\HttpLogBundle\Inbound\InboundRequestRecorder;
+use Nowo\HttpLogBundle\Inbound\InboundRequestSubscriber;
+use Nowo\HttpLogBundle\Inbound\RouteTemplateCacheWarmer;
+use Nowo\HttpLogBundle\Inbound\RouteTemplateMap;
 use Nowo\HttpLogBundle\Mailer\MailerCaptureListener;
 use Nowo\HttpLogBundle\MessageHandler\PersistHttpLogHandler;
 use Nowo\HttpLogBundle\Messenger\HttpLogContextMiddleware;
+use Nowo\HttpLogBundle\Privacy\HttpLogUsageEraser;
+use Nowo\HttpLogBundle\Privacy\HttpLogUsageEraserInterface;
+use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
+use Nowo\HttpLogBundle\Rollup\RollupSchemaListener;
+use Nowo\HttpLogBundle\Rollup\RollupTables;
+use Nowo\HttpLogBundle\Rollup\UsageRollupStore;
 use Nowo\HttpLogBundle\Security\ConfigurableHttpLogAccessChecker;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
 use Nowo\HttpLogBundle\Service\HttpLogRecorder;
+use Nowo\HttpLogBundle\Service\PurgeHttpLogService;
 use Nowo\HttpLogBundle\Usage\HttpLogBuffer;
 use Nowo\HttpLogBundle\Usage\HttpLogChannel;
+use Nowo\HttpLogBundle\Usage\HttpLogUsageReader;
+use Nowo\HttpLogBundle\Usage\HttpLogUsageReaderInterface;
 use Nowo\HttpLogBundle\Usage\UsageBufferFlushSubscriber;
 use Nowo\HttpLogBundle\Usage\UsageCaptureSink;
 use Nowo\HttpLogBundle\Usage\UsageEntryWriter;
@@ -29,6 +46,7 @@ use Nowo\HttpLogBundle\View\AdminChrome;
 use Psr\Clock\ClockInterface;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\Argument\TaggedIteratorArgument;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\DependencyInjection\Definition;
@@ -298,12 +316,11 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
             $container->removeDefinition(HttpLogAdminController::class);
         }
 
-        $usageColumns = $this->registerUsage($container, $config);
-
         // REQ-ORM-002: the table naming listener only exists when a name differs from the mapped one.
         $container->setParameter($alias . '.doctrine.table_prefix', $config['doctrine']['table_prefix']);
         $container->setParameter($alias . '.doctrine.table_name_prefix', $config['doctrine']['table_name_prefix']);
-        $this->registerTableName($container, $config['doctrine']['table_prefix'], $config['doctrine']['table_name_prefix'], $usageColumns);
+        [$usageColumns, $rollup] = $this->registerUsage($container, $config);
+        $this->registerTableName($container, $config['doctrine']['table_prefix'], $config['doctrine']['table_name_prefix'], $usageColumns, $rollup);
         if ($config['doctrine']['table_prefix'] === '' && $config['doctrine']['table_name_prefix'] === TablePrefixListener::DEFAULT_TABLE_NAME_PREFIX) {
             $container->removeDefinition(TablePrefixListener::class);
         }
@@ -344,16 +361,17 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
     }
 
     /**
-     * HL-1 usage capture (outbound HttpClient, Mailer). Every service of the feature is registered here, only when its
-     * block is enabled: hosts that enable nothing get no listener, decorator, middleware use or schema change. Always
-     * registered (inert until used): the {@see HttpLogContext}, the client wrapper and, with `messenger.middleware`,
-     * the context middleware (private: removed from the compiled container unless a bus references it).
+     * HL-1 usage capture (named inbound channels, outbound HttpClient, Mailer, daily rollup). Every service of the
+     * feature is registered here, only when its block is enabled: hosts that enable nothing get no listener,
+     * decorator, middleware use or schema change. Always registered (inert until used): the {@see HttpLogContext},
+     * the client wrapper and, with `messenger.middleware`, the context middleware (private: removed from the compiled
+     * container unless a bus references it).
      *
      * @param array<string, mixed> $config processed configuration
      *
-     * @return bool true when the usage columns are mapped (outbound or mailer enabled)
+     * @return array{0: bool, 1: bool} [the usage columns are mapped (a named channel, outbound or mailer), the rollup tables are mapped]
      */
-    private function registerUsage(ContainerBuilder $container, array $config): bool
+    private function registerUsage(ContainerBuilder $container, array $config): array
     {
         /** @var array{enabled: mixed, retention_days: int|null} $outbound */
         $outbound = $config['outbound'];
@@ -361,8 +379,15 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         $mailer = $config['mailer'];
         /** @var array{middleware: bool, propagate_tenant: bool} $messenger */
         $messenger = $config['messenger'];
+        /** @var array<string, array{path_prefixes: list<string>, routes: list<string>, exclude_path_prefixes: list<string>, exclude_routes: list<string>, sampling_rate: float, error_status_min: int, retention_days: int|null, client_ip: string, user: bool, rollup: bool}> $named */
+        $named = $config['channels'];
+        /** @var array{enabled: mixed, retention_months: int|null, dedupe_days: int, web: bool} $rollupConfig */
+        $rollupConfig = $config['rollup'];
 
-        foreach (['outbound' => $outbound['enabled'], 'mailer' => $mailer['enabled']] as $block => $enabled) {
+        $container->registerForAutoconfiguration(HttpLogRequestContextResolverInterface::class)
+            ->addTag(HttpLogRequestContextResolverInterface::TAG);
+
+        foreach (['outbound' => $outbound['enabled'], 'mailer' => $mailer['enabled'], 'rollup' => $rollupConfig['enabled']] as $block => $enabled) {
             if (!is_bool($enabled)) {
                 throw new InvalidConfigurationException(sprintf('nowo_http_log.%s.enabled must be a literal boolean: it decides the Doctrine mapping at compile time (no %%env()%%).', $block));
             }
@@ -376,18 +401,23 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
             }
         }
 
-        $alias        = Configuration::ALIAS;
-        $usageColumns = $outboundEnabled || $mailerEnabled;
-        $channels     = [];
+        $alias         = Configuration::ALIAS;
+        $rollupEnabled = $rollupConfig['enabled'] === true;
+        $usageColumns  = $outboundEnabled || $mailerEnabled || $named !== [];
+        $channels      = [];
         if ($outboundEnabled) {
             $channels[HttpLogChannel::OUTBOUND] = $outbound['retention_days'];
         }
         if ($mailerEnabled) {
             $channels[HttpLogChannel::MAILER] = $mailer['retention_days'];
         }
+        foreach ($named as $name => $channel) {
+            $channels[$name] = $channel['retention_days'];
+        }
         $container->setParameter($alias . '.usage.enabled', $usageColumns);
         $container->setParameter($alias . '.usage.channels', array_keys($channels));
         $container->setParameter($alias . '.usage.channel_retention', $channels);
+        $container->setParameter($alias . '.rollup.enabled', $rollupEnabled);
         $container->setParameter($alias . '.outbound.enabled', $outboundEnabled);
         $container->setParameter($alias . '.outbound.clients', $config['outbound']['clients']);
         $container->setParameter($alias . '.outbound.exclude_clients', $config['outbound']['exclude_clients']);
@@ -405,12 +435,19 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                 ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
         }
 
+        if ($rollupEnabled) {
+            $this->registerRollup($container, $config, $named);
+        }
+
         if ($usageColumns) {
             $container->setDefinition(UsageColumnsListener::class, (new Definition(UsageColumnsListener::class))
                 // Before TablePrefixListener (priority 0), which then prefixes the usage index names too.
                 ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata', 'priority' => 100]));
+        }
+
+        if ($usageColumns || $rollupEnabled) {
             $container->setDefinition(UsageEntryWriter::class, (new Definition(UsageEntryWriter::class))
-                ->setArguments([new Reference('doctrine')]));
+                ->setArguments([new Reference('doctrine'), $rollupEnabled ? new Reference(UsageRollupStore::class) : null]));
             $container->setDefinition(UsageCaptureSink::class, (new Definition(UsageCaptureSink::class))
                 ->setArguments([
                     new Reference(UsageEntryWriter::class),
@@ -429,6 +466,21 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
             // the web channel's own dispatch / write suspends outbound capture as well (IX-L3)
             $container->getDefinition(HttpLogRecorder::class)
                 ->setArgument('$buffer', new Reference(HttpLogBuffer::class));
+
+            $container->setDefinition(HttpLogUsageReader::class, (new Definition(HttpLogUsageReader::class))
+                ->setArguments([new Reference('doctrine'), $rollupEnabled ? new Reference(UsageRollupStore::class) : null]));
+            $container->setAlias(HttpLogUsageReaderInterface::class, HttpLogUsageReader::class)->setPublic(true);
+            $container->setDefinition(HttpLogUsageEraser::class, (new Definition(HttpLogUsageEraser::class))
+                ->setArguments([
+                    new Reference(HttpLogEntryRepository::class),
+                    $rollupEnabled ? new Reference(UsageRollupStore::class) : null,
+                    '%' . $alias . '.retention%',
+                ]));
+            $container->setAlias(HttpLogUsageEraserInterface::class, HttpLogUsageEraser::class)->setPublic(true);
+        }
+
+        if ($named !== [] || ($rollupEnabled && $rollupConfig['web'])) {
+            $this->registerInbound($container, $config, $named, $rollupEnabled, $logger);
         }
 
         if ($outboundEnabled) {
@@ -441,6 +493,9 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                     'path_depth'     => $provider['path_depth'],
                     'per_call'       => $provider['per_call'],
                 ];
+                if ($rollupEnabled) {
+                    $providers[$key]['rollup'] = $provider['rollup'];
+                }
             }
             $container->setDefinition(OutboundCapturePolicy::class, (new Definition(OutboundCapturePolicy::class))
                 ->setArguments([
@@ -450,6 +505,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                     $config['outbound']['default_path_depth'],
                     $config['outbound']['path_words'],
                     $config['outbound']['exclude_hosts'],
+                    ...($rollupEnabled ? [true] : []),
                 ]));
             $container->setDefinition(OutboundClientFactory::class, (new Definition(OutboundClientFactory::class))
                 ->setArguments([
@@ -476,6 +532,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                     new Reference(ClockInterface::class),
                     $schemes,
                     $logger,
+                    $rollupEnabled && $config['mailer']['rollup'],
                 ])
                 ->addTag('kernel.event_subscriber')
                 ->addTag('kernel.reset', ['method' => 'reset'])
@@ -489,7 +546,146 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                 ->setArguments([$outboundEnabled ? new Reference(OutboundClientFactory::class) : null]));
         }
 
-        return $usageColumns;
+        return [$usageColumns, $rollupEnabled];
+    }
+
+    /**
+     * Daily rollup (HL-1 §8.3, §9): schema listener, store, backfill command; purge scopes `rollup` and `ledger`.
+     *
+     * @param array<string, mixed> $config processed configuration
+     * @param array<string, array{sampling_rate: float, error_status_min: int, retention_days: int|null, rollup: bool}> $named
+     */
+    private function registerRollup(ContainerBuilder $container, array $config, array $named): void
+    {
+        /** @var array{table_prefix: string, table_name_prefix: string} $doctrine */
+        $doctrine = $config['doctrine'];
+        /** @var array{retention_months: int|null, dedupe_days: int, web: bool} $rollup */
+        $rollup = $config['rollup'];
+
+        $container->setDefinition(RollupTables::class, (new Definition(RollupTables::class))
+            ->setFactory([RollupTables::class, 'fromPrefixes'])
+            ->setArguments([$doctrine['table_prefix'], $doctrine['table_name_prefix']]));
+        $container->setDefinition(RollupSchemaListener::class, (new Definition(RollupSchemaListener::class))
+            ->setArguments([new Reference(RollupTables::class)])
+            ->addTag('doctrine.event_listener', ['event' => 'postGenerateSchema']));
+
+        // a counted per-call row is its own dedupe key: it must outlive the ledger window (JA-L2)
+        $windows = [];
+        foreach ($named as $name => $channel) {
+            if ($channel['rollup']) {
+                $windows['channels.' . $name] = $channel['retention_days'];
+            }
+        }
+        if ($config['outbound']['enabled'] === true) {
+            $windows['outbound'] = $config['outbound']['retention_days'];
+        }
+        if ($config['mailer']['enabled'] === true && $config['mailer']['rollup']) {
+            $windows['mailer'] = $config['mailer']['retention_days'];
+        }
+        foreach ($windows as $path => $days) {
+            if ($days !== null && $days < $rollup['dedupe_days']) {
+                throw new InvalidConfigurationException(sprintf('nowo_http_log.%s.retention_days (%d) must be at least rollup.dedupe_days (%d): a counted row is the dedupe key of its event and must outlive the ledger window.', $path, $days, $rollup['dedupe_days']));
+            }
+        }
+
+        $errorStatusMin = [];
+        $backfill       = [];
+        foreach ($named as $name => $channel) {
+            $errorStatusMin[$name] = $channel['error_status_min'];
+            if ($channel['rollup']) {
+                $backfill[$name] = $channel['sampling_rate'] < 1.0;
+            }
+        }
+        $excludedProviders = [];
+        if ($config['outbound']['enabled'] === true) {
+            $backfill[HttpLogChannel::OUTBOUND] = $config['outbound']['sampling_rate'] < 1.0;
+            foreach ($config['outbound']['providers'] as $key => $provider) {
+                if (!$provider['rollup']) {
+                    $excludedProviders[] = (string) $key;
+                }
+            }
+        }
+        if ($config['mailer']['enabled'] === true && $config['mailer']['rollup']) {
+            $backfill[HttpLogChannel::MAILER] = false;
+        }
+        if ($rollup['web']) {
+            $backfill[HttpLogChannel::WEB] = $config['sampling_rate'] < 1.0;
+        }
+
+        $container->setDefinition(UsageRollupStore::class, (new Definition(UsageRollupStore::class))
+            ->setArguments([
+                new Reference('doctrine'),
+                new Reference(RollupTables::class),
+                new Reference(ClockInterface::class),
+                $rollup['retention_months'],
+                $rollup['dedupe_days'],
+                $errorStatusMin,
+            ]));
+        $container->setDefinition(RollupBackfillCommand::class, (new Definition(RollupBackfillCommand::class))
+            ->setArguments([new Reference(UsageRollupStore::class), new Reference('doctrine'), $backfill, $excludedProviders])
+            ->setAutoconfigured(true));
+        $container->getDefinition(PurgeHttpLogService::class)
+            ->setArgument('$rollup', new Reference(UsageRollupStore::class));
+    }
+
+    /**
+     * Named inbound channels (HL-1 §6) and the `rollup.web` count: matcher, route template map and its warmer, the
+     * resolver hook, the request-side subscriber and the recorder the web subscriber hands matched requests to.
+     *
+     * @param array<string, mixed> $config processed configuration
+     * @param array<string, array<string, mixed>> $named
+     */
+    private function registerInbound(ContainerBuilder $container, array $config, array $named, bool $rollupEnabled, Reference $logger): void
+    {
+        $container->setDefinition(InboundChannelMatcher::class, (new Definition(InboundChannelMatcher::class))
+            ->setFactory([InboundChannelMatcher::class, 'fromConfig'])
+            ->setArguments([$named]));
+        $container->setDefinition(RouteTemplateMap::class, (new Definition(RouteTemplateMap::class))
+            ->setArguments([
+                new Reference('router'),
+                new Reference(InboundChannelMatcher::class),
+                new Reference('config_cache_factory'),
+                '%kernel.cache_dir%',
+                '%kernel.debug%',
+            ])
+            ->addTag('kernel.reset', ['method' => 'reset']));
+        $container->setDefinition(RouteTemplateCacheWarmer::class, (new Definition(RouteTemplateCacheWarmer::class))
+            ->setArguments([new Reference(RouteTemplateMap::class)])
+            ->addTag('kernel.cache_warmer'));
+        $container->setDefinition(HttpLogRequestContextResolution::class, (new Definition(HttpLogRequestContextResolution::class))
+            ->setArguments([
+                new TaggedIteratorArgument(HttpLogRequestContextResolverInterface::TAG),
+                $config['redaction']['headers'],
+                $config['redaction']['query_params'],
+                $logger,
+                new Reference('security.token_storage', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+                new Reference('security.helper', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+                new Reference('security.untracked_token_storage', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+            ])
+            ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
+        $container->setDefinition(InboundRequestRecorder::class, (new Definition(InboundRequestRecorder::class))
+            ->setArguments([
+                new Reference(InboundChannelMatcher::class),
+                new Reference(RouteTemplateMap::class),
+                new Reference(HttpLogRequestContextResolution::class),
+                new Reference(HttpLogBuffer::class),
+                new Reference(ClockInterface::class),
+                $logger,
+                $rollupEnabled,
+                $rollupEnabled && $config['rollup']['web'],
+            ])
+            ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
+        $container->setDefinition(InboundRequestSubscriber::class, (new Definition(InboundRequestSubscriber::class))
+            ->setArguments([
+                new Reference(InboundRequestRecorder::class),
+                new Reference(HttpLogRequestContextResolution::class),
+                new Reference(HttpLogContext::class),
+                $logger,
+            ])
+            ->addTag('kernel.event_subscriber')
+            ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
+        $container->getDefinition(HttpLogSubscriber::class)
+            ->setArgument('$inbound', new Reference(InboundRequestRecorder::class));
     }
 
     public function getAlias(): string
@@ -535,14 +731,14 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
      * REQ-ORM-002: validates the literal prefixes (`%env()%` values are checked by the listener once resolved) and
      * publishes `nowo_http_log.doctrine.entry_table`, the physical table name, for host SQL and reports.
      */
-    private function registerTableName(ContainerBuilder $container, string $tablePrefix, string $tableNamePrefix, bool $usageColumns = false): void
+    private function registerTableName(ContainerBuilder $container, string $tablePrefix, string $tableNamePrefix, bool $usageColumns = false, bool $rollup = false): void
     {
         // Table names are part of the schema: %env()% is not supported, so every published name is validated.
         if ($container->resolveEnvPlaceholders($tablePrefix) !== $tablePrefix || $container->resolveEnvPlaceholders($tableNamePrefix) !== $tableNamePrefix) {
             throw new InvalidConfigurationException('doctrine.table_prefix and doctrine.table_name_prefix do not support %env()%: the table names are part of the schema; set literal values.');
         }
         try {
-            TablePrefixListener::validate($tablePrefix, $tableNamePrefix, $usageColumns);
+            TablePrefixListener::validate($tablePrefix, $tableNamePrefix, $usageColumns, $rollup);
         } catch (InvalidArgumentException $exception) {
             throw new InvalidConfigurationException($exception->getMessage(), 0, $exception);
         }

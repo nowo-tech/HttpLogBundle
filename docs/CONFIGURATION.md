@@ -15,8 +15,10 @@ All options live under the root key `nowo_http_log` (alias `nowo_http_log`).
   - [Form profile (FormKit)](#form-profile-formkit)
   - [Deprecated 1.x chrome keys](#deprecated-1x-chrome-keys)
 - [security](#security)
+- [channels](#channels)
 - [outbound](#outbound)
 - [mailer](#mailer)
+- [rollup](#rollup)
 - [messenger](#messenger)
 - [Messenger retry and failure transport](#messenger-retry-and-failure-transport)
 - [Environment-specific examples](#environment-specific-examples)
@@ -102,6 +104,7 @@ nowo_http_log:
             - ROLE_ADMIN
         access_checker: null                # Custom service id implementing HttpLogAccessCheckerInterface
         allow_unauthenticated: false      # true only for trusted internal networks
+    channels: {}                          # Named inbound channels (api, webhooks…), matched before the web ignores, see "channels"
     outbound:                             # Outbound HttpClient capture (off by default), see "outbound"
         enabled: false
         clients: ['*']                    # http_client.client services to decorate ('*' = all)
@@ -118,6 +121,12 @@ nowo_http_log:
         enabled: false
         retention_days: 30
         providers: {}
+        rollup: true
+    rollup:                               # Daily usage rollup (off by default), see "rollup"
+        enabled: false
+        retention_months: 13              # calendar months, the current one included; null = forever
+        dedupe_days: 7                    # life of the exactly-once ledger
+        web: false                        # also count the web channel
     messenger:                            # Context propagation, see "messenger"
         middleware: true                  # Registers nowo_http_log.messenger.context_middleware
         propagate_tenant: true
@@ -314,10 +323,54 @@ Write a literal `%` in YAML values as `%%` (Symfony container parameters).
 | `access_checker` | `null` | Optional service id for fine-grained checks (`HttpLogAccessCheckerInterface`). |
 | `allow_unauthenticated` | `false` | When `true`, skips Symfony Security requirement for the UI (not recommended in production). |
 
+## channels
+
+Named inbound channels (HL-1 §2, §6), empty by default. See [USAGE](USAGE.md#named-inbound-channels). A request is
+matched against them in config order **before** the web channel: the admin UI prefix is still ignored, but a request a
+named channel records never reaches `ignore_routes`, `ignore_path_prefixes` or `sampling_rate`. Configuring one maps the
+usage columns: deploy the migration of [UPGRADING](UPGRADING.md#to-1150) first.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `path_prefixes` | `[]` | Segment-aware prefixes, compared with the decoded path (like the router): `/api` matches `/api`, `/api/x` and `/%61pi/x`, not `/apix` (a trailing `/` is ignored; `/` matches every path). A channel needs `path_prefixes` or `routes`; two channels cannot share a prefix. |
+| `routes` | `[]` | `fnmatch` patterns on `_route`, case-insensitive. |
+| `exclude_path_prefixes` | `[]` | Paths of the channel it does not record (they fall through to the web channel), e.g. an ingest endpoint under `/api`. |
+| `exclude_routes` | `[]` | Routes of the channel it does not record. |
+| `sampling_rate` | `1.0` | Share of successful requests stored as rows; errors are always stored. Unsampled requests are still counted by the [rollup](#rollup). |
+| `error_status_min` | `400` | A status >= this value, or an exception the kernel handled, is always stored and counts as an error (Q-O7). |
+| `retention_days` | `30` | Days the channel's rows are kept (`null` = forever); purge scope `<name>`. |
+| `client_ip` | `truncated` | `full`, `truncated` (IPv4 /24, IPv6 /48) or `none` (Q-O8). |
+| `user` | `true` | Store the user identifier (only when a firewall with security enabled handled the request; dropped when it equals a credential of the request). |
+| `rollup` | `true` | Counted by the daily [rollup](#rollup) while it is enabled. |
+
+Channel names match `^[a-z][a-z0-9_]{0,15}$` and cannot be `web`, `outbound`, `mailer`, `rollup` or `ledger`.
+
+A named-channel row stores the route path template (`/api/tasks/{id}`, from a cache warmer; `{unrouted}` without a
+route), the route name, method, scheme, host, status, `exception` as error kind, duration, response size and MIME
+type, the client IP and user per the options above, and the credential / tenant / project of the
+`HttpLogRequestContextResolverInterface` hook. Never the raw path, the query string, headers or bodies; the
+client's `X-Request-Id` is neither stored nor used for dedupe.
+
+```yaml
+nowo_http_log:
+    sampling_rate: 0.25                   # web channel only
+    ignore_path_prefixes: [/api, /mcp, /hooks]   # web channel only: the named channels still record them
+    channels:
+        api:
+            path_prefixes: [/api]
+            exclude_path_prefixes: [/api/ingest]
+            sampling_rate: 1.0
+        mcp:
+            path_prefixes: [/mcp]
+        webhooks:                         # inbound webhooks (credential kind "signature"), kept out of token usage
+            path_prefixes: [/hooks]
+            client_ip: none
+```
+
 ## outbound
 
 Off by default. See [USAGE](USAGE.md#outbound-httpclient-calls). Enabling it maps the usage columns: deploy the
-migration of [UPGRADING](UPGRADING.md#unreleased) first. `enabled` must be a literal boolean.
+migration of [UPGRADING](UPGRADING.md#to-1150) first. `enabled` must be a literal boolean.
 
 | Key | Default | Description |
 | --- | --- | --- |
@@ -335,8 +388,8 @@ migration of [UPGRADING](UPGRADING.md#unreleased) first. `enabled` must be a lit
 | `providers.<key>.hosts` | `[]` | Exact hosts, or one leading wildcard label (`*.amazonaws.com`), optional port; no scheme or path. A provider needs `clients` or `hosts`. |
 | `providers.<key>.path_templates` | `[]` | `/api/v2/task/{id}`: first template whose literal segments match wins; placeholders keep their names. |
 | `providers.<key>.path_depth` | `null` | Overrides `default_path_depth` (`0` = host only, e.g. webhooks). |
-| `providers.<key>.per_call` | `true` | `false`: never a per-call row (uptime probes; the 1.16 rollup will count them). |
-| `providers.<key>.rollup` | `true` | Counted by the daily rollup (1.16); no effect in this version. |
+| `providers.<key>.per_call` | `true` | `false`: never a per-call row (uptime probes): with the [rollup](#rollup) enabled they are counted there only. |
+| `providers.<key>.rollup` | `true` | Counted by the daily [rollup](#rollup) while it is enabled (every call, with or without a row). |
 
 With `async: false`, a batch flushed because the buffer reached 100 captures inside host code (a long stream loop
 or handler) is inserted on the host's connection and joins a host transaction that is still open; the boundary
@@ -369,7 +422,7 @@ nowo_http_log:
 ## mailer
 
 Off by default. See [USAGE](USAGE.md#mails). Enabling it maps the usage columns: deploy the migration of
-[UPGRADING](UPGRADING.md#unreleased) first. `enabled` must be a literal boolean.
+[UPGRADING](UPGRADING.md#to-1150) first. `enabled` must be a literal boolean.
 
 | Key | Default | Description |
 | --- | --- | --- |
@@ -384,7 +437,51 @@ nowo_http_log:
         providers:
             resend: { schemes: [resend, resend+api, resend+smtp] }
 ```
-| `rollup` | `true` | Counted by the daily rollup (1.16); no effect in this version. |
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `rollup` | `true` | Every message is counted by the daily [rollup](#rollup) while it is enabled. |
+
+## rollup
+
+Off by default. See [USAGE](USAGE.md#daily-rollup-and-read-api). Enabling it adds two tables (`…daily`, `…event_seen`)
+to the schema of the EntityManager that maps the entry: deploy the migration of
+[UPGRADING](UPGRADING.md#daily-rollup-opt-in) first. `enabled` must be a literal boolean. MySQL / MariaDB,
+PostgreSQL and SQLite >= 3.24 only.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `enabled` | `false` | Count every call of the channels with `rollup: true` (named channels, `outbound` providers, `mailer`) per UTC day, channel, provider, credential and tenant, exactly once (a per-call row's `request_id`, or the `event_seen` ledger for calls without a row). |
+| `retention_months` | `13` | Calendar months of buckets kept, the current month included (13 keeps the same month last year; `null` = forever); purge scope `rollup`. An event older than that is not counted. |
+| `dedupe_days` | `7` | Days the ledger keeps an event id after its first processing; must exceed the longest Messenger retry delay (replay the failure transport within it); purge scope `ledger`. Every channel the rollup counts needs `retention_days` >= `dedupe_days` (or `null`): checked at compile time. |
+| `web` | `false` | Also count the web channel (every request its ignores keep, sampled or not) (Q-O6). |
+
+**Throughput (until the batch handler of HL-1 §9.6 lands):** one bucket serialises its writes (one transaction per
+event; about 170–390 events/s on MySQL with an fsync per commit). Every failed-auth request of a channel lands in its
+`(day, channel, '', '', '')` bucket, so a 401 flood on a public channel can build a Messenger backlog. Use
+`async: true` with a dedicated transport for `Nowo\HttpLogBundle\Message\*`
+([below](#messenger-retry-and-failure-transport)) and rate-limit public channels at the host (firewall / reverse
+proxy). With `async: false` the writes run at `kernel.terminate` and hold the PHP worker.
+
+**Disabling the rollup later** makes `doctrine:schema:update` / `migrations:diff` propose dropping its two tables
+(as for Messenger's Doctrine transport): keep them out of the diff with `doctrine.dbal.schema_filter` or drop them
+deliberately.
+
+Bucket counters: `calls`, `errors` (status >= the channel's `error_status_min`, 400 for outbound / mailer / web, or
+an error kind), `transport_errors` (an error kind without a status), `status_2xx`…`status_5xx`, `retries`, `bytes`,
+`rows_stored` (calls that also have a per-call row), `duration_ms_sum`, `duration_ms_max`, a duration histogram
+(<= 50 / 100 / 250 / 500 / 1 000 / 2 500 / 5 000 / 10 000 ms, more) and `first_seen_at` / `last_seen_at` (UTC).
+
+```yaml
+nowo_http_log:
+    rollup:
+        enabled: true
+    outbound:
+        providers:
+            uptime:
+                clients: [uptime.http_client]
+                per_call: false           # counted in the rollup only
+```
 
 ## messenger
 

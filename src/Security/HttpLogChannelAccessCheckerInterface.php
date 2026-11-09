@@ -7,7 +7,8 @@ namespace Nowo\HttpLogBundle\Security;
 /**
  * Optional capability of the configured access checker (HL-1 §11.2), checked with `instanceof`: when the checker
  * implements it, the admin list, entry page, export and purge leave out the channels it denies (a denied entry gives
- * the same 404 as a missing one). Channels: `web` (rows without a channel), `outbound`, `mailer`.
+ * the same 404 as a missing one). Channels: `web` (rows without a channel), `outbound`, `mailer` and each named
+ * channel (`api`, `webhooks`…). Deny names you do not know to keep a channel added later hidden by default.
  */
 interface HttpLogChannelAccessCheckerInterface
 {
