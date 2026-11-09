@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.16.1](#to-1161)
 - [To 1.16.0](#to-1160)
   - [Named inbound channels (opt-in)](#named-inbound-channels-opt-in)
   - [Daily rollup (opt-in)](#daily-rollup-opt-in)
@@ -58,6 +59,18 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.16.1
+
+From **1.16.0**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
+
+**Move custom credential headers to `redaction.credential_headers` (audit JA2-L1).** In 1.16.0 the resolver guard checked every redacted header with contains/prefix rules, and USAGE told you to list custom credential headers in `redaction.headers`. Since 1.16.1 only the `Authorization` value and the headers in `redaction.credential_headers` get those checks; other redacted headers, query parameters and cookies are compared with the credential id by exact equality only. If your API authenticates with a header such as `X-Api-Key`, add it to `redaction.credential_headers`. A token sent in the query string gets equality only, so make sure your resolver never returns a value derived from it.
+
+**`Authorization` on APIs that authenticate otherwise (JA2-L2).** The contains check applies to the `Authorization` value at any length: on an API that authenticates with another header, a client can add `Authorization: Bearer -` and blank its own tenant and project in the log (no leak). Keep your resolver's values tied to the authenticated credential, or list your real credential header in `credential_headers`.
 
 ## To 1.16.0
 

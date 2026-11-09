@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.16.1] - 2026-11-09](#1161---2026-11-09)
 - [[1.16.0] - 2026-11-09](#1160---2026-11-09)
 - [[1.15.0] - 2026-11-09](#1150---2026-11-09)
 - [[1.14.1] - 2026-11-09](#1141---2026-11-09)
@@ -43,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.16.1] - 2026-11-09
+
 ### Security (delta audit JA, JAd-L1 / JAd-I1)
 
 - **Named-channel resolver guard: only the request's credential is a secret beyond exact matches.** Containment and
@@ -61,6 +64,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `redaction.credential_headers` (default `[]`), and `HttpLogRequestContextResolution::credentialSources()`.
+
+[1.16.1]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.16.1
 
 ## [1.16.0] - 2026-11-09
 
