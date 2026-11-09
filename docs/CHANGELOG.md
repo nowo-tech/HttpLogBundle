@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.16.0] - 2026-11-09](#1160---2026-11-09)
 - [[1.15.0] - 2026-11-09](#1150---2026-11-09)
 - [[1.14.1] - 2026-11-09](#1141---2026-11-09)
 - [[1.14.0] - 2026-11-03](#1140---2026-11-03)
@@ -41,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.0.0] - 2026-08-03](#100---2026-08-03)
 
 ## [Unreleased]
+
+## [1.16.0] - 2026-11-09
 
 HL-1 usage capture, part 2 (contract slices S4 API channel, S5 Rollup, S6 Retention and erasure). Every new block is
 off by default: a host that configures no `channels` and leaves `rollup.enabled: false` gets no new listener,
@@ -118,6 +121,8 @@ and rows (BC tests on a booted kernel). Audit A2: re-verification pending.
   `security.untracked_token_storage` no longer breaks boot (early resolution is then skipped), and a lazy
   authenticator failing at terminate gives a null token instead of dropping the capture. JA-I4: an untrusted `Host`
   is stored as NULL and the request still recorded. JA-I8: `UsageSchemaTest` drops leftover rollup tables.
+
+[1.16.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.16.0
 
 ## [1.15.0] - 2026-11-09
 

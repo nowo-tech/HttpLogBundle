@@ -133,7 +133,7 @@ Record confirmation in the release PR or tag notes.
 
 **HL-1 named channels, rollup, retention and erasure (Unreleased, slices S4–S6):** audit A2 (Appendix JA, 2026-11-09)
 Pass-Medium on `d7f99ad`; JA-M1, JA-M2, JA-L1, JA-L2, JA-I2, JA-I3, JA-I4 fixed, JA-L3 and the other Info items
-documented. Delta: **re-verification pending**.
+documented. Delta JA on `a7bff4d`: **Pass-Low** (JA-M1, JA-M2, JA-L1, JA-L2 fixed; JA-L3 documented). Residual JAd-L1: a client that knows its own tenant UUID, credential id or kind (or an 8-character slice of it) can blank that field by sending it as `?token=<value>`, so the call drops out of tenant-scoped usage and `lastUsed()`; nothing leaks. Fix (contains/prefix only for the Authorization value at any length, equality elsewhere) follows in 1.16.1.
 
 **HL-1 usage capture (1.15.0, slices S1–S3):** audit A1 (Appendix IX, 2026-11-09) Pass-Medium on `df15dae`;
 IX-M1, IX-L1–L3, IX-I2 and IX-I5 fixed, IX-I1 / IX-I3 documented. Delta IX on `8270a0e`: **Pass**. Open Info: IXd-I1 (a multi-client `stream()` delivers one client group after another), IXd-I2 (`exclude_hosts` misses a trailing dot or an unlisted non-default port; such a call is logged with a templated path).

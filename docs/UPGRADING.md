@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.16.0](#to-1160)
   - [Named inbound channels (opt-in)](#named-inbound-channels-opt-in)
   - [Daily rollup (opt-in)](#daily-rollup-opt-in)
   - [Retention and erasure](#retention-and-erasure)
@@ -57,6 +58,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.16.0
+
+From **1.15.0**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 From **1.15.0**:
 
