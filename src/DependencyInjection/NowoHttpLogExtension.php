@@ -11,6 +11,9 @@ use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
 use Nowo\HttpLogBundle\Doctrine\UsageColumnsListener;
 use Nowo\HttpLogBundle\EventSubscriber\HttpLogSubscriber;
+use Nowo\HttpLogBundle\HttpClient\HttpLogHttpClientWrapper;
+use Nowo\HttpLogBundle\HttpClient\OutboundCapturePolicy;
+use Nowo\HttpLogBundle\HttpClient\OutboundClientFactory;
 use Nowo\HttpLogBundle\MessageHandler\PersistHttpLogHandler;
 use Nowo\HttpLogBundle\Messenger\HttpLogContextMiddleware;
 use Nowo\HttpLogBundle\Security\ConfigurableHttpLogAccessChecker;
@@ -21,6 +24,7 @@ use Nowo\HttpLogBundle\Usage\UsageBufferFlushSubscriber;
 use Nowo\HttpLogBundle\Usage\UsageCaptureSink;
 use Nowo\HttpLogBundle\Usage\UsageEntryWriter;
 use Nowo\HttpLogBundle\View\AdminChrome;
+use Psr\Clock\ClockInterface;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -383,6 +387,9 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         $container->setParameter($alias . '.usage.channels', array_keys($channels));
         $container->setParameter($alias . '.usage.channel_retention', $channels);
         $container->setParameter($alias . '.outbound.enabled', $outboundEnabled);
+        $container->setParameter($alias . '.outbound.clients', $config['outbound']['clients']);
+        $container->setParameter($alias . '.outbound.exclude_clients', $config['outbound']['exclude_clients']);
+        $container->setParameter($alias . '.outbound.decoration_priority', $config['outbound']['decoration_priority']);
 
         $logger = new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE);
 
@@ -417,6 +424,37 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                 ->addTag('kernel.event_subscriber'));
             $container->getDefinition(PersistHttpLogHandler::class)
                 ->setArgument('$usageWriter', new Reference(UsageEntryWriter::class));
+        }
+
+        if ($outboundEnabled) {
+            $providers = [];
+            foreach ($config['outbound']['providers'] as $key => $provider) {
+                $providers[$key] = [
+                    'clients'        => $provider['clients'],
+                    'hosts'          => $provider['hosts'],
+                    'path_templates' => $provider['path_templates'],
+                    'path_depth'     => $provider['path_depth'],
+                    'per_call'       => $provider['per_call'],
+                ];
+            }
+            $container->setDefinition(OutboundCapturePolicy::class, (new Definition(OutboundCapturePolicy::class))
+                ->setArguments([$providers, $config['outbound']['sampling_rate'], $config['outbound']['record_unmapped'], $config['outbound']['default_path_depth']]));
+            $container->setDefinition(OutboundClientFactory::class, (new Definition(OutboundClientFactory::class))
+                ->setArguments([
+                    new Reference(OutboundCapturePolicy::class),
+                    new Reference(HttpLogBuffer::class),
+                    new Reference(HttpLogContext::class),
+                    new Reference(ClockInterface::class),
+                    $logger,
+                ])
+                ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
+        }
+
+        // Public wrapper for clients built in code: returns them unchanged while outbound capture is disabled.
+        if (trait_exists($this->requiredSymbols['outbound'][0])) {
+            $container->setDefinition(HttpLogHttpClientWrapper::class, (new Definition(HttpLogHttpClientWrapper::class))
+                ->setPublic(true)
+                ->setArguments([$outboundEnabled ? new Reference(OutboundClientFactory::class) : null]));
         }
 
         return $usageColumns;

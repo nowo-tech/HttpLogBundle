@@ -66,6 +66,21 @@ web payloads, rows, exports and admin pages (BC tests on a booted kernel).
 - Messenger middleware `nowo_http_log.messenger.context_middleware` and `HttpLogContextStamp`: a stable message id
   and the tenant / project in scope travel with the envelope; the handler runs inside that frame
   (`messenger.middleware`, `messenger.propagate_tenant`).
+- **Outbound HttpClient capture** (`outbound`, S2): `LoggingHttpClient` decorates `http_client` and the scoped
+  clients selected by `outbound.clients` / `exclude_clients` at `decoration_priority` -1024 (outermost: one row per
+  logical call after retries, `retry_count` from the response; tracing decorators unaffected). The response is the
+  inner client's, unchanged and still lazy; the body is never read. Recorded exactly once at the last chunk, a fatal
+  error, `cancel()` or destruct. Provider map (`clients`, `hosts` with one leading wildcard label, `path_templates`,
+  `path_depth`, `per_call`), unmapped hosts as provider `other` (`record_unmapped`), error kinds (`timeout`, `dns`,
+  `connect`, `tls`, `transport`, `redirect_limit`, `cancelled`, `http_4xx`, `http_5xx`, `exception`), errors always
+  kept and successes sampled (`sampling_rate`). Relative URLs of scoped clients are resolved from the response.
+- `OutboundUrlTemplater`: drops query string, fragment and user info; host lower-cased (IDN as punycode), port only
+  when not the default; path as a template (words kept, else `{uuid}`, `{id}`, `{x}`, rest `/{…}`, at most 16
+  segments / 512 characters).
+- `HttpLogHttpClientWrapper::wrap($client, $provider, $clientId = null)` (public service) for clients built in code;
+  inert while outbound capture is disabled, never wraps twice.
+- Per-request option `extra.nowo_http_log` (`tenant_key`, `project_key`, `provider`, `skip`), removed before the
+  inner client sees the request.
 - Per-channel retention: `outbound.retention_days`, `mailer.retention_days`; `nowo:http-log:purge --channel=…`
   (repeatable) with one output line per scope; `PurgeHttpLogService::purgeScopes()` / `scopes()` / `cutoff()`.
 - Admin UI with a feature enabled: channel / provider columns, channel, provider, tenant, project and credential-kind

@@ -9,6 +9,9 @@ use Nowo\HttpLogBundle\Context\HttpLogContext;
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
 use Nowo\HttpLogBundle\DependencyInjection\NowoHttpLogExtension;
 use Nowo\HttpLogBundle\Doctrine\UsageColumnsListener;
+use Nowo\HttpLogBundle\HttpClient\HttpLogHttpClientWrapper;
+use Nowo\HttpLogBundle\HttpClient\OutboundCapturePolicy;
+use Nowo\HttpLogBundle\HttpClient\OutboundClientFactory;
 use Nowo\HttpLogBundle\MessageHandler\PersistHttpLogHandler;
 use Nowo\HttpLogBundle\Usage\HttpLogBuffer;
 use Nowo\HttpLogBundle\Usage\UsageBufferFlushSubscriber;
@@ -22,6 +25,7 @@ use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\Definition\Processor;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ParameterBag\EnvPlaceholderParameterBag;
+use Symfony\Component\DependencyInjection\Reference;
 
 use const ARRAY_FILTER_USE_KEY;
 
@@ -94,6 +98,43 @@ final class UsageExtensionTest extends TestCase
         self::assertSame(['outbound', 'mailer'], $container->getParameter('nowo_http_log.usage.channels'));
         self::assertSame(['outbound' => 7, 'mailer' => 30], $container->getParameter('nowo_http_log.usage.channel_retention'));
         self::assertTrue($container->getParameter('nowo_http_log.outbound.enabled'));
+    }
+
+    #[Test]
+    public function outboundRegistersItsPolicyFactoryAndAnActiveWrapper(): void
+    {
+        $container = $this->load(['outbound' => [
+            'enabled'         => true,
+            'sampling_rate'   => 0.25,
+            'record_unmapped' => false,
+            'clients'         => ['clickup.client'],
+            'exclude_clients' => ['x'],
+            'providers'       => ['clickup' => ['clients' => ['clickup.client'], 'rollup' => false]],
+        ]]);
+
+        $policy = $container->getDefinition(OutboundCapturePolicy::class);
+        self::assertSame(['clickup' => ['clients' => ['clickup.client'], 'hosts' => [], 'path_templates' => [], 'path_depth' => null, 'per_call' => true]], $policy->getArgument(0));
+        self::assertSame([0.25, false, 2], [$policy->getArgument(1), $policy->getArgument(2), $policy->getArgument(3)]);
+        self::assertTrue($container->hasDefinition(OutboundClientFactory::class));
+        self::assertEquals(new Reference(OutboundClientFactory::class), $container->getDefinition(HttpLogHttpClientWrapper::class)->getArgument(0));
+        self::assertSame(['clickup.client'], $container->getParameter('nowo_http_log.outbound.clients'));
+        self::assertSame(['x'], $container->getParameter('nowo_http_log.outbound.exclude_clients'));
+        self::assertSame(-1024, $container->getParameter('nowo_http_log.outbound.decoration_priority'));
+    }
+
+    #[Test]
+    public function theWrapperIsInertWhileOutboundIsDisabledAndAbsentWithoutHttpClient(): void
+    {
+        $container = $this->load([]);
+        self::assertTrue($container->getDefinition(HttpLogHttpClientWrapper::class)->isPublic());
+        self::assertNull($container->getDefinition(HttpLogHttpClientWrapper::class)->getArgument(0));
+        self::assertFalse($this->registered($container, OutboundClientFactory::class));
+
+        $without = new ContainerBuilder();
+        $without->setParameter('kernel.environment', 'test');
+        (new NowoHttpLogExtension(['outbound' => ['Nowo\\Missing\\HttpClient', 'symfony/http-client'], 'mailer' => NowoHttpLogExtension::REQUIRED_SYMBOLS['mailer']]))
+            ->load([['security' => ['allow_unauthenticated' => true]]], $without);
+        self::assertFalse($this->registered($without, HttpLogHttpClientWrapper::class));
     }
 
     #[Test]

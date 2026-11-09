@@ -104,6 +104,14 @@ nowo_http_log:
         allow_unauthenticated: false      # true only for trusted internal networks
     outbound:                             # Outbound HttpClient capture (off by default), see "outbound"
         enabled: false
+        clients: ['*']                    # http_client.client services to decorate ('*' = all)
+        exclude_clients: []
+        sampling_rate: 1.0                # successes kept; errors always
+        retention_days: 30
+        record_unmapped: true             # unmapped host -> provider "other"
+        default_path_depth: 2
+        decoration_priority: -1024        # outermost
+        providers: {}
     mailer:                               # Mailer capture (off by default), see "mailer"
         enabled: false
         retention_days: 30
@@ -306,8 +314,49 @@ Write a literal `%` in YAML values as `%%` (Symfony container parameters).
 
 ## outbound
 
-Off by default. See [USAGE](USAGE.md#outbound-and-mailer-usage). Enabling it maps the usage columns: deploy the
+Off by default. See [USAGE](USAGE.md#outbound-httpclient-calls). Enabling it maps the usage columns: deploy the
 migration of [UPGRADING](UPGRADING.md#unreleased) first. `enabled` must be a literal boolean.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `enabled` | `false` | One row per logical outbound call (channel `outbound`). Requires `symfony/http-client`. |
+| `clients` | `['*']` | Service ids tagged `http_client.client` to decorate; `*` = `http_client` and every scoped client. |
+| `exclude_clients` | `[]` | Service ids never decorated. |
+| `sampling_rate` | `1.0` | Share of successful calls kept (`0.0`–`1.0`). Errors (status >= 400 or a transport error) are always kept. |
+| `retention_days` | `30` | Days outbound rows are kept (`null` = forever); purge scope `outbound`. |
+| `record_unmapped` | `true` | A host no provider matches is recorded as provider `other`; `false` drops it. |
+| `default_path_depth` | `2` | Path segments kept (0–16) when no provider template matches; the rest becomes `/{…}`. |
+| `decoration_priority` | `-1024` | Keeps the logger outermost: outside `RetryableHttpClient` (one row per logical call, `retry_count` from the response) and outside tracing decorators. |
+| `providers.<key>.clients` | `[]` | Scoped client service ids of the provider (matched before hosts). |
+| `providers.<key>.hosts` | `[]` | Exact hosts, or one leading wildcard label (`*.amazonaws.com`), optional port; no scheme or path. A provider needs `clients` or `hosts`. |
+| `providers.<key>.path_templates` | `[]` | `/api/v2/task/{id}`: first template whose literal segments match wins; placeholders keep their names. |
+| `providers.<key>.path_depth` | `null` | Overrides `default_path_depth` (`0` = host only, e.g. webhooks). |
+| `providers.<key>.per_call` | `true` | `false`: never a per-call row (uptime probes; the 1.16 rollup will count them). |
+| `providers.<key>.rollup` | `true` | Counted by the daily rollup (1.16); no effect in this version. |
+
+Provider keys match `^[a-z][a-z0-9_.-]{0,63}$`. Precedence: the request option `extra.nowo_http_log.provider` (when
+it names a configured provider), the provider given to `HttpLogHttpClientWrapper::wrap()`, the client service id,
+exact hosts, wildcard hosts (config order), then `other`.
+
+```yaml
+nowo_http_log:
+    outbound:
+        enabled: true
+        providers:
+            clickup:
+                clients: [clickup.client]
+                hosts: [api.clickup.com]
+                path_templates: ['/api/v2/task/{id}', '/api/v2/list/{id}/task']
+            s3:
+                hosts: ['*.amazonaws.com']
+                path_depth: 1                 # bucket only
+            slack:
+                hosts: [hooks.slack.com, slack.com]
+                path_depth: 0                 # host only: the webhook path is a secret
+            uptime:
+                clients: [uptime.http_client]
+                per_call: false
+```
 
 ## mailer
 

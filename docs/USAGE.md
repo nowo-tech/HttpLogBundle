@@ -16,6 +16,7 @@ How to capture HTTP traffic, use the admin UI, export, purge, and exclude routes
 - [Purge and retention](#purge-and-retention)
 - [Personal-data erasure (GDPR)](#personal-data-erasure-gdpr)
 - [Outbound and mailer usage](#outbound-and-mailer-usage)
+  - [Outbound HttpClient calls](#outbound-httpclient-calls)
   - [Tenant and project context](#tenant-and-project-context)
 - [Ignoring routes and paths](#ignoring-routes-and-paths)
 - [CLI commands](#cli-commands)
@@ -317,6 +318,45 @@ final class AppHttpLogAccessChecker implements HttpLogAccessCheckerInterface, Ht
     }
 }
 ```
+
+### Outbound HttpClient calls
+
+`outbound.enabled` decorates `http_client` and every scoped client (`outbound.clients`) as the **outermost**
+decorator: a call retried by `RetryableHttpClient` is one row with its `retry_count`; tracing decorators are not
+affected. The decorator returns the inner client's response unchanged (same status, headers, body, chunks, exceptions;
+still lazy) and never reads or buffers the body. The row is recorded once, when the response completes, fails, is
+cancelled or destroyed:
+
+| Column | Outbound value |
+| --- | --- |
+| `host` | lower-cased host (IDN as punycode), port only when not the default; never user info |
+| `path` | path template: a provider template, else up to `path_depth` segments, each kept only when it looks like a word (`v2`, `chat.postMessage`), else `{uuid}`, `{id}` or `{x}`; the rest `/{…}`. Query string and fragment are dropped |
+| `status_code` / `error_kind` | final status; `timeout`, `dns`, `connect`, `tls`, `transport`, `redirect_limit`, `cancelled`, `http_4xx`, `http_5xx`, `exception` (no status for transport errors). Exception messages are never stored: they contain the full URL |
+| `retry_count`, `response_bytes`, `content_type`, `duration_ms` | from the response info |
+| `tenant_key`, `project_key`, `messenger_message_id` | from `HttpLogContext` at request time, or the request option below |
+
+Per-request options (removed before the inner client sees the request):
+
+```php
+$client->request('GET', $url, ['extra' => ['nowo_http_log' => [
+    'tenant_key'  => $organization->getUuid(),
+    'project_key' => $project->getUuid(),
+    'provider'    => 'clickup',   // only a configured provider
+    'skip'        => true,        // no row for this call
+]]]);
+```
+
+Clients built in code (not container services) are wrapped explicitly; with outbound disabled `wrap()` returns the
+client unchanged, and a wrapped client is never wrapped twice:
+
+```php
+use Nowo\HttpLogBundle\HttpClient\HttpLogHttpClientWrapper;
+
+$s3 = new S3Client($config, httpClient: $this->httpLogWrapper->wrap(HttpClient::create(), 's3'));
+```
+
+Outbound capture is suspended while the bundle itself dispatches or writes, so a Messenger transport or database
+driver that uses a decorated client cannot loop.
 
 ### Tenant and project context
 
