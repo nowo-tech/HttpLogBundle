@@ -122,8 +122,8 @@ Record confirmation in the release PR or tag notes.
 
 ## AI security audit
 
-**HL-1 usage capture (Unreleased, slices S1–S3):** audit A1 (Appendix IX, 2026-11-09) Pass-Medium on `df15dae`;
-IX-M1, IX-L1–L3, IX-I2 and IX-I5 fixed, IX-I1 / IX-I3 documented. **Re-verification of the fixes pending.**
+**HL-1 usage capture (1.15.0, slices S1–S3):** audit A1 (Appendix IX, 2026-11-09) Pass-Medium on `df15dae`;
+IX-M1, IX-L1–L3, IX-I2 and IX-I5 fixed, IX-I1 / IX-I3 documented. Delta IX on `8270a0e`: **Pass**. Open Info: IXd-I1 (a multi-client `stream()` delivers one client group after another), IXd-I2 (`exclude_hosts` misses a trailing dot or an unlisted non-default port; such a call is logged with a templated path).
 
 | Field | Value |
 | ----- | ----- |
