@@ -131,7 +131,7 @@ Record confirmation in the release PR or tag notes.
 
 ## AI security audit
 
-**HL-1 named channels, rollup, retention and erasure (Unreleased, slices S4–S6):** audit A2 (Appendix JA, 2026-11-09)
+**HL-1 named channels, rollup, retention and erasure (1.16.0, slices S4–S6):** audit A2 (Appendix JA, 2026-11-09)
 Pass-Medium on `d7f99ad`; JA-M1, JA-M2, JA-L1, JA-L2, JA-I2, JA-I3, JA-I4 fixed, JA-L3 and the other Info items
 documented. Delta JA on `a7bff4d`: **Pass-Low** (JA-M1, JA-M2, JA-L1, JA-L2 fixed; JA-L3 documented). Residual JAd-L1: a client that knows its own tenant UUID, credential id or kind (or an 8-character slice of it) can blank that field by sending it as `?token=<value>`, so the call drops out of tenant-scoped usage and `lastUsed()`; nothing leaks. Fix (contains/prefix only for the Authorization value at any length, equality elsewhere) follows in 1.16.1.
 
