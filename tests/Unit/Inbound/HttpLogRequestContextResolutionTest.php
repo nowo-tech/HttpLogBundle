@@ -44,9 +44,10 @@ final class HttpLogRequestContextResolutionTest extends TestCase
     }
 
     /** @param list<HttpLogRequestContextResolverInterface> $resolvers */
-    private function resolution(array $resolvers, ?TokenStorageInterface $storage = null, ?Security $security = null, ?TokenStorageInterface $untracked = null): HttpLogRequestContextResolution
+    /** @param list<string> $credentialHeaders */
+    private function resolution(array $resolvers, ?TokenStorageInterface $storage = null, ?Security $security = null, ?TokenStorageInterface $untracked = null, array $credentialHeaders = []): HttpLogRequestContextResolution
     {
-        return new HttpLogRequestContextResolution($resolvers, ['Authorization', 'Cookie', 'X-Api-Key'], ['token', 'api_key'], $this->logger, $storage, $security, $untracked);
+        return new HttpLogRequestContextResolution($resolvers, ['Authorization', 'Cookie', 'X-Api-Key'], ['token', 'api_key'], $this->logger, $storage, $security, $untracked, $credentialHeaders);
     }
 
     private function returning(?HttpLogRequestContext $context): HttpLogRequestContextResolverInterface
@@ -70,10 +71,11 @@ final class HttpLogRequestContextResolutionTest extends TestCase
         yield 'contains the bearer' => ['credentialId', 'id-SEED14placeholder'];
         yield 'a prefix of the bearer' => ['credentialId', 'SEED14'];
         yield 'the whole header' => ['tenantKey', 'SEED14placeholder'];
-        yield 'an api key header' => ['tenantKey', 'SEED30placeholder'];
-        yield 'a cookie' => ['credentialKind', 'SEED31cookie'];
-        yield 'a redacted query param (case-insensitive name)' => ['projectKey', 'SEED15placeholder'];
-        yield 'a redacted query param in a list' => ['projectKey', 'SEED32listed'];
+        yield 'an api key header' => ['credentialId', 'SEED30placeholder'];
+        yield 'a cookie' => ['credentialId', 'SEED31cookie'];
+        yield 'a redacted query param (case-insensitive name)' => ['credentialId', 'SEED15placeholder'];
+        yield 'a redacted query param in a list' => ['credentialId', 'SEED32listed'];
+        yield 'the bearer as the tenant' => ['tenantKey', 'SEED14placeholder'];
         yield 'not an opaque key' => ['credentialId', 'has space'];
         yield 'too long' => ['credentialKind', 'a-credential-kind-of-forty-characters-xx'];
     }
@@ -237,5 +239,42 @@ final class HttpLogRequestContextResolutionTest extends TestCase
 
         $this->expectException(LazyResponseException::class);
         $resolution->resolve($request, 'api', false);
+    }
+
+    #[Test]
+    public function aClientCannotBlankAValueItKnowsThroughARedactedParamHeaderOrCookie(): void
+    {
+        // JAd-L1: the client's own tenant UUID, credential id and kind, and 8-character slices of them
+        $tenant  = '0f8e2c1a-5b6d-4e7f-9a0b-1c2d3e4f5a6b';
+        $request = Request::create('/api/x?token=' . $tenant . '&api_key=0f8e2c1a', 'GET', [], ['sid' => 'personal_token'], [], ['HTTP_AUTHORIZATION' => 'Bearer SEED40placeholder-token', 'HTTP_X_API_KEY' => 'prj-1']);
+        $context = new HttpLogRequestContext('personal_token', 'pt-1001', $tenant, 'prj-1');
+
+        self::assertEquals($context, $this->resolution([self::returning($context)])->resolve($request, 'api'));
+        self::assertSame([], $this->logger->warnings());
+        self::assertSame(['credential' => ['Bearer SEED40placeholder-token', 'SEED40placeholder-token'], 'redacted' => ['prj-1', 'personal_token', $tenant, '0f8e2c1a']], $this->resolution([])->credentialSources($request));
+    }
+
+    #[Test]
+    public function aShortRealAuthorizationTokenIsStillCaughtByContainsAndPrefix(): void
+    {
+        // JAd-I1: a 7-character bearer
+        $request = Request::create('/api/x', 'GET', [], [], [], ['HTTP_AUTHORIZATION' => 'Bearer SEED07x']);
+        foreach (['SEED07x', 'id-SEED07x', 'SEED07'] as $leak) {
+            self::assertNull($this->resolution([self::returning(new HttpLogRequestContext(null, $leak, 'org-a'))])->resolve($request, 'api')->credentialId, $leak);
+        }
+        self::assertSame('SEED0', $this->resolution([self::returning(new HttpLogRequestContext(null, 'SEED0'))])->resolve($request, 'api')->credentialId, 'a prefix shorter than 6 characters is kept');
+    }
+
+    #[Test]
+    public function listedCredentialHeadersGetTheAuthorizationRule(): void
+    {
+        $request = Request::create('/api/x', 'GET', [], [], [], ['HTTP_X_API_KEY' => 'SEED41apikey']);
+        $leak    = self::returning(new HttpLogRequestContext('dsn_key', 'id-SEED41apikey', 'SEED41'));
+
+        // not listed: the credential id by equality only (the X-Api-Key value itself is still dropped)
+        self::assertEquals(new HttpLogRequestContext('dsn_key', 'id-SEED41apikey', 'SEED41'), $this->resolution([$leak])->resolve($request, 'api'));
+        self::assertNull($this->resolution([self::returning(new HttpLogRequestContext(null, 'SEED41apikey'))])->resolve($request, 'api')->credentialId);
+        // listed: contains and prefix as well
+        self::assertEquals(new HttpLogRequestContext('dsn_key'), $this->resolution([$leak], null, null, null, ['X-Api-Key'])->resolve($request, 'api'));
     }
 }

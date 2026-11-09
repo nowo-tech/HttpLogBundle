@@ -171,6 +171,7 @@ Applied **before** persistence.
 | `headers` | Header names replaced with `[REDACTED]` (case-insensitive). |
 | `query_params` | Query keys replaced with `[REDACTED]`. |
 | `json_paths` | JSON object keys; supports `*.suffix` wildcard for nested keys. |
+| `credential_headers` | Default `[]`. Headers that carry the request's credential besides `Authorization` (e.g. `X-Api-Key` when your API authenticates with it). The named-channel resolver guard drops a returned value that contains, or is a 6+-character prefix of, `Authorization` or these headers; other redacted values are compared with the credential id by exact equality only. List each such header in `headers` as well, so web rows redact it. Since 1.16.1. |
 
 Bodies are redacted **in full, before** `max_body_bytes` truncation, according to their `Content-Type`:
 

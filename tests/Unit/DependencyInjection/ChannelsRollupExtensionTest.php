@@ -77,6 +77,9 @@ final class ChannelsRollupExtensionTest extends TestCase
         self::assertTrue($container->getDefinition(RouteTemplateCacheWarmer::class)->hasTag('kernel.cache_warmer'));
         self::assertTrue($container->getDefinition(RouteTemplateMap::class)->hasTag('kernel.reset'));
         self::assertSame([false, false], [$container->getDefinition(InboundRequestRecorder::class)->getArgument(6), $container->getDefinition(InboundRequestRecorder::class)->getArgument(7)]);
+        self::assertSame([], $container->getDefinition(HttpLogRequestContextResolution::class)->getArgument(7), 'credential headers: Authorization only by default');
+        $listed = $this->load(['channels' => ['api' => ['path_prefixes' => ['/api']]], 'redaction' => ['credential_headers' => ['X-Api-Key']]]);
+        self::assertSame(['X-Api-Key'], $listed->getDefinition(HttpLogRequestContextResolution::class)->getArgument(7));
     }
 
     #[Test]

@@ -43,6 +43,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (delta audit JA, JAd-L1 / JAd-I1)
+
+- **Named-channel resolver guard: only the request's credential is a secret beyond exact matches.** Containment and
+  prefix checks (6+ characters) now apply, at any length, only to the `Authorization` value (whole, after its scheme,
+  the decoded Basic pair and password) and to the headers listed in the new `redaction.credential_headers` (default
+  `[]`; list e.g. `X-Api-Key` when your API authenticates with it). Every other redacted header, query parameter and
+  cookie is compared with the credential id by **exact equality only**, and never with the tenant, project or kind.
+  So a client can no longer blank its own tenant UUID (or an 8-character slice of it), project or credential kind by
+  sending it as `?token=` or a cookie (JAd-L1), and a 6–7-character bearer is caught by contains and prefix again
+  (JAd-I1). The user identifier is checked against the request's credential only.
+- BC: the `Authorization` rule is unchanged from 1.16.0; a resolver that returns a redacted header, parameter or cookie
+  value verbatim as the credential id is still dropped. `HttpLogRequestContextResolution::MIN_SECRET_LENGTH` is
+  deprecated (no longer used). Residual (documented): a client can still blank its own credential id by sending it
+  exactly as a redacted value, or any value containing what it sends in a listed `credential_headers` header.
+
+### Added
+
+- `redaction.credential_headers` (default `[]`), and `HttpLogRequestContextResolution::credentialSources()`.
+
 ## [1.16.0] - 2026-11-09
 
 HL-1 usage capture, part 2 (contract slices S4 API channel, S5 Rollup, S6 Retention and erasure). Every new block is

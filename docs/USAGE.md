@@ -466,18 +466,20 @@ final class ApiTokenUsageResolver implements HttpLogRequestContextResolverInterf
   authentication (then outbound calls do not inherit the tenant: wrap them in `HttpLogContext::run()`).
 - The `$token` argument is set only when a firewall with security enabled handled the request.
 - **Guard:** a returned value that fails the opaque-key rule (`^[A-Za-z0-9._:@-]+$`, kind <= 32, others <= 64
-  characters), or that equals, contains or starts (6+ characters) a credential the request carried (the
-  `Authorization` value, each `redaction.headers` value and cookie, each `redaction.query_params` value) is stored
-  as NULL, with one warning naming the resolver and the field (never the value). List custom credential headers
-  (`X-Beacon-Token`) in `redaction.headers` so the guard knows them. The same guard drops a user identifier that is
-  the request's credential.
+  characters), or that equals, contains or starts (6+ characters) the request's credential (the `Authorization`
+  value, and each header listed in `redaction.credential_headers`), is stored as NULL, with one warning naming the
+  resolver and the field (never the value). The credential id is also dropped when it equals any other redacted
+  header, query parameter or cookie value (exact match only: the client controls those, so it cannot blank its own
+  tenant by sending it as `?token=`). List a custom credential header (`X-Beacon-Token`) in
+  `redaction.credential_headers` and in `redaction.headers`. The same guard drops a user identifier that is the
+  request's credential.
 - A resolver that throws is skipped (one warning, exception class only); the request is never affected.
 - A null (or empty) answer before the controller is not kept: the resolver is asked again at terminate, so a
   controller that authenticates the request itself (`security: false` surfaces) can set what the resolver reads.
 - Resolve the tenant and credential **only from the authenticated credential** (never from a header or route
   parameter) and return null when authentication failed; failed-auth requests are then counted without a tenant.
   Never derive the credential id from the token (except as a one-way hash): the guard catches equality, containment
-  and prefixes only. Request values shorter than 8 characters are matched by equality only.
+  and prefixes only. Values a client controls (redacted params, cookies, unlisted headers) are compared by equality only.
 
 Use a separate channel for inbound webhooks (`webhooks`, credential kind `signature`, the endpoint's database id): it
 keeps signature traffic out of token usage and gets its own retention.
