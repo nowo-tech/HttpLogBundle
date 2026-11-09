@@ -28,7 +28,7 @@ How to capture HTTP traffic, use the admin UI, export, purge, and exclude routes
 
 Once installed and enabled, the bundle registers `HttpLogSubscriber` on:
 
-- `kernel.request` — records start time and request id (`X-Request-Id` header or generated UUID).
+- `kernel.request` — records start time and a bundle-generated request id (random hex, the row's dedupe key; a client `X-Request-Id` is never used for it and stays only in the captured request headers).
 - `kernel.terminate` — builds the log entry and persists (sync or async).
 
 Each stored row includes method, path, route name, status code, duration (ms), client IP, user identifier, headers, and optional bodies.

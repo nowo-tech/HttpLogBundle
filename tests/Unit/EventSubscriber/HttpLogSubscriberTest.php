@@ -24,6 +24,8 @@ use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\MessageBusInterface;
 
+use function is_string;
+
 final class HttpLogSubscriberTest extends TestCase
 {
     /** @var array<string, mixed> */
@@ -153,12 +155,14 @@ final class HttpLogSubscriberTest extends TestCase
         $this->dispatchTerminate($subscriber);
     }
 
-    public function testUsesRequestIdFromHeader(): void
+    public function testGeneratesRequestIdAndIgnoresClientHeader(): void
     {
         $messageBus = $this->createMock(MessageBusInterface::class);
         $messageBus->expects(self::once())
             ->method('dispatch')
-            ->with(self::callback(static fn (PersistHttpLogMessage $message): bool => ($message->payload['requestId'] ?? null) === 'req-123'))
+            ->with(self::callback(static fn (PersistHttpLogMessage $message): bool => is_string($message->payload['requestId'] ?? null)
+                && preg_match('/^[0-9a-f]{32}$/', $message->payload['requestId']) === 1
+                && ($message->payload['requestHeaders']['x-request-id'] ?? null) === ['req-123']))
             ->willReturn(new Envelope(new stdClass()));
 
         $subscriber = $this->createSubscriber($this->createRecorder($messageBus));
