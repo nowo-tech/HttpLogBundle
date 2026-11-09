@@ -22,6 +22,8 @@ services:
             - '../../Doctrine/UsageColumnsListener.php'
             # HL-1 1.16: named channels, rollup, usage erasure and the backfill command (registered by the extension).
             - '../../Inbound/'
+            - '../../Rollup/'
+            - '../../Command/RollupBackfillCommand.php'
 
     Nowo\HttpLogBundle\Repository\:
         resource: '../../Repository/'
@@ -38,6 +40,7 @@ services:
     # REQ-SF-003: commands are registered by #[AsCommand] + autoconfigure (no manual console.command tag).
     Nowo\HttpLogBundle\Command\:
         resource: '../../Command/'
+        exclude: '../../Command/RollupBackfillCommand.php'
 
     Nowo\HttpLogBundle\Command\ExportHttpLogCommand:
         arguments:

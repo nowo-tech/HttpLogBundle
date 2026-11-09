@@ -48,6 +48,12 @@ final readonly class TablePrefixListener
     /** Longest named index while the usage columns are mapped ({@see UsageColumnsListener}): idx_http_log_provider_created. */
     public const LONGEST_USAGE_NAME = 29;
 
+    /** Longest rollup name without the prefixes: `idx_http_log_daily_provider` (only `table_prefix` lengthens it). */
+    public const LONGEST_ROLLUP_INDEX = 27;
+
+    /** Longest rollup name after `table_name_prefix`: `event_seen_pkey`, PostgreSQL's primary key of the ledger. */
+    public const LONGEST_ROLLUP_REST = 15;
+
     private const ENTITY_NAMESPACE = 'Nowo\\HttpLogBundle\\Entity\\';
 
     /**
@@ -56,13 +62,15 @@ final readonly class TablePrefixListener
      * @param string $tablePrefix Optional prefix prepended to every name (empty for none)
      * @param string $tableNamePrefix Replaces `nowo_http_log_` in every table, index and unique-constraint name
      * @param bool $usageColumns The usage columns and their longer index names are mapped (outbound / mailer enabled)
+     * @param bool $rollup The rollup tables are mapped (rollup enabled)
      */
     public function __construct(
         private string $tablePrefix,
         private string $tableNamePrefix = self::DEFAULT_TABLE_NAME_PREFIX,
         bool $usageColumns = false,
+        bool $rollup = false,
     ) {
-        self::validate($this->tablePrefix, $this->tableNamePrefix, $usageColumns);
+        self::validate($this->tablePrefix, $this->tableNamePrefix, $usageColumns, $rollup);
     }
 
     /**
@@ -72,10 +80,11 @@ final readonly class TablePrefixListener
      * @param string $tablePrefix Optional prefix prepended to every name (empty for none)
      * @param string $tableNamePrefix Replacement of `DEFAULT_TABLE_NAME_PREFIX`
      * @param bool $usageColumns The usage indexes (up to {@see LONGEST_USAGE_NAME} characters) are mapped as well
+     * @param bool $rollup The rollup tables (HL-1 §8.3) are mapped as well
      *
      * @throws InvalidArgumentException when a prefix is malformed or a name would be too long
      */
-    public static function validate(string $tablePrefix, string $tableNamePrefix, bool $usageColumns = false): void
+    public static function validate(string $tablePrefix, string $tableNamePrefix, bool $usageColumns = false, bool $rollup = false): void
     {
         if (preg_match(self::PREFIX_PATTERN, $tableNamePrefix) !== 1) {
             throw new InvalidArgumentException(sprintf('Invalid doctrine.table_name_prefix "%s": use a lowercase letter, then lowercase letters, digits and underscores.', $tableNamePrefix));
@@ -83,7 +92,11 @@ final readonly class TablePrefixListener
         if ($tablePrefix !== '' && preg_match(self::PREFIX_PATTERN, $tablePrefix) !== 1) {
             throw new InvalidArgumentException(sprintf('Invalid doctrine.table_prefix "%s": use a lowercase letter, then lowercase letters, digits and underscores (or empty).', $tablePrefix));
         }
-        $longest = max(strlen($tablePrefix) + strlen($tableNamePrefix) + self::LONGEST_NAME_REST, strlen($tablePrefix) + ($usageColumns ? self::LONGEST_USAGE_NAME : self::LONGEST_FIXED_NAME));
+        $longest = max(
+            strlen($tablePrefix) + strlen($tableNamePrefix) + ($rollup ? self::LONGEST_ROLLUP_REST : self::LONGEST_NAME_REST),
+            strlen($tablePrefix) + ($usageColumns ? self::LONGEST_USAGE_NAME : self::LONGEST_FIXED_NAME),
+            strlen($tablePrefix) + ($rollup ? self::LONGEST_ROLLUP_INDEX : 0),
+        );
         if ($longest > self::MAX_IDENTIFIER_LENGTH) {
             throw new InvalidArgumentException(sprintf('doctrine.table_prefix "%s" + doctrine.table_name_prefix "%s" make a table, index or sequence name of %d characters; the limit is %d.', $tablePrefix, $tableNamePrefix, $longest, self::MAX_IDENTIFIER_LENGTH));
         }

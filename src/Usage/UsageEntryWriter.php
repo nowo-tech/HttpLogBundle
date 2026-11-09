@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\Usage;
 
+use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\DBAL\Types\Types;
@@ -11,9 +12,12 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use LogicException;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
+use Nowo\HttpLogBundle\Rollup\UsageRollupStore;
 
 /**
- * Writes usage rows with one DBAL `INSERT` on the connection of the entry's EntityManager (HL-1 §7.2).
+ * Writes usage rows with one DBAL `INSERT` on the connection of the entry's EntityManager (HL-1 §7.2). While the rollup
+ * is enabled, a capture counted by it goes through {@see UsageRollupStore::record()}: the row (or, for a count-only
+ * event, the ledger row) and the bucket upsert in one transaction, exactly once (HL-1 §9.3).
  *
  * Never `persist()` / `flush()`: outbound calls and mails happen inside host code (handlers, transactions), and a
  * flush of the shared manager would also write the host's pending entities. No entity is loaded or kept, so the
@@ -22,16 +26,43 @@ use Nowo\HttpLogBundle\Entity\HttpLogEntry;
  */
 final readonly class UsageEntryWriter
 {
-    public function __construct(private ManagerRegistry $registry)
-    {
+    public function __construct(
+        private ManagerRegistry $registry,
+        private ?UsageRollupStore $rollup = null,
+    ) {
     }
 
     /**
      * @throws LogicException when no EntityManager handles the entry or the usage columns are not mapped
      *
-     * @return bool false when a row with the same event id already exists (redelivered message): nothing written
+     * @return bool false when nothing was written: a row or event with the same id already exists (redelivered
+     *              message), or a count-only event that is not counted (rollup disabled, older than its cutoff)
      */
     public function write(UsageCapture $capture): bool
+    {
+        if ($capture->rollup && $this->rollup instanceof UsageRollupStore) {
+            // @igor-ignore - closure run once by record(), not kept
+            return $this->rollup->record($capture, $capture->row ? function (Connection $connection) use ($capture): void {
+                $this->insert($connection, $capture);
+            } : null);
+        }
+        if (!$capture->row) {
+            return false;
+        }
+
+        try {
+            $this->insert(null, $capture);
+        } catch (UniqueConstraintViolationException) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param Connection|null $connection null = the connection of the entry's EntityManager
+     */
+    private function insert(?Connection $connection, UsageCapture $capture): void
     {
         $manager = $this->registry->getManagerForClass(HttpLogEntry::class);
         if (!$manager instanceof EntityManagerInterface) {
@@ -40,7 +71,7 @@ final readonly class UsageEntryWriter
 
         $metadata = $manager->getClassMetadata(HttpLogEntry::class);
         if (!$metadata->hasField('channel')) {
-            throw new LogicException('The HttpLog usage columns are not mapped: enable nowo_http_log.outbound or nowo_http_log.mailer.');
+            throw new LogicException('The HttpLog usage columns are not mapped: enable nowo_http_log.outbound, nowo_http_log.mailer or a named channel.');
         }
 
         $values = [
@@ -61,6 +92,11 @@ final readonly class UsageEntryWriter
             'projectKey'            => [$capture->projectKey, ParameterType::STRING],
             'messengerMessageId'    => [$capture->messengerMessageId, ParameterType::STRING],
             'externalMessageId'     => [$capture->externalMessageId, ParameterType::STRING],
+            'routeName'             => [$capture->routeName, ParameterType::STRING],
+            'clientIp'              => [$capture->clientIp, ParameterType::STRING],
+            'userIdentifier'        => [$capture->userIdentifier, ParameterType::STRING],
+            'credentialKind'        => [$capture->credentialKind, ParameterType::STRING],
+            'credentialId'          => [$capture->credentialId, ParameterType::STRING],
             'requestBodyTruncated'  => [false, Types::BOOLEAN],
             'responseBodyTruncated' => [false, Types::BOOLEAN],
             'responseBodyStored'    => [false, Types::BOOLEAN],
@@ -75,12 +111,6 @@ final readonly class UsageEntryWriter
             $types[$column] = $value === null ? ParameterType::NULL : $type;
         }
 
-        try {
-            $manager->getConnection()->insert($metadata->getTableName(), $data, $types);
-        } catch (UniqueConstraintViolationException) {
-            return false;
-        }
-
-        return true;
+        ($connection ?? $manager->getConnection())->insert($metadata->getTableName(), $data, $types);
     }
 }

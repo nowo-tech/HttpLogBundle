@@ -15,6 +15,8 @@ final readonly class OutboundTarget
         public string $host,
         public string $path,
         public bool $perCall = true,
+        // counted in the daily rollup (rollup.enabled and the provider's `rollup`)
+        public bool $rollup = false,
     ) {
     }
 }
