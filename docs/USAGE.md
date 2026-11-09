@@ -23,6 +23,9 @@ How to capture HTTP traffic, use the admin UI, export, purge, and exclude routes
   - [Credential and tenant resolver](#credential-and-tenant-resolver)
 - [Daily rollup and read API](#daily-rollup-and-read-api)
   - [Backfill](#backfill)
+- [Using it from a DDD / hexagonal application](#using-it-from-a-ddd--hexagonal-application)
+  - [Keeping your domain free of the bundle](#keeping-your-domain-free-of-the-bundle)
+  - [Known limitations](#known-limitations)
 - [Usage erasure (credentials, tenants)](#usage-erasure-credentials-tenants)
 - [Ignoring routes and paths](#ignoring-routes-and-paths)
 - [CLI commands](#cli-commands)
@@ -536,6 +539,56 @@ php bin/console nowo:http-log:rollup:backfill            # from the rollup cutof
 Only days on which a channel has **no bucket** are built (a day with live buckets is never rewritten), never today and
 never before the cutoff. Counts of a sampled channel are lower bounds (its unsampled successes had no row): the
 output says so. Stored times are read in the PHP default time zone they were written in.
+
+## Using it from a DDD / hexagonal application
+
+HttpLogBundle is an observability adapter with its own table (`nowo_http_log_entry`, plus optional rollup tables).
+It never maps or references your entities: the user is stored as `getUserIdentifier()`, and tenant, project and
+credential are opaque string keys you provide. There is no `resolve_target_entities`, no base class and no trait to
+extend.
+
+### Keeping your domain free of the bundle
+
+- **Feeding context in.** Implement `HttpLogRequestContextResolverInterface` in your infrastructure layer and
+  return an `HttpLogRequestContext` built from ids your domain already exposes (tenant UUID, credential id). Never
+  return secrets: values that look like the request credential are stored as NULL.
+- **Tenant context for outbound work.** Wrap application use cases that call external APIs in
+  `HttpLogContext::run($tenantKey, $fn, $projectKey)`. Keep that call in an application/infrastructure decorator,
+  not in domain services:
+
+```php
+// Application port
+interface TenantScope
+{
+    /** @template T @param callable(): T $fn @return T */
+    public function run(string $tenantId, callable $fn, ?string $projectId = null): mixed;
+}
+
+// Infrastructure
+final readonly class HttpLogTenantScope implements TenantScope
+{
+    public function __construct(private \Nowo\HttpLogBundle\Context\HttpLogContext $context) {}
+
+    public function run(string $tenantId, callable $fn, ?string $projectId = null): mixed
+    {
+        return $this->context->run($tenantId, $fn, $projectId);
+    }
+}
+```
+
+- Add the Messenger middleware (`nowo_http_log.messenger.context_middleware`) so async handlers keep the tenant.
+- **Reading usage.** Depend on `HttpLogUsageReaderInterface` (`daily()`, `calls()`, `lastUsed()`) with the
+  `UsageQuery` / `CallQuery` value objects; map `DailyUsage` / `CallPage` to your own view models at the edge.
+- **Erasure.** Call `HttpLogPersonalDataEraserInterface` from your "forget user" use case and
+  `HttpLogUsageEraserInterface` when a credential or tenant is deleted.
+- **Access.** Implement `HttpLogAccessCheckerInterface` (and `HttpLogChannelAccessCheckerInterface` for
+  per-channel views) on top of your own authorization policy.
+
+### Known limitations
+
+- `HttpLogContext` has no interface; wrap it as shown above.
+- No Symfony event is dispatched when an entry is recorded; read back through `HttpLogUsageReaderInterface`.
+- The entity mapping is always registered on the default entity manager.
 
 ## Usage erasure (credentials, tenants)
 
