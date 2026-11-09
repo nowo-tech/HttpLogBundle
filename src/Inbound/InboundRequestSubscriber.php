@@ -72,7 +72,7 @@ final readonly class InboundRequestSubscriber implements EventSubscriberInterfac
                 return;
             }
 
-            $resolved = $this->resolution->forRequest($request, $channel->name);
+            $resolved = $this->resolution->resolveEarly($request, $channel->name);
             if ($resolved->tenantKey === null && $resolved->projectKey === null) {
                 return;
             }

@@ -259,7 +259,8 @@ php bin/console nowo:http-log:purge --days=7              # 1.14 meaning: every 
 Named channels are scopes too (`--channel=api`, their `retention_days`). With the [rollup](#daily-rollup-and-read-api)
 enabled, the command (and `PurgeHttpLogMessage` without arguments) also purges the `rollup` buckets older than
 `rollup.retention_months` calendar months (13 keeps the same month last year) and the `ledger` older than
-`rollup.dedupe_days`; `--channel=rollup --days=90` keeps the last 90 days of buckets. A bare `--days` never touches
+`rollup.dedupe_days`; `--channel=rollup --days=90` keeps the last 90 days of buckets (never fewer than the current
+month). A bare `--days` never touches
 the rollup, and neither does the admin purge form.
 
 Every purge deletes in batches of `retention.purge_batch_size` rows (default `1000`, keyset on the id), so purging
@@ -471,6 +472,12 @@ final class ApiTokenUsageResolver implements HttpLogRequestContextResolverInterf
   (`X-Beacon-Token`) in `redaction.headers` so the guard knows them. The same guard drops a user identifier that is
   the request's credential.
 - A resolver that throws is skipped (one warning, exception class only); the request is never affected.
+- A null (or empty) answer before the controller is not kept: the resolver is asked again at terminate, so a
+  controller that authenticates the request itself (`security: false` surfaces) can set what the resolver reads.
+- Resolve the tenant and credential **only from the authenticated credential** (never from a header or route
+  parameter) and return null when authentication failed; failed-auth requests are then counted without a tenant.
+  Never derive the credential id from the token (except as a one-way hash): the guard catches equality, containment
+  and prefixes only. Request values shorter than 8 characters are matched by equality only.
 
 Use a separate channel for inbound webhooks (`webhooks`, credential kind `signature`, the endpoint's database id): it
 keeps signature traffic out of token usage and gets its own retention.
@@ -538,7 +545,10 @@ output says so. Stored times are read in the PHP default time zone they were wri
 | `eraseCredential($kind, $id)` | deletes them; folds the credential's buckets into credential id `~erased` (same day, channel, provider, tenant), so the totals stay; returns the rows deleted |
 | `eraseTenant($tenantKey)` | deletes every per-call row and bucket of the tenant; returns rows + buckets deleted |
 
-Matching is exact (byte for byte); empty values and values with a NUL byte are rejected. The personal-data eraser
+Matching is exact (byte for byte); empty values and values with a NUL byte are rejected. Erase after the HttpLog
+transport is drained (a queued message of the credential or tenant re-creates its row and bucket), and do not run it
+concurrently with a backfill of the same days. `deleteByClientIp()` does not match truncated IPs (a /24 or /48 is not
+the person's address). The personal-data eraser
 above also covers named-channel rows (they carry the user identifier and client IP); buckets hold neither, so the
 counters survive a user erasure.
 

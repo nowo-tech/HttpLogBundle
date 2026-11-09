@@ -228,17 +228,38 @@ final class RollupStoreTest extends TestCase
         self::assertSame(['2025-11-01', '2026-10-31', '2026-11-08'], array_map(static fn (array $b): string => substr((string) $b['day'], 0, 10), $this->buckets()));
         self::assertSame(2, $this->store->purgeBuckets(days: 7, batchSize: 1));
 
-        // ledger: ids older than 7 days go
-        self::assertSame(2, $this->store->purgeLedger(dryRun: true));
-        self::assertSame(2, $this->store->purgeLedger(batchSize: 1));
-        self::assertSame(1, $this->rowsIn($this->db->rollupTables->eventSeen));
+        // ledger: rows first processed more than 7 days ago go (all three were processed today)
+        self::assertSame(0, $this->store->purgeLedger(dryRun: true));
         self::assertSame(0, $this->store->purgeLedger(days: 0), 'today is never older than today');
         $this->clock->modify('+1 day');
-        self::assertSame(1, $this->store->purgeLedger(days: 0));
+        self::assertSame(3, $this->store->purgeLedger(days: 0, dryRun: true));
+        $this->clock->modify('+7 days');
+        self::assertSame(3, $this->store->purgeLedger(dryRun: true));
+        self::assertSame(3, $this->store->purgeLedger(batchSize: 1));
+        self::assertSame(0, $this->rowsIn($this->db->rollupTables->eventSeen));
 
         $forever = new UsageRollupStore($this->db, $this->db->rollupTables, $this->clock, null);
         self::assertNull($forever->cutoffDay());
         self::assertSame(0, $forever->purgeBuckets());
+    }
+
+    #[Test]
+    #[DataProvider('platforms')]
+    public function theLedgerWindowRunsFromTheFirstProcessingAndAnOverrideKeepsTheCurrentMonth(string $source): void
+    {
+        $this->open($source);
+        // JA-L2: captured 6 days ago, first processed today (a backlog), purged 2 days later, then redelivered
+        $late = $this->capture('2026-11-02T10:00:00+00:00', row: false);
+        self::assertTrue($this->writer->write($late));
+        $this->clock->modify('+2 days');
+        self::assertSame(0, $this->store->purgeLedger());
+        self::assertFalse($this->writer->write(UsageCapture::fromArray($late->toArray())), 'still within dedupe_days of its first count');
+        self::assertSame(1, (int) $this->buckets()[0]['calls']);
+
+        // JA-I2: --channel=rollup --days=0 never deletes a day of the current month
+        self::assertSame(0, $this->store->purgeBuckets(days: 0, dryRun: true));
+        self::assertSame(0, $this->store->purgeBuckets(days: 0));
+        self::assertCount(1, $this->buckets());
     }
 
     #[Test]

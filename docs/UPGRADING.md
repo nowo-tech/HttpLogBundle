@@ -83,6 +83,9 @@ their own channel, matched **before** the web channel's ignores and sampling (se
   `HttpLogChannelAccessCheckerInterface` and denies unknown channel names keeps them hidden; one that allows
   everything shows them.
 - `X-Request-Id` is neither stored nor used for dedupe on a named channel (server event id).
+- Channel prefixes, `ignore_path_prefixes` and the admin UI prefix are compared with the **decoded** path, like the
+  router and the firewall (this also applies to hosts without named channels: an encoded `/%61pi/…` is now ignored
+  by an `/api` ignore prefix, as it should have been).
 - **Lazy firewalls:** the resolver runs before the controller only when that cannot start a lazy firewall's
   authentication; otherwise it runs at `kernel.terminate` (the row gets the context, but outbound calls of the
   controller do not inherit the tenant: wrap them in `HttpLogContext::run()`).
@@ -106,8 +109,10 @@ tenant. Two DBAL tables are added to the schema of the EntityManager that maps t
 3. `rollup.enabled` must be a literal boolean (no `%env()%`).
 4. Supported platforms: MySQL / MariaDB, PostgreSQL, SQLite >= 3.24 (`ON CONFLICT`). On another platform every
    rollup write fails and is logged.
-5. **Replay the failure transport within `rollup.dedupe_days`** (default 7): the exactly-once ledger forgets an event
-   after that, and a later redelivery would be counted again.
+5. **Replay the failure transport within `rollup.dedupe_days`** (default 7) of an event's first processing: the
+   exactly-once ledger forgets it after that, and a later redelivery would be counted again. A counted channel's
+   `retention_days` must be at least `dedupe_days` (its row is the dedupe key; the container refuses to compile
+   otherwise).
 6. Upgrade workers and web servers together: a count-only event (`row: false`) consumed by a 1.15 worker would be
    written as a row.
 

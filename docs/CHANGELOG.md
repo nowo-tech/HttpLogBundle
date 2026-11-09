@@ -97,6 +97,27 @@ and rows (BC tests on a booted kernel). Audit A2: re-verification pending.
 - The admin purge form purges per-call rows only (`PurgeHttpLogService::purgeEntriesByRetention()`), never the rollup.
 - With the rollup tables mapped, `doctrine.table_prefix` + `doctrine.table_name_prefix` may be at most 48 characters.
 - `provider.per_call` / `rollup` options of `outbound` and `mailer.rollup` now take effect while the rollup is on.
+- `ignore_path_prefixes` and the admin UI prefix are compared with the **decoded** path (`rawurldecode`), like the
+  router and the firewall: `/%61dmin/http-log` is the admin UI, `/%61pi/x` is under an ignored `/api` (audit JA-M2).
+
+### Security (audit JA, before the 1.16.0 tag)
+
+- **JA-M1:** request credentials shorter than 8 characters (a redacted query param, header or cookie) are matched by
+  exact equality only, so `?token=-` or `X-Api-Key: 1` can no longer blank the resolver context of the request (and
+  move a token's use out of `lastUsed()` and the tenant's usage). Longer ones keep the contains / prefix rule.
+- **JA-M2:** named channels match the decoded path, the same as the router and firewall. Before, `/%61pi/share/<token>`
+  was served by the API but recorded as a web row with the raw path.
+- **JA-L1:** an empty resolver result before the controller is not cached: a request the controller authenticates
+  (`security: false` surfaces) is resolved again at terminate. A resolver may be called twice when it answers null.
+- **JA-L2:** the ledger row is dated by the event's first processing, so `dedupe_days` runs from the first count
+  (a backlogged event keeps its full window). With the rollup on, a counted channel's `retention_days` must be at
+  least `rollup.dedupe_days` (checked at compile time): its row is the event's dedupe key.
+- **JA-L3:** documented: one bucket serialises its writes; put public channels on `async: true` with a dedicated
+  transport and rate-limit them until the batch handler lands.
+- JA-I2: `--channel=rollup --days=N` never deletes a day of the current month. JA-I3: a decorated
+  `security.untracked_token_storage` no longer breaks boot (early resolution is then skipped), and a lazy
+  authenticator failing at terminate gives a null token instead of dropping the capture. JA-I4: an untrusted `Host`
+  is stored as NULL and the request still recorded. JA-I8: `UsageSchemaTest` drops leftover rollup tables.
 
 ## [1.15.0] - 2026-11-09
 

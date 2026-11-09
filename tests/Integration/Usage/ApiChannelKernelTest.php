@@ -135,6 +135,45 @@ final class ApiChannelKernelTest extends TestCase
     }
 
     #[Test]
+    public function shortRedactedValuesCannotBlankTheContextOfTheirOwnRequest(): void
+    {
+        [$kernel, $container] = $this->boot(self::CONFIG);
+
+        try {
+            // JA-M1: one-character values in a redacted query param, header and cookie
+            $this->request($kernel, '/api/tasks/404?token=-&api_key=o', ['HTTP_AUTHORIZATION' => 'Bearer SEED14placeholder', 'HTTP_X_TEST_ORG' => 'org-a', 'HTTP_X_API_KEY' => '1', 'HTTP_COOKIE' => 'a=e'], 404);
+
+            $rows = $this->em($container)->getConnection()->fetchAllAssociative('SELECT credential_kind, credential_id, tenant_key, project_key FROM nowo_http_log_entry');
+            self::assertSame([['credential_kind' => 'personal_token', 'credential_id' => 'pt-17', 'tenant_key' => 'org-a', 'project_key' => 'project-1']], $rows);
+        } finally {
+            $kernel->shutdown();
+        }
+    }
+
+    #[Test]
+    public function aPercentEncodedPathIsMatchedDecodedLikeTheRouter(): void
+    {
+        // web records everything here: a missed channel would show up as a web row with the raw path
+        [$kernel, $container] = $this->boot(['sampling_rate' => 1.0, 'ignore_path_prefixes' => []] + self::CONFIG);
+
+        try {
+            $headers = ['HTTP_X_TEST_ORG' => 'org-a'];
+            $this->request($kernel, '/%61pi/share/SEED16placeholder', $headers, 403);
+            $this->request($kernel, '/api%2Fshare/SEED16placeholder', $headers, 403);
+
+            $rows = $this->em($container)->getConnection()->fetchAllAssociative('SELECT channel, path, route_name FROM nowo_http_log_entry ORDER BY id');
+            self::assertSame([
+                ['channel' => 'api', 'path' => '/api/share/{token}', 'route_name' => 'api_share'],
+                ['channel' => 'api', 'path' => '/api/share/{token}', 'route_name' => 'api_share'],
+            ], $rows);
+            $this->assertNoSeed($rows);
+            self::assertSame(2, (int) $this->em($container)->getConnection()->fetchOne("SELECT SUM(calls) FROM nowo_http_log_daily WHERE channel = 'api'"));
+        } finally {
+            $kernel->shutdown();
+        }
+    }
+
+    #[Test]
     public function outboundCallsServingAnApiRequestInheritItsTenant(): void
     {
         [$kernel, $container] = $this->boot(['channels' => ['api' => ['path_prefixes' => ['/api']], 'mcp' => ['routes' => ['mcp_*']]]] + self::CONFIG);

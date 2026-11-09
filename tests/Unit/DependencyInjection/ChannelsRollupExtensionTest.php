@@ -162,6 +162,28 @@ final class ChannelsRollupExtensionTest extends TestCase
         $this->load(['rollup' => ['enabled' => true], 'doctrine' => ['table_prefix' => 'p' . str_repeat('x', 22) . '_', 'table_name_prefix' => 'n' . str_repeat('x', 23) . '_']]);
     }
 
+    /** @return iterable<string, array{0: array<string, mixed>}> */
+    public static function shortRetention(): iterable
+    {
+        yield 'named channel' => [['channels' => ['api' => ['path_prefixes' => ['/api'], 'retention_days' => 3]]]];
+        yield 'outbound' => [['outbound' => ['enabled' => true, 'retention_days' => 2]]];
+        yield 'mailer' => [['mailer' => ['enabled' => true, 'retention_days' => 6]]];
+    }
+
+    /** @param array<string, mixed> $config */
+    #[Test]
+    #[DataProvider('shortRetention')]
+    public function aCountedRowMustOutliveTheLedgerWindow(array $config): void
+    {
+        // without the rollup, or for channels it does not count, short retentions are fine
+        $this->load($config);
+        $this->load(['rollup' => ['enabled' => true], 'channels' => ['api' => ['path_prefixes' => ['/api'], 'retention_days' => 1, 'rollup' => false]], 'mailer' => ['enabled' => true, 'retention_days' => 1, 'rollup' => false]]);
+        $this->load(['rollup' => ['enabled' => true, 'dedupe_days' => 2]] + $config);
+
+        $this->expectException(InvalidConfigurationException::class);
+        $this->load(['rollup' => ['enabled' => true]] + $config);
+    }
+
     private function registered(ContainerBuilder $container, string $id): bool
     {
         return $container->hasDefinition($id) && !$container->getDefinition($id)->hasTag('container.excluded');

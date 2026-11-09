@@ -7,6 +7,7 @@ namespace Nowo\HttpLogBundle\Inbound;
 use Symfony\Component\HttpFoundation\Request;
 
 use function is_string;
+use function rawurldecode;
 
 /**
  * Finds the named channel of an inbound request (HL-1 §3): channels in config order, include lists minus exclude
@@ -38,7 +39,8 @@ final readonly class InboundChannelMatcher
     {
         $route = $request->attributes->get('_route');
         $route = is_string($route) ? $route : null;
-        $path  = $request->getPathInfo();
+        // decoded like the router and the firewall: "/%61pi/x" is served as "/api/x", so it is matched as such (JA-M2)
+        $path = rawurldecode($request->getPathInfo());
         foreach ($this->channels as $channel) {
             if ($channel->matches($path, $route)) {
                 return $channel;

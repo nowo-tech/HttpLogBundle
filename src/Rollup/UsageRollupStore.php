@@ -26,6 +26,7 @@ use function array_keys;
 use function array_map;
 use function count;
 use function is_int;
+use function min;
 use function sprintf;
 use function strval;
 use function substr;
@@ -127,7 +128,9 @@ final readonly class UsageRollupStore
                 if ($insertRow instanceof Closure) {
                     $insertRow($connection);
                 } else {
-                    $connection->insert($this->tables->eventSeen, ['event_id' => $capture->eventId, 'day' => $day], [ParameterType::STRING, ParameterType::STRING]);
+                    // the ledger day is the first processing day (JA-L2): dedupe_days then runs from the first count,
+                    // not from the capture, so a late (backlogged) event keeps its full exactly-once window
+                    $connection->insert($this->tables->eventSeen, ['event_id' => $capture->eventId, 'day' => $this->today()], [ParameterType::STRING, ParameterType::STRING]);
                 }
                 $this->upsert($connection, RollupBucket::fromCapture($capture, $this->errorStatusMin($capture->channel)));
                 $connection->commit();
@@ -174,14 +177,15 @@ final readonly class UsageRollupStore
     }
 
     /**
-     * Deletes buckets older than the cutoff (default: retention_months; `$days`: day < today − days), in batches of
-     * `$batchSize` ids.
+     * Deletes buckets older than the cutoff (default: retention_months; `$days`: day < today − days, but never a day
+     * of the current month), in batches of `$batchSize` ids.
      *
      * @return int buckets deleted (or counted with `$dryRun`); 0 when the retention is null
      */
     public function purgeBuckets(?int $days = null, int $batchSize = Configuration::DEFAULT_PURGE_BATCH_SIZE, bool $dryRun = false): int
     {
-        $cutoff = $days === null ? $this->cutoffDay() : $this->daysAgo($days);
+        // an override never deletes the current month (JA-I2): the cutoff is at most its first day
+        $cutoff = $days === null ? $this->cutoffDay() : min($this->daysAgo($days), (string) $this->cutoffDay(1));
         if ($cutoff === null) {
             return 0;
         }
@@ -190,7 +194,7 @@ final readonly class UsageRollupStore
     }
 
     /**
-     * Deletes ledger rows older than `dedupe_days` (or `$days`).
+     * Deletes ledger rows first processed more than `dedupe_days` (or `$days`) ago.
      *
      * @return int ledger rows deleted (or counted with `$dryRun`)
      */

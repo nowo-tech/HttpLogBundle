@@ -332,7 +332,7 @@ usage columns: deploy the migration of [UPGRADING](UPGRADING.md#to-1150) first.
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `path_prefixes` | `[]` | Segment-aware prefixes: `/api` matches `/api` and `/api/x`, not `/apix` (a trailing `/` is ignored; `/` matches every path). A channel needs `path_prefixes` or `routes`; two channels cannot share a prefix. |
+| `path_prefixes` | `[]` | Segment-aware prefixes, compared with the decoded path (like the router): `/api` matches `/api`, `/api/x` and `/%61pi/x`, not `/apix` (a trailing `/` is ignored; `/` matches every path). A channel needs `path_prefixes` or `routes`; two channels cannot share a prefix. |
 | `routes` | `[]` | `fnmatch` patterns on `_route`, case-insensitive. |
 | `exclude_path_prefixes` | `[]` | Paths of the channel it does not record (they fall through to the web channel), e.g. an ingest endpoint under `/api`. |
 | `exclude_routes` | `[]` | Routes of the channel it does not record. |
@@ -453,8 +453,19 @@ PostgreSQL and SQLite >= 3.24 only.
 | --- | --- | --- |
 | `enabled` | `false` | Count every call of the channels with `rollup: true` (named channels, `outbound` providers, `mailer`) per UTC day, channel, provider, credential and tenant, exactly once (a per-call row's `request_id`, or the `event_seen` ledger for calls without a row). |
 | `retention_months` | `13` | Calendar months of buckets kept, the current month included (13 keeps the same month last year; `null` = forever); purge scope `rollup`. An event older than that is not counted. |
-| `dedupe_days` | `7` | Days the ledger keeps an event id; must exceed the longest Messenger retry delay (replay the failure transport within it); purge scope `ledger`. |
+| `dedupe_days` | `7` | Days the ledger keeps an event id after its first processing; must exceed the longest Messenger retry delay (replay the failure transport within it); purge scope `ledger`. Every channel the rollup counts needs `retention_days` >= `dedupe_days` (or `null`): checked at compile time. |
 | `web` | `false` | Also count the web channel (every request its ignores keep, sampled or not) (Q-O6). |
+
+**Throughput (until the batch handler of HL-1 §9.6 lands):** one bucket serialises its writes (one transaction per
+event; about 170–390 events/s on MySQL with an fsync per commit). Every failed-auth request of a channel lands in its
+`(day, channel, '', '', '')` bucket, so a 401 flood on a public channel can build a Messenger backlog. Use
+`async: true` with a dedicated transport for `Nowo\HttpLogBundle\Message\*`
+([below](#messenger-retry-and-failure-transport)) and rate-limit public channels at the host (firewall / reverse
+proxy). With `async: false` the writes run at `kernel.terminate` and hold the PHP worker.
+
+**Disabling the rollup later** makes `doctrine:schema:update` / `migrations:diff` propose dropping its two tables
+(as for Messenger's Doctrine transport): keep them out of the diff with `doctrine.dbal.schema_filter` or drop them
+deliberately.
 
 Bucket counters: `calls`, `errors` (status >= the channel's `error_status_min`, 400 for outbound / mailer / web, or
 an error kind), `transport_errors` (an error kind without a status), `status_2xx`…`status_5xx`, `retries`, `bytes`,

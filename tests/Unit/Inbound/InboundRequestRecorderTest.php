@@ -188,4 +188,23 @@ final class InboundRequestRecorderTest extends TestCase
         self::assertArrayNotHasKey('clientIp', $payloads[0]);
         self::assertSame('/', $payloads[0]['path']);
     }
+
+    #[Test]
+    public function anUntrustedHostIsStoredAsNullAndTheRequestStillRecorded(): void
+    {
+        Request::setTrustedHosts(['^api\\.example\\.test$']);
+
+        try {
+            $request = Request::create('/api/tasks/1', 'GET', [], [], [], ['HTTP_HOST' => 'evil.example']);
+            $request->attributes->set('_route', 'api_task');
+            $this->recorder()->record(new InboundChannel('api', ['/api']), $request, new Response('', 400), 1.0);
+        } finally {
+            Request::setTrustedHosts([]);
+        }
+
+        $payloads = $this->payloads();
+        self::assertCount(1, $payloads);
+        self::assertNull($payloads[0]['host']);
+        self::assertSame(400, $payloads[0]['statusCode']);
+    }
 }

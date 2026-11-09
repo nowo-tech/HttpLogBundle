@@ -117,13 +117,13 @@ final class InboundRequestSubscriberTest extends TestCase
     {
         $failing = $this->createMock(HttpLogRequestContextResolution::class);
         $failing->method('canResolveEarly')->willReturn(true);
-        $failing->method('forRequest')->willThrowException(new RuntimeException('SEED38'));
+        $failing->method('resolveEarly')->willThrowException(new RuntimeException('SEED38'));
         $this->subscriber(null, $failing)->onControllerArguments($this->arguments(Request::create('/api/x')));
         self::assertSame(RuntimeException::class, $this->logger->warnings()[0]['context']['exception_class'] ?? null);
 
         $lazy = $this->createMock(HttpLogRequestContextResolution::class);
         $lazy->method('canResolveEarly')->willReturn(true);
-        $lazy->method('forRequest')->willThrowException(new LazyResponseException(new Response('', 401)));
+        $lazy->method('resolveEarly')->willThrowException(new LazyResponseException(new Response('', 401)));
 
         $this->expectException(LazyResponseException::class);
         $this->subscriber(null, $lazy)->onControllerArguments($this->arguments(Request::create('/api/x')));

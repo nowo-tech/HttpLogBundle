@@ -110,9 +110,9 @@ final class RetentionErasureTest extends TestCase
         self::assertSame(['web', 'api', 'webhooks', 'rollup', 'ledger'], $service->scopes());
         self::assertSame(['web', 'api', 'webhooks'], $service->entryScopes());
 
-        self::assertSame(['web' => 0, 'api' => 1, 'webhooks' => 0, 'rollup' => 1, 'ledger' => 1], $service->purgeScopes([], null, true));
+        self::assertSame(['web' => 0, 'api' => 1, 'webhooks' => 0, 'rollup' => 1, 'ledger' => 0], $service->purgeScopes([], null, true), 'ledger rows are dated by their first processing (today)');
         self::assertSame(1, $service->purgeEntriesByRetention(true));
-        self::assertSame(3, $service->purgeByRetention());
+        self::assertSame(2, $service->purgeByRetention());
         self::assertSame(2, $this->rows(), 'webhooks rows are kept forever');
         self::assertSame(['rollup' => 3], $service->purgeScopes(['rollup'], 10, true), 'with --days: buckets older than 10 days');
         self::assertSame(2, $service->purgeByRetention(0, true), 'a bare --days counts rows only (2), never the buckets');

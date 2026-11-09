@@ -553,7 +553,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
      * Daily rollup (HL-1 §8.3, §9): schema listener, store, backfill command; purge scopes `rollup` and `ledger`.
      *
      * @param array<string, mixed> $config processed configuration
-     * @param array<string, array{sampling_rate: float, error_status_min: int, rollup: bool}> $named
+     * @param array<string, array{sampling_rate: float, error_status_min: int, retention_days: int|null, rollup: bool}> $named
      */
     private function registerRollup(ContainerBuilder $container, array $config, array $named): void
     {
@@ -568,6 +568,25 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         $container->setDefinition(RollupSchemaListener::class, (new Definition(RollupSchemaListener::class))
             ->setArguments([new Reference(RollupTables::class)])
             ->addTag('doctrine.event_listener', ['event' => 'postGenerateSchema']));
+
+        // a counted per-call row is its own dedupe key: it must outlive the ledger window (JA-L2)
+        $windows = [];
+        foreach ($named as $name => $channel) {
+            if ($channel['rollup']) {
+                $windows['channels.' . $name] = $channel['retention_days'];
+            }
+        }
+        if ($config['outbound']['enabled'] === true) {
+            $windows['outbound'] = $config['outbound']['retention_days'];
+        }
+        if ($config['mailer']['enabled'] === true && $config['mailer']['rollup']) {
+            $windows['mailer'] = $config['mailer']['retention_days'];
+        }
+        foreach ($windows as $path => $days) {
+            if ($days !== null && $days < $rollup['dedupe_days']) {
+                throw new InvalidConfigurationException(sprintf('nowo_http_log.%s.retention_days (%d) must be at least rollup.dedupe_days (%d): a counted row is the dedupe key of its event and must outlive the ledger window.', $path, $days, $rollup['dedupe_days']));
+            }
+        }
 
         $errorStatusMin = [];
         $backfill       = [];

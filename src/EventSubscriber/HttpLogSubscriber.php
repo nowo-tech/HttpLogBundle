@@ -21,6 +21,7 @@ use function is_string;
 use function microtime;
 use function random_bytes;
 use function random_int;
+use function rawurldecode;
 
 use const FNM_CASEFOLD;
 use const PHP_INT_MAX;
@@ -118,7 +119,7 @@ final readonly class HttpLogSubscriber implements EventSubscriberInterface
     private function terminateWithChannels(TerminateEvent $event, InboundRequestRecorder $inbound): void
     {
         $request = $event->getRequest();
-        if ($this->isAdminPath($request->getPathInfo())) {
+        if ($this->isAdminPath(rawurldecode($request->getPathInfo()))) {
             return;
         }
 
@@ -199,7 +200,8 @@ final readonly class HttpLogSubscriber implements EventSubscriberInterface
 
     private function isIgnoredPath(Request $request): bool
     {
-        $path = $request->getPathInfo();
+        // decoded like the router and the firewall: "/%61dmin/…" is the same path as "/admin/…" (JA-M2)
+        $path = rawurldecode($request->getPathInfo());
 
         // The admin UI must never record its own requests, whatever ignore_path_prefixes says.
         if ($this->isAdminPath($path)) {

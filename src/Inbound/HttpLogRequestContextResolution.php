@@ -13,6 +13,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorage;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
+use Symfony\Component\Security\Core\Exception\LazyResponseException;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Throwable;
 
@@ -56,14 +57,20 @@ final readonly class HttpLogRequestContextResolution
     /** A returned value that is a prefix of a request credential this long or longer is dropped. */
     public const MIN_PREFIX_LENGTH = 6;
 
+    /**
+     * Request credentials shorter than this are matched by exact equality only (JA-M1): a client must not blank its own
+     * context with `?token=-` or `X-Api-Key: 1`, while a short real credential is still never stored verbatim.
+     */
+    public const MIN_SECRET_LENGTH = 8;
+
     private LoggerInterface $logger;
 
     /**
      * @param iterable<HttpLogRequestContextResolverInterface> $resolvers tagged `nowo_http_log.request_context_resolver`
      * @param list<string> $redactedHeaders `redaction.headers`
      * @param list<string> $redactedQueryParams `redaction.query_params`
-     * @param TokenStorage|null $untrackedTokenStorage `security.untracked_token_storage`, to tell a lazy firewall that has
-     *                                                 not authenticated yet
+     * @param TokenStorageInterface|null $untrackedTokenStorage `security.untracked_token_storage`, to tell a lazy firewall that has
+     *                                                          not authenticated yet
      */
     public function __construct(
         private iterable $resolvers = [],
@@ -72,7 +79,8 @@ final readonly class HttpLogRequestContextResolution
         ?LoggerInterface $logger = null,
         private ?TokenStorageInterface $tokenStorage = null,
         private ?Security $security = null,
-        private ?TokenStorage $untrackedTokenStorage = null,
+        // any implementation (a host may decorate it); only Symfony's TokenStorage tells a pending lazy authentication
+        private ?TokenStorageInterface $untrackedTokenStorage = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -92,6 +100,26 @@ final readonly class HttpLogRequestContextResolution
     }
 
     /**
+     * Resolution just before the controller: only a non-empty result is kept on the request (JA-L1), so a request the
+     * controller itself authenticates (`security: false` surfaces) is resolved again at terminate. A resolver may
+     * therefore be called twice for one request when it answers null (or an empty context) the first time.
+     */
+    public function resolveEarly(Request $request, string $channel): HttpLogRequestContext
+    {
+        $cached = $request->attributes->get(self::ATTRIBUTE);
+        if ($cached instanceof HttpLogRequestContext) {
+            return $cached;
+        }
+
+        $context = $this->resolve($request, $channel, false);
+        if ($context != new HttpLogRequestContext()) {
+            $request->attributes->set(self::ATTRIBUTE, $context);
+        }
+
+        return $context;
+    }
+
+    /**
      * True when the resolvers can run now without changing the request: there is a resolver, and reading the token
      * would not start a lazy firewall's authentication (which could turn an anonymous request into a 401).
      */
@@ -101,21 +129,26 @@ final readonly class HttpLogRequestContextResolution
             return false;
         }
         if (!$this->untrackedTokenStorage instanceof TokenStorage) {
-            // no way to tell a pending lazy authentication: only safe without a token storage at all
+            // no way to tell a pending lazy authentication (none, or a decorated storage): only safe without a token storage at all
             return !$this->tokenStorage instanceof TokenStorageInterface;
         }
 
         return $this->isInitialized($this->untrackedTokenStorage);
     }
 
-    /** The first non-null result of the resolvers, guarded; an empty context when none answers. */
-    public function resolve(Request $request, string $channel): HttpLogRequestContext
+    /**
+     * The first non-null result of the resolvers, guarded; an empty context when none answers.
+     *
+     * @param bool $afterResponse at terminate: a lazy authenticator that fails there (LazyResponseException) gives a
+     *                            null token instead of dropping the capture; never before the controller
+     */
+    public function resolve(Request $request, string $channel, bool $afterResponse = true): HttpLogRequestContext
     {
         if (!$this->hasResolvers()) {
             return new HttpLogRequestContext();
         }
 
-        $token = $this->token($request);
+        $token = $afterResponse ? $this->tokenAfterResponse($request) : $this->token($request);
         foreach ($this->resolvers as $resolver) {
             try {
                 $result = $resolver->resolve($request, $token, $channel);
@@ -145,13 +178,23 @@ final readonly class HttpLogRequestContextResolution
         return $secured ? $this->tokenStorage->getToken() : null;
     }
 
+    /** {@see token()} at terminate: the response is sent, a failing lazy authentication only means no token (JA-I3). */
+    private function tokenAfterResponse(Request $request): ?TokenInterface
+    {
+        try {
+            return $this->token($request);
+        } catch (LazyResponseException) {
+            return null;
+        }
+    }
+
     /**
      * The user identifier for a named-channel row, dropped (with a warning) when it equals, contains or starts a
      * credential the request carried: an authenticator whose user identifier is the API token must not store it.
      */
     public function userIdentifier(Request $request): ?string
     {
-        $user = $this->token($request)?->getUser();
+        $user = $this->tokenAfterResponse($request)?->getUser();
         if (!$user instanceof UserInterface) {
             return null;
         }
@@ -254,9 +297,19 @@ final readonly class HttpLogRequestContextResolution
         return $value;
     }
 
-    /** `$value` equals or contains `$secret`, or is a prefix of it at least {@see MIN_PREFIX_LENGTH} long. */
+    /**
+     * `$value` equals `$secret`; or, for a secret of at least {@see MIN_SECRET_LENGTH} characters, contains it or is a
+     * prefix of it at least {@see MIN_PREFIX_LENGTH} long.
+     */
     private function leaks(string $value, string $secret): bool
     {
+        if ($value === $secret) {
+            return true;
+        }
+        if (strlen($secret) < self::MIN_SECRET_LENGTH) {
+            return false;
+        }
+
         return str_contains($value, $secret) || (strlen($value) >= self::MIN_PREFIX_LENGTH && str_starts_with($secret, $value));
     }
 

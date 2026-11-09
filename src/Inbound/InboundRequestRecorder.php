@@ -12,6 +12,7 @@ use Nowo\HttpLogBundle\Usage\UsageCapture;
 use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -93,7 +94,7 @@ final readonly class InboundRequestRecorder
                 method: $request->getMethod(),
                 path: $this->templates->template($route),
                 scheme: $request->getScheme(),
-                host: strtolower($request->getHttpHost()),
+                host: self::host($request),
                 statusCode: $response->getStatusCode(),
                 errorKind: $error ? OutboundErrorKind::Exception->value : null,
                 durationMs: $durationMs,
@@ -133,6 +134,16 @@ final readonly class InboundRequestRecorder
             ));
         } catch (Throwable $exception) {
             $this->warn($exception);
+        }
+    }
+
+    /** Lower-cased host and port; NULL when `trusted_hosts` rejects the Host header, so that 400 is still recorded (JA-I4). */
+    private static function host(Request $request): ?string
+    {
+        try {
+            return strtolower($request->getHttpHost());
+        } catch (SuspiciousOperationException) {
+            return null;
         }
     }
 

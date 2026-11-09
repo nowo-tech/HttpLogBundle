@@ -15,13 +15,17 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Bundle\SecurityBundle\Security\FirewallConfig;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorage;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
+use Symfony\Component\Security\Core\Exception\LazyResponseException;
 use Symfony\Component\Security\Core\User\InMemoryUser;
 
 use function array_column;
 use function base64_encode;
+use function is_string;
 use function json_encode;
 
 use const JSON_THROW_ON_ERROR;
@@ -40,7 +44,7 @@ final class HttpLogRequestContextResolutionTest extends TestCase
     }
 
     /** @param list<HttpLogRequestContextResolverInterface> $resolvers */
-    private function resolution(array $resolvers, ?TokenStorage $storage = null, ?Security $security = null, ?TokenStorage $untracked = null): HttpLogRequestContextResolution
+    private function resolution(array $resolvers, ?TokenStorageInterface $storage = null, ?Security $security = null, ?TokenStorageInterface $untracked = null): HttpLogRequestContextResolution
     {
         return new HttpLogRequestContextResolution($resolvers, ['Authorization', 'Cookie', 'X-Api-Key'], ['token', 'api_key'], $this->logger, $storage, $security, $untracked);
     }
@@ -168,5 +172,70 @@ final class HttpLogRequestContextResolutionTest extends TestCase
         $untracked->setInitializer(static function (): void {
         });
         self::assertFalse($this->resolution([$resolver], $untracked, null, $untracked)->canResolveEarly(), 'lazy firewall not authenticated yet');
+    }
+
+    #[Test]
+    public function shortRequestValuesAreSecretsOnlyByExactEquality(): void
+    {
+        $request    = Request::create('/api/x?token=-&api_key=o', 'GET', [], ['a' => 'e'], [], ['HTTP_X_API_KEY' => '1']);
+        $context    = new HttpLogRequestContext('personal_token', '1001', 'org-0e1-uuid', 'prj-o');
+        $resolution = $this->resolution([self::returning($context)]);
+        self::assertEquals($context, $resolution->resolve($request, 'api'));
+        self::assertSame([], $this->logger->warnings());
+
+        // a short real credential is still never stored verbatim
+        self::assertEquals(new HttpLogRequestContext('personal_token', null, 'org-a'), $this->resolution([self::returning(new HttpLogRequestContext('personal_token', '1', 'org-a'))])->resolve($request, 'api'));
+    }
+
+    #[Test]
+    public function anEmptyEarlyResultIsResolvedAgainAtTerminate(): void
+    {
+        // a controller that authenticates itself (security: false) sets what the resolver reads
+        $resolver = new class implements HttpLogRequestContextResolverInterface {
+            public int $calls = 0;
+
+            public function resolve(Request $request, ?TokenInterface $token, string $channel): ?HttpLogRequestContext
+            {
+                ++$this->calls;
+                $key = $request->attributes->get('api_key_id');
+
+                return is_string($key) ? new HttpLogRequestContext('dsn_key', $key, 'org-a') : null;
+            }
+        };
+        $resolution = $this->resolution([$resolver]);
+        $request    = Request::create('/api/x');
+
+        self::assertEquals(new HttpLogRequestContext(), $resolution->resolveEarly($request, 'api'));
+        self::assertFalse($request->attributes->has(HttpLogRequestContextResolution::ATTRIBUTE));
+        $request->attributes->set('api_key_id', 'key-7');
+        self::assertEquals(new HttpLogRequestContext('dsn_key', 'key-7', 'org-a'), $resolution->forRequest($request, 'api'));
+        self::assertSame(2, $resolver->calls);
+
+        // a non-empty early result is kept
+        $other = Request::create('/api/x');
+        $other->attributes->set('api_key_id', 'key-8');
+        $resolution->resolveEarly($other, 'api');
+        $resolution->resolveEarly($other, 'api');
+        $resolution->forRequest($other, 'api');
+        self::assertSame(3, $resolver->calls);
+    }
+
+    #[Test]
+    public function aDecoratedStorageAndALateLazyFailureNeverBreakTheRequest(): void
+    {
+        $decorated = $this->createStub(TokenStorageInterface::class);
+        $resolver  = self::returning(new HttpLogRequestContext(null, null, 'org-a'));
+        self::assertFalse($this->resolution([$resolver], $decorated, null, $decorated)->canResolveEarly(), 'cannot tell a pending lazy authentication');
+
+        $lazy = $this->createStub(TokenStorageInterface::class);
+        $lazy->method('getToken')->willThrowException(new LazyResponseException(new Response('', 401)));
+        $request = Request::create('/api/x');
+        $request->attributes->set('_firewall_context', 'main');
+        $resolution = $this->resolution([$resolver], $lazy);
+        self::assertEquals(new HttpLogRequestContext(null, null, 'org-a'), $resolution->resolve($request, 'api'), 'at terminate: a null token');
+        self::assertNull($resolution->userIdentifier($request));
+
+        $this->expectException(LazyResponseException::class);
+        $resolution->resolve($request, 'api', false);
     }
 }
