@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.15.0] - 2026-11-09](#1150---2026-11-09)
 - [[1.14.1] - 2026-11-09](#1141---2026-11-09)
 - [[1.14.0] - 2026-11-03](#1140---2026-11-03)
 - [[1.13.2] - 2026-10-30](#1132---2026-10-30)
@@ -40,6 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [[1.0.0] - 2026-08-03](#100---2026-08-03)
 
 ## [Unreleased]
+
+## [1.15.0] - 2026-11-09
 
 HL-1 usage capture, part 1 (contract slices S1 Foundation, S2 Outbound, S3 Mailer). Every new block is off by default:
 a host that enables nothing gets no new listener, decorator or schema change, the 1.14 Doctrine mapping and the same
@@ -117,6 +120,8 @@ web payloads, rows, exports and admin pages (BC tests on a booted kernel).
   Unchanged (39) otherwise.
 - `nowo:http-log:purge` and `PurgeHttpLogMessage` without arguments purge each scope by its own retention once a usage
   feature is enabled; a bare `--days` still purges every row of every channel.
+
+[1.15.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.15.0
 
 ## [1.14.1] - 2026-11-09
 

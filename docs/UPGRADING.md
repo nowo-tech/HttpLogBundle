@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.15.0](#to-1150)
   - [Outbound and mailer capture (opt-in)](#outbound-and-mailer-capture-opt-in)
   - [Behaviour once a block is enabled](#behaviour-once-a-block-is-enabled)
   - [New optional APIs (available with every block disabled)](#new-optional-apis-available-with-every-block-disabled)
@@ -52,6 +53,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.15.0
+
+From **1.14.1**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 **Nothing changes unless you enable a new block.** With `outbound` and `mailer` left disabled (the default) the
 container gets no listener, decorator or schema listener of the new features, the Doctrine mapping of the entry is
