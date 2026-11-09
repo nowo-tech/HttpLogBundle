@@ -60,7 +60,7 @@ final readonly class PersistHttpLogHandler
     private function persistUsage(array $payload): void
     {
         if (!$this->usageWriter instanceof UsageEntryWriter) {
-            $this->logger->warning('HTTP log usage message dropped: outbound and mailer capture are disabled.');
+            $this->logger->warning('HTTP log usage message dropped: no usage channel or rollup is enabled.');
 
             return;
         }

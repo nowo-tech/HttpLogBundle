@@ -19,6 +19,11 @@ How to capture HTTP traffic, use the admin UI, export, purge, and exclude routes
   - [Outbound HttpClient calls](#outbound-httpclient-calls)
   - [Mails](#mails)
   - [Tenant and project context](#tenant-and-project-context)
+- [Named inbound channels](#named-inbound-channels)
+  - [Credential and tenant resolver](#credential-and-tenant-resolver)
+- [Daily rollup and read API](#daily-rollup-and-read-api)
+  - [Backfill](#backfill)
+- [Usage erasure (credentials, tenants)](#usage-erasure-credentials-tenants)
 - [Ignoring routes and paths](#ignoring-routes-and-paths)
 - [CLI commands](#cli-commands)
 - [Async processing](#async-processing)
@@ -251,6 +256,12 @@ php bin/console nowo:http-log:purge --channel=web --days=7
 php bin/console nowo:http-log:purge --days=7              # 1.14 meaning: every row of every channel
 ```
 
+Named channels are scopes too (`--channel=api`, their `retention_days`). With the [rollup](#daily-rollup-and-read-api)
+enabled, the command (and `PurgeHttpLogMessage` without arguments) also purges the `rollup` buckets older than
+`rollup.retention_months` calendar months (13 keeps the same month last year) and the `ledger` older than
+`rollup.dedupe_days`; `--channel=rollup --days=90` keeps the last 90 days of buckets. A bare `--days` never touches
+the rollup, and neither does the admin purge form.
+
 Every purge deletes in batches of `retention.purge_batch_size` rows (default `1000`, keyset on the id), so purging
 a large table does not hold one long lock or write one huge binlog event. The returned / printed count is the total
 number of rows deleted.
@@ -401,6 +412,136 @@ export, as in 1.14 (no per-user store). With an access checker that implements `
 each export remembers the channels it was built for and is listed and downloadable only by users allowed all of
 them; an export made by an unrestricted user is hidden from restricted users.
 
+## Named inbound channels
+
+`nowo_http_log.channels` ([CONFIGURATION](CONFIGURATION.md#channels)) records requests under path prefixes or routes
+as their own channel (`api`, `mcp`, `webhooks`…), with their own sampling and retention, **before** the web channel's
+ignores: a host that ignores `/api` for web logging (and samples web at 25 %) still records every API error and,
+with the rollup, counts every API call.
+
+- Errors are always stored: a status >= `error_status_min` (400 by default) or an exception the kernel handled
+  (`error_kind` `exception`, also for routing 404s). Successes by the channel's `sampling_rate`.
+- The row stores the **route path template** (`/api/tasks/{id}`), never the raw path: a share token or an e-mail
+  address in the path never reaches the table. Without a route (a 404) the path is `{unrouted}`. The map is written
+  by a cache warmer to `var/cache/<env>/nowo_http_log/route_templates.php` and rebuilt in debug when a routing file
+  changes; it holds the routes whose name or path template a channel selects (a route matched through a prefix its
+  template does not start with, such as `/{_locale}/api/…`, needs the channel's `routes`).
+- Never headers, the query string or bodies; the client IP truncated (`client_ip: truncated`, IPv4 /24, IPv6 /48);
+  the server event id as `request_id` (the client's `X-Request-Id` cannot collapse or suppress rows).
+- Admin list, entry page, export and purge show named channels like `outbound` / `mailer`; the channel access checker
+  gets their names (`canViewChannel($user, 'api')`).
+
+### Credential and tenant resolver
+
+Implement `HttpLogRequestContextResolverInterface` (autoconfigured; tag `nowo_http_log.request_context_resolver`,
+`priority` orders several, the first non-null answer wins) to name the credential and tenant of a request:
+
+```php
+use Nowo\HttpLogBundle\Inbound\HttpLogRequestContext;
+use Nowo\HttpLogBundle\Inbound\HttpLogRequestContextResolverInterface;
+
+final class ApiTokenUsageResolver implements HttpLogRequestContextResolverInterface
+{
+    public function resolve(Request $request, ?TokenInterface $token, string $channel): ?HttpLogRequestContext
+    {
+        $apiToken = $token?->getAttribute('api_token');   // whatever your authenticator stored
+        if (!$apiToken instanceof PersonalAccessToken) {
+            return null;
+        }
+
+        return new HttpLogRequestContext(
+            credentialKind: 'personal_token',
+            credentialId: (string) $apiToken->getId(),        // the database id, NEVER the token or its prefix
+            tenantKey: $apiToken->getOrganization()->getUuid(),
+            projectKey: $apiToken->getProject()?->getUuid(),
+        );
+    }
+}
+```
+
+- It runs at most once per request: just before the controller (then the tenant / project become the request's
+  `HttpLogContext` frame, so outbound calls and mails made by the controller inherit them), or at `kernel.terminate`
+  when no controller ran (a 401 from the firewall) or when running earlier could start a **lazy firewall**'s
+  authentication (then outbound calls do not inherit the tenant: wrap them in `HttpLogContext::run()`).
+- The `$token` argument is set only when a firewall with security enabled handled the request.
+- **Guard:** a returned value that fails the opaque-key rule (`^[A-Za-z0-9._:@-]+$`, kind <= 32, others <= 64
+  characters), or that equals, contains or starts (6+ characters) a credential the request carried (the
+  `Authorization` value, each `redaction.headers` value and cookie, each `redaction.query_params` value) is stored
+  as NULL, with one warning naming the resolver and the field (never the value). List custom credential headers
+  (`X-Beacon-Token`) in `redaction.headers` so the guard knows them. The same guard drops a user identifier that is
+  the request's credential.
+- A resolver that throws is skipped (one warning, exception class only); the request is never affected.
+
+Use a separate channel for inbound webhooks (`webhooks`, credential kind `signature`, the endpoint's database id): it
+keeps signature traffic out of token usage and gets its own retention.
+
+## Daily rollup and read API
+
+`nowo_http_log.rollup.enabled` ([CONFIGURATION](CONFIGURATION.md#rollup)) counts every call of the named channels,
+outbound providers and mailer (web with `rollup.web`) in a daily table per **UTC day**, channel, provider,
+credential and tenant, whether or not the call has a per-call row: unsampled successes and `per_call: false`
+providers (uptime probes) are count-only events. Each event is counted **exactly once**: its row (unique
+`request_id`) or its ledger entry (`event_seen`) and the bucket upsert share one transaction, so a Messenger
+redelivery or a crash between commit and ack counts nothing twice. The day comes from the capture time (a message
+consumed after midnight lands on its own day), whatever `date.timezone` says; an event older than the rollup cutoff is
+not counted.
+
+Host pages read it through `Nowo\HttpLogBundle\Usage\HttpLogUsageReaderInterface` (public alias). Every query has
+an **explicit tenant scope**, `forTenant()` or `platform()`; a tenant query never returns another tenant's bucket or
+row (keys are compared case-sensitively on every platform). Authorisation stays with the host.
+
+```php
+use Nowo\HttpLogBundle\Usage\CallQuery;
+use Nowo\HttpLogBundle\Usage\HttpLogUsageReaderInterface;
+use Nowo\HttpLogBundle\Usage\UsageQuery;
+
+$days = $reader->daily(UsageQuery::forTenant($org->getUuid())
+    ->withChannels('api')
+    ->between(new DateTimeImmutable('-29 days'), new DateTimeImmutable())
+    ->groupBy('day', 'credential_id'));                 // any of day, channel, provider, credential_kind, credential_id, tenant_key
+foreach ($days as $d) {
+    $d->day; $d->calls; $d->errors; $d->status4xx; $d->p95UpperBoundMs(); $d->averageMs(); $d->lastSeenAt;
+}
+
+$lastUsed = $reader->lastUsed(UsageQuery::forTenant($org->getUuid()), 'personal_token', $tokenIds); // id => lastSeenAt, calls30d, errors30d
+$page     = $reader->calls(CallQuery::forTenant($org->getUuid())->withChannels('api')->withStatusClass(4), $cursor, 50);
+foreach ($reader->iterateDaily(UsageQuery::platform()->groupBy('day', 'tenant_key')) as $row) { /* CSV */ }
+```
+
+- `p95UpperBoundMs()` is the upper bound of the histogram bucket holding the 95th percentile (exact percentiles are
+  not stored); beyond 10 000 ms it is the slowest call.
+- `calls()` returns the allowlisted fields of the usage channels' rows only (never web rows), newest first, keyset
+  paginated (`nextCursor`); its time filter compares the stored wall-clock time (PHP default time zone).
+- Days are `DateTimeImmutable` in UTC; label them as UTC on your pages.
+
+### Backfill
+
+On a host that already logged named-channel / outbound / mailer rows, build the buckets of the past days once after
+enabling the rollup:
+
+```bash
+php bin/console nowo:http-log:rollup:backfill --from=2026-10-01 --to=2026-11-08 --dry-run
+php bin/console nowo:http-log:rollup:backfill            # from the rollup cutoff to yesterday
+```
+
+Only days on which a channel has **no bucket** are built (a day with live buckets is never rewritten), never today and
+never before the cutoff. Counts of a sampled channel are lower bounds (its unsampled successes had no row): the
+output says so. Stored times are read in the PHP default time zone they were written in.
+
+## Usage erasure (credentials, tenants)
+
+`Nowo\HttpLogBundle\Privacy\HttpLogUsageEraserInterface` (public alias):
+
+| Method | Effect |
+|---|---|
+| `countByCredential($kind, $id)` | per-call rows of the credential |
+| `eraseCredential($kind, $id)` | deletes them; folds the credential's buckets into credential id `~erased` (same day, channel, provider, tenant), so the totals stay; returns the rows deleted |
+| `eraseTenant($tenantKey)` | deletes every per-call row and bucket of the tenant; returns rows + buckets deleted |
+
+Matching is exact (byte for byte); empty values and values with a NUL byte are rejected. The personal-data eraser
+above also covers named-channel rows (they carry the user identifier and client IP); buckets hold neither, so the
+counters survive a user erasure.
+
 ## Ignoring routes and paths
 
 Skip profiler, admin, or internal routes:
@@ -428,7 +569,8 @@ toolbar / profiler (`/_wdt/`, `/_profiler/`). They are merged with your
 | Command | Description |
 | --- | --- |
 | `nowo:http-log:export` | Export entries to CSV or JSON |
-| `nowo:http-log:purge` | Delete entries older than retention |
+| `nowo:http-log:purge` | Delete entries older than retention (per scope with usage channels and the rollup) |
+| `nowo:http-log:rollup:backfill` | Build daily rollup buckets from per-call rows for days without buckets (rollup enabled) |
 
 Run `php bin/console list nowo:http-log` for options.
 

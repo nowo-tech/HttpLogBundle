@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use InvalidArgumentException;
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
+use Nowo\HttpLogBundle\Rollup\UsageRollupStore;
 use Nowo\HttpLogBundle\Usage\HttpLogChannel;
 use Psr\Clock\ClockInterface;
 
@@ -24,9 +25,10 @@ use function sprintf;
 /**
  * Purges HTTP log entries by retention policy or explicit criteria.
  *
- * With outbound or mailer capture enabled (HL-1 §10) the retention runs per scope: `web` rows (no channel) by
- * `retention.days`, `outbound` / `mailer` rows by their own `retention_days`. A days override without scopes keeps
- * its 1.14 meaning: every row of every channel.
+ * With usage channels enabled (HL-1 §10) the retention runs per scope: `web` rows (no channel) by `retention.days`,
+ * named channels, `outbound` and `mailer` rows by their own `retention_days`; with the rollup, `rollup` buckets by
+ * `rollup.retention_months` (calendar months) and the `ledger` by `rollup.dedupe_days`. A days override without
+ * scopes keeps its 1.14 meaning: every row of every channel (never the rollup).
  */
 final readonly class PurgeHttpLogService
 {
@@ -39,8 +41,13 @@ final readonly class PurgeHttpLogService
         private ClockInterface $clock,
         private array $retentionConfig,
         private array $channelRetention = [],
+        private ?UsageRollupStore $rollup = null,
     ) {
     }
+
+    public const SCOPE_ROLLUP = 'rollup';
+
+    public const SCOPE_LEDGER = 'ledger';
 
     public function purgeByRetention(?int $daysOverride = null, bool $dryRun = false): int
     {
@@ -48,7 +55,7 @@ final readonly class PurgeHttpLogService
             throw new InvalidArgumentException(sprintf('Retention days must be a non-negative integer, got %d.', $daysOverride));
         }
 
-        if ($daysOverride === null && $this->channelRetention !== []) {
+        if ($daysOverride === null && ($this->channelRetention !== [] || $this->rollup instanceof UsageRollupStore)) {
             return array_sum($this->purgeScopes([], null, $dryRun));
         }
 
@@ -61,13 +68,34 @@ final readonly class PurgeHttpLogService
     }
 
     /**
-     * Purge scopes of this configuration: `web`, then each enabled usage channel.
+     * Purge scopes of this configuration: `web`, each enabled usage channel, then `rollup` and `ledger` while the
+     * rollup is enabled.
      *
      * @return list<string>
      */
     public function scopes(): array
     {
+        return [...$this->entryScopes(), ...($this->rollup instanceof UsageRollupStore ? [self::SCOPE_ROLLUP, self::SCOPE_LEDGER] : [])];
+    }
+
+    /**
+     * Scopes of per-call rows only (the admin purge form never touches the rollup).
+     *
+     * @return list<string>
+     */
+    public function entryScopes(): array
+    {
         return [HttpLogChannel::WEB, ...array_keys($this->channelRetention)];
+    }
+
+    /**
+     * Retention of the per-call rows of every scope, never the rollup or the ledger (admin purge form).
+     *
+     * @return int rows purged
+     */
+    public function purgeEntriesByRetention(bool $dryRun = false): int
+    {
+        return $this->channelRetention === [] ? $this->purgeByRetention(null, $dryRun) : array_sum($this->purgeScopes($this->entryScopes(), null, $dryRun));
     }
 
     /**
@@ -92,6 +120,14 @@ final readonly class PurgeHttpLogService
         foreach ($scopes as $scope) {
             if (!in_array($scope, $known, true)) {
                 throw new InvalidArgumentException(sprintf('Unknown purge scope "%s"; expected one of: %s.', $scope, implode(', ', $known)));
+            }
+
+            if ($this->rollup instanceof UsageRollupStore && ($scope === self::SCOPE_ROLLUP || $scope === self::SCOPE_LEDGER)) {
+                $result[$scope] = $scope === self::SCOPE_ROLLUP
+                    ? $this->rollup->purgeBuckets($days, $this->batchSize(), $dryRun)
+                    : $this->rollup->purgeLedger($days, $this->batchSize(), $dryRun);
+
+                continue;
             }
 
             $scopeDays = $days ?? $this->retentionDays($scope);

@@ -23,6 +23,7 @@ services:
             # HL-1 1.16: named channels, rollup, usage erasure and the backfill command (registered by the extension).
             - '../../Inbound/'
             - '../../Rollup/'
+            - '../../Privacy/HttpLogUsageEraser.php'
             - '../../Command/RollupBackfillCommand.php'
 
     Nowo\HttpLogBundle\Repository\:
@@ -34,6 +35,7 @@ services:
             $tablePrefix: '%nowo_http_log.doctrine.table_prefix%'
             $tableNamePrefix: '%nowo_http_log.doctrine.table_name_prefix%'
             $usageColumns: '%nowo_http_log.usage.enabled%'
+            $rollup: '%nowo_http_log.rollup.enabled%'
         tags:
             - { name: doctrine.event_listener, event: loadClassMetadata }
 

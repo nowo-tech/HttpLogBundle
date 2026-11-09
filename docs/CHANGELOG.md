@@ -42,6 +42,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+HL-1 usage capture, part 2 (contract slices S4 API channel, S5 Rollup, S6 Retention and erasure). Every new block is
+off by default: a host that configures no `channels` and leaves `rollup.enabled: false` gets no new listener,
+subscriber, warmer, command or schema listener, the 1.15 mapping and schema (no rollup tables) and the same payloads
+and rows (BC tests on a booted kernel). Audit A2: re-verification pending.
+
+### Added
+
+- **Named inbound channels** (`nowo_http_log.channels`, S4): requests under path prefixes (segment-aware) or route
+  patterns, minus excludes, are recorded as their own channel (`api`, `mcp`, `webhooks`…) **before** the web
+  channel's ignores and sampling. Own `sampling_rate` for successes; a status >= `error_status_min` (400, Q-O7) or a
+  kernel exception is always stored; own `retention_days` (purge scope), `client_ip` (`truncated` by default: IPv4
+  /24, IPv6 /48, Q-O8), `user` and `rollup`. Rows are an allowlist: server event id (the client's `X-Request-Id` is
+  neither stored nor a dedupe key), route path template, route name, status, `exception` error kind, duration, size,
+  MIME type, IP, user, credential, tenant, project; never the raw path, query string, headers or bodies. No
+  user-agent family (Q-B7).
+- **Route path templates** from a cache warmer (`RouteTemplateMap`, `var/cache/<env>/nowo_http_log/route_templates.php`,
+  rebuilt in debug when a routing file changes); `{unrouted}` without a route.
+- **Credential / tenant resolver hook** `HttpLogRequestContextResolverInterface` (autoconfigured, tag
+  `nowo_http_log.request_context_resolver`) returning `HttpLogRequestContext` (credential kind, credential database
+  id, tenant key, project key). Resolved once per request, before the controller when that cannot start a lazy
+  firewall's authentication (then the tenant / project become the request's `HttpLogContext` frame: outbound calls
+  and mails of the controller inherit them), else at terminate. **Guard:** a value that fails the opaque-key rule or
+  equals, contains or starts a credential of the request (Authorization, redacted headers and cookies, redacted query
+  params) is stored NULL with a warning naming the resolver (HL-1 §4.3 case 12); same guard for the user identifier.
+- **Daily rollup** (`nowo_http_log.rollup`, S5): DBAL tables `…daily` and `…event_seen` added by a `postGenerateSchema`
+  listener only while enabled (DDL for MySQL / MariaDB, PostgreSQL and SQLite in UPGRADING, checked by the test suite
+  on MySQL 8.4, MariaDB 11.4, PostgreSQL 16 and SQLite with default and prefixed names). Buckets per UTC day,
+  channel, provider, credential and tenant; counters, status classes, retries, bytes, rows stored, duration sum / max
+  and a histogram for the p95 upper bound. **Exactly once** under Messenger redelivery (row or ledger insert and the
+  bucket upsert in one transaction: MySQL / MariaDB `ON DUPLICATE KEY UPDATE`, PostgreSQL and SQLite `ON CONFLICT`).
+  Late events land on their own UTC day; events older than the cutoff are not counted. Unsampled successes and
+  `per_call: false` providers (uptime probes) are count-only events; the web channel only with `rollup.web` (Q-O6).
+- **Read API** `HttpLogUsageReaderInterface` (public alias): `daily()`, `iterateDaily()`, `calls()` (keyset pages of
+  per-call usage rows) and `lastUsed()`, always with an explicit `forTenant()` / `platform()` scope.
+- `nowo:http-log:rollup:backfill [--from] [--to] [--dry-run]`: buckets from per-call rows for days without buckets
+  (never today, never a day that has buckets; sampled channels reported as lower bounds).
+- **Retention and erasure** (S6): purge scopes for each named channel, `rollup` (`retention_months`, calendar months,
+  13 keeps the same month last year) and `ledger` (`dedupe_days`); `HttpLogUsageEraserInterface` (public alias):
+  `countByCredential()`, `eraseCredential()` (rows deleted, buckets folded into credential id `~erased`),
+  `eraseTenant()`.
+- `HttpLogContext::push()` / `restore()`.
+- Measured (WSL Docker, `--cpus 1`): the 13-month daily query of one tenant on 400 000 buckets takes 8–22 ms on
+  MySQL 8.4, MariaDB 11.4 and PostgreSQL 16; one bucket takes 170–310 events/s on MySQL 8.4 with the default
+  `innodb_flush_log_at_trx_commit=1` (commit-bound: 690 with `=2`), 720–920 on PostgreSQL, 860 on MariaDB, one
+  connection, sequential (`RollupPerformanceTest`, `HTTPLOG_TEST_PERF=1`).
+
+### Changed
+
+- With named channels or `rollup.web`, `HttpLogSubscriber` evaluates the web ignores before the web sampling (same
+  outcome). Without them the 1.14 flow runs unchanged.
+- Outbound and mailer captures carry `row` / `rollup` flags in their payload only when the rollup is on; their 1.15
+  payload is unchanged otherwise.
+- The admin purge form purges per-call rows only (`PurgeHttpLogService::purgeEntriesByRetention()`), never the rollup.
+- With the rollup tables mapped, `doctrine.table_prefix` + `doctrine.table_name_prefix` may be at most 48 characters.
+- `provider.per_call` / `rollup` options of `outbound` and `mailer.rollup` now take effect while the rollup is on.
+
 ## [1.15.0] - 2026-11-09
 
 HL-1 usage capture, part 1 (contract slices S1 Foundation, S2 Outbound, S3 Mailer). Every new block is off by default:
@@ -53,7 +109,7 @@ web payloads, rows, exports and admin pages (BC tests on a booted kernel).
 - **Usage columns, mapped only when a feature is enabled** (`UsageColumnsListener`, Q-O1): `channel`, `provider`,
   `credential_kind`, `credential_id`, `tenant_key`, `project_key`, `response_bytes`, `retry_count`, `error_kind`,
   `messenger_message_id`, `external_message_id` (all nullable) and five `idx_http_log_*_created` indexes. DDL for
-  MySQL / MariaDB, PostgreSQL and SQLite in [UPGRADING](UPGRADING.md#unreleased); a test applies it to a 1.14 table
+  MySQL / MariaDB, PostgreSQL and SQLite in [UPGRADING](UPGRADING.md#to-1150); a test applies it to a 1.14 table
   and checks the schema diff is empty (default and prefixed names).
 - `project_key`: the project (e.g. a project UUID) of the call when the context knows it, so support can filter one
   project's calls; the tenant stays the organization.
@@ -146,7 +202,7 @@ replaceable table-name prefix (doctrine.table_name_prefix), stricter prefix vali
 - `doctrine.table_name_prefix` (default `nowo_http_log_`) replaces the `nowo_http_log_` part of the table name
   (`http_log_` gives `http_log_entry`), so a host can name the table after its own conventions. With the default the
   table, index and unique names are byte-identical (golden schema test). `doctrine.table_prefix` keeps prepending to
-  the result. Rename SQL for MySQL / MariaDB and PostgreSQL in [UPGRADING](UPGRADING.md#unreleased).
+  the result. Rename SQL for MySQL / MariaDB and PostgreSQL in [UPGRADING](UPGRADING.md#to-1140).
 - `nowo_http_log.doctrine.entry_table` container parameter: the physical table name.
 - `Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataEraserInterface` (public service): count and batched delete of the
   entries of a user identifier or a client IP, for GDPR erasure without SQL on the bundle table. Matching is exact

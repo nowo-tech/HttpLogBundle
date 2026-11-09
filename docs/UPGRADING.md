@@ -5,6 +5,10 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+  - [Named inbound channels (opt-in)](#named-inbound-channels-opt-in)
+  - [Daily rollup (opt-in)](#daily-rollup-opt-in)
+  - [Retention and erasure](#retention-and-erasure)
+  - [New optional APIs](#new-optional-apis)
 - [To 1.15.0](#to-1150)
   - [Outbound and mailer capture (opt-in)](#outbound-and-mailer-capture-opt-in)
   - [Behaviour once a block is enabled](#behaviour-once-a-block-is-enabled)
@@ -53,6 +57,231 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+From **1.15.0**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
+
+**Nothing changes unless you configure a new block.** With no `channels` and `rollup.enabled: false` (the defaults)
+the container gets no listener, subscriber, warmer or schema listener of the new features, the Doctrine mapping and
+schema are those of 1.15 (no rollup tables), and web, outbound and mailer captures produce the same payloads and rows.
+
+### Named inbound channels (opt-in)
+
+`nowo_http_log.channels` records requests under path prefixes or routes (e.g. `/api`, `/mcp`, inbound webhooks) as
+their own channel, matched **before** the web channel's ignores and sampling (see
+[CONFIGURATION](CONFIGURATION.md#channels) and [USAGE](USAGE.md#named-inbound-channels)):
+
+- A named channel maps the same eleven usage columns as `outbound` / `mailer` (the 1.15 DDL below); a host that already
+  enabled `outbound` or `mailer` has them. Its rows store the route path template (never the raw path), the route
+  name, a truncated client IP by default, the user identifier and the resolver context; never headers, query strings
+  or bodies.
+- Each named channel is a purge scope with its own `retention_days`, and a channel of the admin filter and of the
+  channel access checker (`canViewChannel($user, 'api')`). An access checker that implements
+  `HttpLogChannelAccessCheckerInterface` and denies unknown channel names keeps them hidden; one that allows
+  everything shows them.
+- `X-Request-Id` is neither stored nor used for dedupe on a named channel (server event id).
+- **Lazy firewalls:** the resolver runs before the controller only when that cannot start a lazy firewall's
+  authentication; otherwise it runs at `kernel.terminate` (the row gets the context, but outbound calls of the
+  controller do not inherit the tenant: wrap them in `HttpLogContext::run()`).
+- Route templates come from `var/cache/<env>/nowo_http_log/route_templates.php` (written by a cache warmer, rebuilt in
+  debug when a routing file changes). A request whose route the map does not hold (no route, a 404, or a route that
+  only matches through a prefix its template does not start with, e.g. `/{_locale}/api/…`) stores `{unrouted}`: list
+  such routes in the channel's `routes`.
+
+### Daily rollup (opt-in)
+
+`nowo_http_log.rollup.enabled: true` counts every call of the channels with `rollup: true` (named channels, outbound,
+mailer; web with `rollup.web`) in a daily table, exactly once, keyed per UTC day, channel, provider, credential and
+tenant. Two DBAL tables are added to the schema of the EntityManager that maps the entry (only while enabled):
+
+1. **Deploy the migration before you enable it.** Enabling without it fails at the first write: the capture is logged
+   (one warning) and dropped; the request, the call or the mail is never affected.
+2. Generate it with `doctrine:migrations:diff` once enabled, or use the statements below (default names; with
+   `doctrine.table_name_prefix: http_log_` replace `nowo_http_log_` with `http_log_`; with `doctrine.table_prefix`
+   prefix the tables and every index name). The statements are checked by the test suite: the schema diff is empty
+   after them, on MySQL 8.4, MariaDB 11.4, PostgreSQL 16 and SQLite, with default and prefixed names.
+3. `rollup.enabled` must be a literal boolean (no `%env()%`).
+4. Supported platforms: MySQL / MariaDB, PostgreSQL, SQLite >= 3.24 (`ON CONFLICT`). On another platform every
+   rollup write fails and is logged.
+5. **Replay the failure transport within `rollup.dedupe_days`** (default 7): the exactly-once ledger forgets an event
+   after that, and a later redelivery would be counted again.
+6. Upgrade workers and web servers together: a count-only event (`row: false`) consumed by a 1.15 worker would be
+   written as a row.
+
+MySQL 8 / MariaDB 10.6+ (the key columns are `utf8mb4_bin`, so keys that differ in case are different buckets):
+
+<!-- hl1-rollup-ddl:mysql -->
+```sql
+CREATE TABLE nowo_http_log_daily (
+  id BIGINT AUTO_INCREMENT NOT NULL,
+  day DATE NOT NULL,
+  channel VARCHAR(16) NOT NULL COLLATE `utf8mb4_bin`,
+  provider VARCHAR(64) DEFAULT '' NOT NULL COLLATE `utf8mb4_bin`,
+  credential_kind VARCHAR(32) DEFAULT '' NOT NULL COLLATE `utf8mb4_bin`,
+  credential_id VARCHAR(64) DEFAULT '' NOT NULL COLLATE `utf8mb4_bin`,
+  tenant_key VARCHAR(64) DEFAULT '' NOT NULL COLLATE `utf8mb4_bin`,
+  calls BIGINT DEFAULT 0 NOT NULL,
+  errors BIGINT DEFAULT 0 NOT NULL,
+  transport_errors BIGINT DEFAULT 0 NOT NULL,
+  status_2xx BIGINT DEFAULT 0 NOT NULL,
+  status_3xx BIGINT DEFAULT 0 NOT NULL,
+  status_4xx BIGINT DEFAULT 0 NOT NULL,
+  status_5xx BIGINT DEFAULT 0 NOT NULL,
+  retries BIGINT DEFAULT 0 NOT NULL,
+  bytes BIGINT DEFAULT 0 NOT NULL,
+  rows_stored BIGINT DEFAULT 0 NOT NULL,
+  duration_ms_sum BIGINT DEFAULT 0 NOT NULL,
+  d_le_50 BIGINT DEFAULT 0 NOT NULL,
+  d_le_100 BIGINT DEFAULT 0 NOT NULL,
+  d_le_250 BIGINT DEFAULT 0 NOT NULL,
+  d_le_500 BIGINT DEFAULT 0 NOT NULL,
+  d_le_1000 BIGINT DEFAULT 0 NOT NULL,
+  d_le_2500 BIGINT DEFAULT 0 NOT NULL,
+  d_le_5000 BIGINT DEFAULT 0 NOT NULL,
+  d_le_10000 BIGINT DEFAULT 0 NOT NULL,
+  d_gt_10000 BIGINT DEFAULT 0 NOT NULL,
+  duration_ms_max INT DEFAULT 0 NOT NULL,
+  first_seen_at DATETIME NOT NULL,
+  last_seen_at DATETIME NOT NULL,
+  UNIQUE INDEX uniq_http_log_daily_key (day, channel, provider, credential_kind, credential_id, tenant_key),
+  INDEX idx_http_log_daily_tenant (tenant_key, day),
+  INDEX idx_http_log_daily_provider (provider, day),
+  INDEX idx_http_log_daily_cred (credential_kind, credential_id, day),
+  PRIMARY KEY (id)
+);
+CREATE TABLE nowo_http_log_event_seen (
+  event_id CHAR(32) NOT NULL,
+  day DATE NOT NULL,
+  INDEX idx_http_log_seen_day (day),
+  PRIMARY KEY (event_id)
+);
+```
+
+PostgreSQL:
+
+<!-- hl1-rollup-ddl:postgresql -->
+```sql
+CREATE TABLE nowo_http_log_daily (
+  id BIGINT GENERATED BY DEFAULT AS IDENTITY NOT NULL,
+  day DATE NOT NULL,
+  channel VARCHAR(16) NOT NULL,
+  provider VARCHAR(64) DEFAULT '' NOT NULL,
+  credential_kind VARCHAR(32) DEFAULT '' NOT NULL,
+  credential_id VARCHAR(64) DEFAULT '' NOT NULL,
+  tenant_key VARCHAR(64) DEFAULT '' NOT NULL,
+  calls BIGINT DEFAULT 0 NOT NULL,
+  errors BIGINT DEFAULT 0 NOT NULL,
+  transport_errors BIGINT DEFAULT 0 NOT NULL,
+  status_2xx BIGINT DEFAULT 0 NOT NULL,
+  status_3xx BIGINT DEFAULT 0 NOT NULL,
+  status_4xx BIGINT DEFAULT 0 NOT NULL,
+  status_5xx BIGINT DEFAULT 0 NOT NULL,
+  retries BIGINT DEFAULT 0 NOT NULL,
+  bytes BIGINT DEFAULT 0 NOT NULL,
+  rows_stored BIGINT DEFAULT 0 NOT NULL,
+  duration_ms_sum BIGINT DEFAULT 0 NOT NULL,
+  d_le_50 BIGINT DEFAULT 0 NOT NULL,
+  d_le_100 BIGINT DEFAULT 0 NOT NULL,
+  d_le_250 BIGINT DEFAULT 0 NOT NULL,
+  d_le_500 BIGINT DEFAULT 0 NOT NULL,
+  d_le_1000 BIGINT DEFAULT 0 NOT NULL,
+  d_le_2500 BIGINT DEFAULT 0 NOT NULL,
+  d_le_5000 BIGINT DEFAULT 0 NOT NULL,
+  d_le_10000 BIGINT DEFAULT 0 NOT NULL,
+  d_gt_10000 BIGINT DEFAULT 0 NOT NULL,
+  duration_ms_max INT DEFAULT 0 NOT NULL,
+  first_seen_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL,
+  last_seen_at TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL,
+  PRIMARY KEY (id)
+);
+CREATE UNIQUE INDEX uniq_http_log_daily_key ON nowo_http_log_daily (day, channel, provider, credential_kind, credential_id, tenant_key);
+CREATE INDEX idx_http_log_daily_tenant ON nowo_http_log_daily (tenant_key, day);
+CREATE INDEX idx_http_log_daily_provider ON nowo_http_log_daily (provider, day);
+CREATE INDEX idx_http_log_daily_cred ON nowo_http_log_daily (credential_kind, credential_id, day);
+CREATE TABLE nowo_http_log_event_seen (
+  event_id CHAR(32) NOT NULL,
+  day DATE NOT NULL,
+  PRIMARY KEY (event_id)
+);
+CREATE INDEX idx_http_log_seen_day ON nowo_http_log_event_seen (day);
+```
+
+SQLite (>= 3.24):
+
+<!-- hl1-rollup-ddl:sqlite -->
+```sql
+CREATE TABLE nowo_http_log_daily (
+  id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+  day DATE NOT NULL,
+  channel VARCHAR(16) NOT NULL,
+  provider VARCHAR(64) DEFAULT '' NOT NULL,
+  credential_kind VARCHAR(32) DEFAULT '' NOT NULL,
+  credential_id VARCHAR(64) DEFAULT '' NOT NULL,
+  tenant_key VARCHAR(64) DEFAULT '' NOT NULL,
+  calls BIGINT DEFAULT 0 NOT NULL,
+  errors BIGINT DEFAULT 0 NOT NULL,
+  transport_errors BIGINT DEFAULT 0 NOT NULL,
+  status_2xx BIGINT DEFAULT 0 NOT NULL,
+  status_3xx BIGINT DEFAULT 0 NOT NULL,
+  status_4xx BIGINT DEFAULT 0 NOT NULL,
+  status_5xx BIGINT DEFAULT 0 NOT NULL,
+  retries BIGINT DEFAULT 0 NOT NULL,
+  bytes BIGINT DEFAULT 0 NOT NULL,
+  rows_stored BIGINT DEFAULT 0 NOT NULL,
+  duration_ms_sum BIGINT DEFAULT 0 NOT NULL,
+  d_le_50 BIGINT DEFAULT 0 NOT NULL,
+  d_le_100 BIGINT DEFAULT 0 NOT NULL,
+  d_le_250 BIGINT DEFAULT 0 NOT NULL,
+  d_le_500 BIGINT DEFAULT 0 NOT NULL,
+  d_le_1000 BIGINT DEFAULT 0 NOT NULL,
+  d_le_2500 BIGINT DEFAULT 0 NOT NULL,
+  d_le_5000 BIGINT DEFAULT 0 NOT NULL,
+  d_le_10000 BIGINT DEFAULT 0 NOT NULL,
+  d_gt_10000 BIGINT DEFAULT 0 NOT NULL,
+  duration_ms_max INTEGER DEFAULT 0 NOT NULL,
+  first_seen_at DATETIME NOT NULL,
+  last_seen_at DATETIME NOT NULL
+);
+CREATE UNIQUE INDEX uniq_http_log_daily_key ON nowo_http_log_daily (day, channel, provider, credential_kind, credential_id, tenant_key);
+CREATE INDEX idx_http_log_daily_tenant ON nowo_http_log_daily (tenant_key, day);
+CREATE INDEX idx_http_log_daily_provider ON nowo_http_log_daily (provider, day);
+CREATE INDEX idx_http_log_daily_cred ON nowo_http_log_daily (credential_kind, credential_id, day);
+CREATE TABLE nowo_http_log_event_seen (
+  event_id CHAR(32) NOT NULL,
+  day DATE NOT NULL,
+  PRIMARY KEY (event_id)
+);
+CREATE INDEX idx_http_log_seen_day ON nowo_http_log_event_seen (day);
+```
+
+While the rollup tables are mapped, `doctrine.table_prefix` + `doctrine.table_name_prefix` may be at most 48
+characters (the longest derived name, PostgreSQL's `…event_seen_pkey`, adds 15).
+
+### Retention and erasure
+
+- **Purge scopes:** `nowo:http-log:purge` (and `PurgeHttpLogMessage` without arguments) now also purges each named
+  channel by its `retention_days`, the `rollup` by `rollup.retention_months` (calendar months, the current one
+  included: 13 keeps the same month last year) and the `ledger` by `rollup.dedupe_days`. `--channel` accepts
+  `web`, each named channel, `outbound`, `mailer`, `rollup` and `ledger`; `--days` with `--channel=rollup` keeps
+  buckets of the last N days. A bare `--days` still purges per-call rows only (every channel), never the rollup. The
+  admin purge form never touches the rollup or the ledger.
+- **Backfill:** `nowo:http-log:rollup:backfill [--from=Y-m-d] [--to=Y-m-d] [--dry-run]` builds buckets from per-call
+  rows for days that have none (adoption on a host that already logged rows). Run it once after enabling the rollup.
+- **Erasure:** `Nowo\HttpLogBundle\Privacy\HttpLogUsageEraserInterface` (public alias) erases a credential (rows
+  deleted, its buckets folded into credential id `~erased`) or a tenant (rows and buckets deleted). The existing
+  `HttpLogPersonalDataEraserInterface` also covers named-channel rows (they carry the user identifier and the client
+  IP); buckets hold neither.
+
+### New optional APIs
+
+- `Nowo\HttpLogBundle\Inbound\HttpLogRequestContextResolverInterface` (autoconfigured, tag
+  `nowo_http_log.request_context_resolver`): names the credential and tenant of a named-channel request.
+- `Nowo\HttpLogBundle\Usage\HttpLogUsageReaderInterface` (public alias, registered with any usage block): `daily()`,
+  `iterateDaily()`, `calls()`, `lastUsed()`, always with an explicit tenant scope.
+- `Nowo\HttpLogBundle\Context\HttpLogContext::push()` / `restore()` (used for the request frame of a named channel).
 
 ## To 1.15.0
 

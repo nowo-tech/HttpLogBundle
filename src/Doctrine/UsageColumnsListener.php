@@ -10,7 +10,7 @@ use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 
 /**
  * Maps the usage columns of {@see HttpLogEntry} (HL-1 §8.2) and their indexes. Registered only when
- * `nowo_http_log.outbound` or `nowo_http_log.mailer` is enabled (Q-O1): hosts that enable nothing keep the 1.14
+ * `nowo_http_log.outbound`, `nowo_http_log.mailer` or a named channel is enabled (Q-O1): hosts that enable nothing keep the 1.14
  * metadata, so `doctrine:schema:update --dump-sql` stays empty for them. Runs before {@see TablePrefixListener},
  * which then prefixes the index names below like the mapped ones.
  */

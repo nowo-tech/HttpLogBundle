@@ -303,7 +303,7 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
             ->getSingleScalarResult();
     }
 
-    /** True when the HL-1 usage columns (channel, provider, tenant…) are mapped: outbound or mailer capture enabled. */
+    /** True when the HL-1 usage columns (channel, provider, tenant…) are mapped: outbound, mailer or a named channel enabled. */
     public function hasUsageColumns(): bool
     {
         return $this->resolveEntityManager()->getClassMetadata(HttpLogEntry::class)->hasField('channel');

@@ -735,7 +735,8 @@ final class HttpLogAdminControllerTest extends TestCase
         ]);
 
         $purgeService = $this->createMock(PurgeHttpLogService::class);
-        $purgeService->expects(self::once())->method('purgeByRetention')->with(null)->willReturn(2);
+        // per-call rows only (1.16): the admin form never purges the rollup
+        $purgeService->expects(self::once())->method('purgeEntriesByRetention')->willReturn(2);
 
         $controller = $this->createController(
             request: $request,

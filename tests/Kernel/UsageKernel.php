@@ -101,7 +101,12 @@ final class UsageKernel extends Kernel
         ] + $this->framework);
         $container->extension('security', [
             'providers' => ['memory' => ['memory' => ['users' => []]]],
-            'firewalls' => ['main' => ['lazy' => true, 'provider' => 'memory']],
+            // /api: an eager, stateless firewall (the named-channel resolver may run before the controller);
+            // everything else: the lazy main firewall
+            'firewalls' => [
+                'api'  => ['pattern' => '^/api', 'stateless' => true, 'provider' => 'memory'],
+                'main' => ['lazy' => true, 'provider' => 'memory'],
+            ],
         ]);
         $container->extension('doctrine', [
             'dbal' => ['url' => 'sqlite:///:memory:'],
@@ -114,6 +119,13 @@ final class UsageKernel extends Kernel
     private function configureRoutes(RoutingConfigurator $routes): void
     {
         $routes->add('usage_hello', '/hello')->controller([UsageTestController::class, 'hello']);
+        // HL-1 S4: routes of the named-channel tests (ApiTestController is registered by those tests)
+        $routes->add('api_task', '/api/tasks/{id}')->controller([ApiTestController::class, 'task']);
+        $routes->add('api_share', '/api/share/{token}')->controller([ApiTestController::class, 'share']);
+        $routes->add('api_sync', '/api/sync')->controller([ApiTestController::class, 'sync']);
+        $routes->add('api_ingest', '/api/ingest')->controller([ApiTestController::class, 'ok']);
+        $routes->add('hooks_stripe', '/hooks/stripe')->controller([ApiTestController::class, 'ok'])->methods(['POST']);
+        $routes->add('mcp_endpoint', '/mcp')->controller([ApiTestController::class, 'sync']);
     }
 
     /** @return array<string, mixed> */

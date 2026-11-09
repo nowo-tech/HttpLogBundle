@@ -17,7 +17,9 @@ use function array_diff;
 use function array_filter;
 use function array_keys;
 use function array_map;
+use function array_unique;
 use function implode;
+use function in_array;
 use function is_array;
 use function is_int;
 use function is_string;
@@ -289,8 +291,10 @@ final class Configuration implements ConfigurationInterface
                         ->end()
                     ->end()
                 ->end()
+                ->append($this->channelsNode())
                 ->append($this->outboundNode())
                 ->append($this->mailerNode())
+                ->append($this->rollupNode())
                 ->arrayNode('messenger')
                     ->info('Context propagation for outbound and mailer rows (HL-1 §6.4).')
                     ->addDefaultsIfNotSet()
@@ -335,6 +339,156 @@ final class Configuration implements ConfigurationInterface
 
     /** Segments kept at most by a path template or a path depth. */
     public const MAX_PATH_SEGMENTS = 16;
+
+    /** Named inbound channel (HL-1 §2): the `channel` column is 16 characters. */
+    public const CHANNEL_NAME_PATTERN = '/^[a-z][a-z0-9_]{0,15}\z/';
+
+    /** Names a named channel cannot take: the built-in channels and the purge scopes of the rollup. */
+    public const RESERVED_CHANNEL_NAMES = ['web', 'outbound', 'mailer', 'rollup', 'ledger'];
+
+    /** Client IP modes of a named channel (Q-O8). */
+    public const CLIENT_IP_MODES = ['full', 'truncated', 'none'];
+
+    /**
+     * Named inbound channels (HL-1 §2, §6): matched before the web ignores, with their own sampling, retention and
+     * allowlisted row (route path template, never the raw path, query string, headers or bodies).
+     */
+    private function channelsNode(): ArrayNodeDefinition
+    {
+        $node = (new TreeBuilder('channels'))->getRootNode();
+        $node
+            ->info('Named inbound channels (e.g. api, webhooks), matched before the web ignores; name ^[a-z][a-z0-9_]{0,15}$, not web, outbound, mailer, rollup or ledger.')
+            ->useAttributeAsKey('name')
+            ->normalizeKeys(false)
+            ->validate()
+                ->ifTrue(static fn (array $channels): bool => array_filter(array_keys($channels), static fn (int|string $key): bool => !is_string($key) || preg_match(self::CHANNEL_NAME_PATTERN, $key) !== 1 || in_array($key, self::RESERVED_CHANNEL_NAMES, true)) !== [])
+                ->thenInvalid('nowo_http_log.channels keys must match ' . self::CHANNEL_NAME_PATTERN . ' and must not be one of ' . implode(', ', self::RESERVED_CHANNEL_NAMES) . '; got %s')
+            ->end()
+            ->validate()
+                ->ifTrue(static fn (array $channels): bool => self::hasSharedPrefix($channels))
+                ->thenInvalid('Two nowo_http_log.channels have the same path prefix: %s')
+            ->end()
+            ->arrayPrototype()
+                ->children()
+                    ->append($this->channelPrefixesNode('path_prefixes', 'Segment-aware: "/api" matches /api and /api/x, not /apix.'))
+                    ->append($this->channelRoutesNode('routes', 'fnmatch patterns on _route, case-insensitive.'))
+                    ->append($this->channelPrefixesNode('exclude_path_prefixes', 'Paths of the channel that are not recorded by it (they fall through to the web channel).'))
+                    ->append($this->channelRoutesNode('exclude_routes', 'Routes of the channel that are not recorded by it (they fall through to the web channel).'))
+                    ->floatNode('sampling_rate')
+                        ->info('Successful calls kept (0.0..1.0); errors (see error_status_min) and exceptions are always recorded.')
+                        ->defaultValue(1.0)
+                        ->min(0.0)
+                        ->max(1.0)
+                    ->end()
+                    ->integerNode('error_status_min')
+                        ->info('A status >= this value (or an exception) is always recorded and counted as an error (Q-O7).')
+                        ->defaultValue(400)
+                        ->min(100)
+                        ->max(999)
+                    ->end()
+                    ->append($this->retentionDaysNode())
+                    ->enumNode('client_ip')
+                        ->info('full, truncated (IPv4 /24, IPv6 /48) or none (Q-O8).')
+                        ->values(self::CLIENT_IP_MODES)
+                        ->defaultValue('truncated')
+                    ->end()
+                    ->booleanNode('user')
+                        ->info('Store the user identifier (only when a firewall with security enabled handled the request).')
+                        ->defaultTrue()
+                    ->end()
+                    ->booleanNode('rollup')
+                        ->info('Counted in the daily rollup while rollup.enabled.')
+                        ->defaultTrue()
+                    ->end()
+                ->end()
+                ->validate()
+                    ->ifTrue(static fn (array $c): bool => $c['path_prefixes'] === [] && $c['routes'] === [])
+                    ->thenInvalid('A named channel needs "path_prefixes" or "routes": %s')
+                ->end()
+            ->end()
+            ->defaultValue([]);
+
+        return $node;
+    }
+
+    private function channelPrefixesNode(string $name, string $info): ArrayNodeDefinition
+    {
+        $node = (new TreeBuilder($name))->getRootNode();
+        $node
+            ->info($info)
+            ->scalarPrototype()
+                ->validate()
+                    ->ifTrue(static fn (mixed $p): bool => !is_string($p) || !str_starts_with($p, '/') || str_contains($p, '%') || preg_match('/[\x00-\x20\x7F?#]/', $p) === 1)
+                    ->thenInvalid('Invalid channel path prefix %s: start with "/"; no spaces, "%%", "?" or "#".')
+                ->end()
+                // segment-aware matching: "/api/" and "/api" are the same prefix
+                ->validate()
+                    ->always(static fn (string $p): string => $p === '/' ? '/' : rtrim($p, '/'))
+                ->end()
+            ->end()
+            ->defaultValue([]);
+
+        return $node;
+    }
+
+    private function channelRoutesNode(string $name, string $info): ArrayNodeDefinition
+    {
+        $node = (new TreeBuilder($name))->getRootNode();
+        $node
+            ->info($info)
+            ->scalarPrototype()->cannotBeEmpty()->end()
+            ->defaultValue([]);
+
+        return $node;
+    }
+
+    /** @param array<array-key, mixed> $channels */
+    private static function hasSharedPrefix(array $channels): bool
+    {
+        $seen = [];
+        foreach ($channels as $channel) {
+            $prefixes = is_array($channel) && is_array($channel['path_prefixes'] ?? null) ? $channel['path_prefixes'] : [];
+            foreach (array_unique($prefixes) as $prefix) {
+                if (isset($seen[$prefix])) {
+                    return true;
+                }
+                $seen[$prefix] = true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Daily rollup (HL-1 §9): counters per UTC day, channel, provider, credential and tenant, counted exactly once. */
+    private function rollupNode(): ArrayNodeDefinition
+    {
+        $node = (new TreeBuilder('rollup'))->getRootNode();
+        $node
+            ->info('Daily usage rollup (HL-1 §9): two DBAL tables (daily, event_seen) mapped only while enabled.')
+            ->addDefaultsIfNotSet()
+            ->children()
+                ->booleanNode('enabled')->defaultFalse()->end()
+                ->variableNode('retention_months')
+                    ->info('Calendar months kept, the current month included (13 keeps the same month last year); null keeps them forever.')
+                    ->defaultValue(13)
+                    ->validate()
+                        ->ifTrue(static fn (mixed $v): bool => $v !== null && (!is_int($v) || $v < 1))
+                        ->thenInvalid('rollup.retention_months must be a positive integer or null')
+                    ->end()
+                ->end()
+                ->integerNode('dedupe_days')
+                    ->info('Days the exactly-once ledger keeps an event id; must exceed the longest Messenger retry delay (replay failed messages within it).')
+                    ->defaultValue(7)
+                    ->min(1)
+                ->end()
+                ->booleanNode('web')
+                    ->info('Also count the web channel (Q-O6); off by default.')
+                    ->defaultFalse()
+                ->end()
+            ->end();
+
+        return $node;
+    }
 
     private function outboundNode(): ArrayNodeDefinition
     {
@@ -443,11 +597,11 @@ final class Configuration implements ConfigurationInterface
                                 ->max(self::MAX_PATH_SEGMENTS)
                             ->end()
                             ->booleanNode('per_call')
-                                ->info('false = never a per-call row (uptime probes; counted by the 1.16 rollup only).')
+                                ->info('false = never a per-call row (uptime probes): counted by the rollup only.')
                                 ->defaultTrue()
                             ->end()
                             ->booleanNode('rollup')
-                                ->info('Counted in the daily rollup (1.16); no effect in 1.15.')
+                                ->info('Counted in the daily rollup while rollup.enabled.')
                                 ->defaultTrue()
                             ->end()
                         ->end()
@@ -496,7 +650,7 @@ final class Configuration implements ConfigurationInterface
                     ->defaultValue([])
                 ->end()
                 ->booleanNode('rollup')
-                    ->info('Counted in the daily rollup (1.16); no effect in 1.15.')
+                    ->info('Counted in the daily rollup while rollup.enabled.')
                     ->defaultTrue()
                 ->end()
             ->end();
