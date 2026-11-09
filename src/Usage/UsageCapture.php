@@ -79,7 +79,7 @@ final readonly class UsageCapture
         $this->eventId            = UsageFieldGuard::eventId($eventId) ?? self::newEventId();
         $this->method             = UsageFieldGuard::method($method);
         $this->path               = UsageFieldGuard::path($path);
-        $this->provider           = UsageFieldGuard::token($provider);
+        $this->provider           = UsageFieldGuard::provider($provider);
         $this->scheme             = UsageFieldGuard::scheme($scheme);
         $this->host               = UsageFieldGuard::host($host);
         $this->statusCode         = UsageFieldGuard::statusCode($statusCode);

@@ -6,12 +6,18 @@ namespace Nowo\HttpLogBundle\Tests\Integration\Usage;
 
 use Closure;
 use Generator;
+use Nowo\HttpLogBundle\Mailer\MailerCaptureListener;
+use Nowo\HttpLogBundle\Tests\Support\TestMailerTransport;
 use Nowo\HttpLogBundle\Tests\Support\UsageTestRig;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
+use Symfony\Component\Mailer\Exception\TransportException;
+use Symfony\Component\Mime\Address;
+use Symfony\Component\Mime\Email;
 use Throwable;
 
 use function base64_encode;
@@ -22,7 +28,7 @@ use function strtolower;
 use function urlencode;
 
 /**
- * HL-1 §4.3, the redaction test list (outbound cases 1–10, and 16 for each of them): every column of every persisted
+ * HL-1 §4.3, the redaction test list (outbound cases 1–10, mailer cases 13–14, and 16 for each of them): every column of every persisted
  * row, cast to string, and every serialized `PersistHttpLogMessage`, must not contain a seeded secret, plain
  * (case-insensitive), URL-encoded or base64. Plus the schema rule: the six body / header / query columns are NULL.
  */
@@ -81,6 +87,55 @@ final class UsageRedactionTest extends TestCase
             $rig->client(new MockHttpClient(new MockResponse('{"echo":"SEED13"}', ['response_headers' => ['content-type: application/json']])))
                 ->request('POST', 'https://api.example.com/v1/items', ['json' => ['secret' => 'SEED13']])->toArray();
         }];
+    }
+
+    /**
+     * @return iterable<string, array{0: list<string>, 1: Closure(UsageTestRig): void}>
+     */
+    public static function mailerCases(): iterable
+    {
+        $seeds = ['SEED17', 'SEED18', 'SEED19', 'SEED20', 'SEED21', 'noreply', 'Ana '];
+
+        yield '13 a mail sent and failed' => [$seeds, static function (UsageTestRig $rig): void {
+            $listener   = new MailerCaptureListener($rig->buffer, $rig->context, $rig->clock, [], $rig->logger);
+            $dispatcher = new EventDispatcher();
+            $dispatcher->addSubscriber($listener);
+            $transport = new TestMailerTransport('smtp://smtp.mail.test:587', [null, new TransportException('Expected response code "250" but got "550" for SEED17@example.com')], $dispatcher);
+            for ($i = 0; $i < 2; ++$i) {
+                $email = (new Email())
+                    ->from('noreply@example.com')
+                    ->to(new Address('SEED17@example.com', 'Ana SEED17'))
+                    ->subject('SEED18')
+                    ->text('SEED19 text')
+                    ->html('<p>SEED19 html</p>')
+                    ->attach('pdf', 'SEED20.pdf');
+                $email->getHeaders()->addTextHeader('X-Secret', 'SEED21');
+
+                try {
+                    $transport->send($email);
+                } catch (Throwable) {
+                }
+            }
+        }];
+        yield '14 mailer DSN credentials' => [['SEED22', 'SEED23', 'user:'], static function (UsageTestRig $rig): void {
+            $listener   = new MailerCaptureListener($rig->buffer, $rig->context, $rig->clock, ['resend+api' => 'resend'], $rig->logger);
+            $dispatcher = new EventDispatcher();
+            $dispatcher->addSubscriber($listener);
+            foreach (['resend+api://SEED22@default', 'smtp://user:SEED23@smtp.mail.test:587'] as $dsn) {
+                (new TestMailerTransport($dsn, [], $dispatcher))->send((new Email())->from('a@mail.test')->to('b@mail.test')->text('x'));
+            }
+        }];
+    }
+
+    /**
+     * @param list<string> $seeds
+     * @param Closure(UsageTestRig): void $scenario
+     */
+    #[Test]
+    #[DataProvider('mailerCases')]
+    public function noMailSeedReachesARowOrAMessage(array $seeds, Closure $scenario): void
+    {
+        $this->noSeedReachesARowOrAMessage($seeds, $scenario);
     }
 
     /**

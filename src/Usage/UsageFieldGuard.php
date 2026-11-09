@@ -64,6 +64,12 @@ final class UsageFieldGuard
         return is_string($value) && preg_match(sprintf(self::TOKEN, $maxLength), $value) === 1 ? $value : null;
     }
 
+    /** Provider key: a token, plus "+" so an unmapped mail transport scheme (`resend+api`) can be the provider. */
+    public static function provider(mixed $value): ?string
+    {
+        return is_string($value) && preg_match('/^[A-Za-z0-9._:@+-]{1,64}\z/', $value) === 1 ? $value : null;
+    }
+
     public static function channel(mixed $value): ?string
     {
         return is_string($value) && preg_match(self::CHANNEL, $value) === 1 ? $value : null;

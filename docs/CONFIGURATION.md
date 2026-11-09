@@ -360,14 +360,22 @@ nowo_http_log:
 
 ## mailer
 
-Off by default. See [USAGE](USAGE.md#outbound-and-mailer-usage). Enabling it maps the usage columns: deploy the
-migration of [UPGRADING](UPGRADING.md#unreleased) first. `enabled` must be a literal boolean.
+Off by default. See [USAGE](USAGE.md#mails). Enabling it maps the usage columns: deploy the migration of
+[UPGRADING](UPGRADING.md#unreleased) first. `enabled` must be a literal boolean.
 
 | Key | Default | Description |
 | --- | --- | --- |
 | `enabled` | `false` | One row per send attempt (channel `mailer`). Requires `symfony/mailer`. |
 | `retention_days` | `30` | Days mailer rows are kept (`null` = forever); purge scope `mailer`. |
 | `providers` | `{}` | Provider key => `{ schemes: [...] }`; a transport scheme no provider lists is stored as the provider itself (`smtp`, `resend+api`, …). |
+
+```yaml
+nowo_http_log:
+    mailer:
+        enabled: true
+        providers:
+            resend: { schemes: [resend, resend+api, resend+smtp] }
+```
 | `rollup` | `true` | Counted by the daily rollup (1.16); no effect in this version. |
 
 ## messenger

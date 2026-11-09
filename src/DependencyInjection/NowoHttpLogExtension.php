@@ -14,6 +14,7 @@ use Nowo\HttpLogBundle\EventSubscriber\HttpLogSubscriber;
 use Nowo\HttpLogBundle\HttpClient\HttpLogHttpClientWrapper;
 use Nowo\HttpLogBundle\HttpClient\OutboundCapturePolicy;
 use Nowo\HttpLogBundle\HttpClient\OutboundClientFactory;
+use Nowo\HttpLogBundle\Mailer\MailerCaptureListener;
 use Nowo\HttpLogBundle\MessageHandler\PersistHttpLogHandler;
 use Nowo\HttpLogBundle\Messenger\HttpLogContextMiddleware;
 use Nowo\HttpLogBundle\Security\ConfigurableHttpLogAccessChecker;
@@ -447,6 +448,26 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                     new Reference(ClockInterface::class),
                     $logger,
                 ])
+                ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
+        }
+
+        if ($mailerEnabled) {
+            $schemes = [];
+            foreach ($mailer['providers'] as $key => $provider) {
+                foreach ($provider['schemes'] as $scheme) {
+                    $schemes[$scheme] = $key;
+                }
+            }
+            $container->setDefinition(MailerCaptureListener::class, (new Definition(MailerCaptureListener::class))
+                ->setArguments([
+                    new Reference(HttpLogBuffer::class),
+                    new Reference(HttpLogContext::class),
+                    new Reference(ClockInterface::class),
+                    $schemes,
+                    $logger,
+                ])
+                ->addTag('kernel.event_subscriber')
+                ->addTag('kernel.reset', ['method' => 'reset'])
                 ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
         }
 

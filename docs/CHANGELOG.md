@@ -81,6 +81,11 @@ web payloads, rows, exports and admin pages (BC tests on a booted kernel).
   inert while outbound capture is disabled, never wraps twice.
 - Per-request option `extra.nowo_http_log` (`tenant_key`, `project_key`, `provider`, `skip`), removed before the
   inner client sees the request.
+- **Mailer capture** (`mailer`, S3): `MailerCaptureListener` on `MessageEvent` (queued messages skipped),
+  `SentMessageEvent` and `FailedMessageEvent`: one row per send attempt (failover: one per attempt), transport scheme
+  and host without credentials, provider from `mailer.providers` (else the scheme), `external_message_id` from the
+  sent Message-ID, `http_4xx` / `http_5xx` with the provider status for `HttpTransportException`. Pending starts live
+  in a `WeakMap` keyed by the message (no growth when a send never completes).
 - Per-channel retention: `outbound.retention_days`, `mailer.retention_days`; `nowo:http-log:purge --channel=…`
   (repeatable) with one output line per scope; `PurgeHttpLogService::purgeScopes()` / `scopes()` / `cutoff()`.
 - Admin UI with a feature enabled: channel / provider columns, channel, provider, tenant, project and credential-kind

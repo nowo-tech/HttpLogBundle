@@ -103,6 +103,7 @@ final class OutboundCall
             if ($chunk->getError() !== null) {
                 $fatal = $this->fatal($chunk);
                 if ($fatal === false) {
+                    // @igor-ignore - per-call state owned by the response passthru closure; OutboundCall is never a container service
                     $this->timedOut = true; // recoverable: the caller may keep streaming, or give up
 
                     return;
@@ -113,6 +114,7 @@ final class OutboundCall
             }
 
             if (!$chunk->isLast()) {
+                // @igor-ignore - per-call state owned by the response passthru closure; OutboundCall is never a container service
                 $this->timedOut = false;
 
                 return;
@@ -126,6 +128,7 @@ final class OutboundCall
             }
             $this->record($info, $kind);
         } catch (Throwable $exception) {
+            // @igor-ignore - per-call state owned by the response passthru closure; OutboundCall is never a container service
             $this->done = true;
             $this->logger->warning('HTTP log outbound capture dropped.', ['exception_class' => $exception::class]);
         }
@@ -157,6 +160,7 @@ final class OutboundCall
     /** @param array<string, mixed> $info */
     private function record(array $info, ?OutboundErrorKind $kind): void
     {
+        // @igor-ignore - per-call state owned by the response passthru closure; OutboundCall is never a container service
         $this->done = true;
 
         try {
@@ -196,6 +200,7 @@ final class OutboundCall
             );
 
             if ($this->policy->keep($target, $capture->isError())) {
+                // @igor-ignore - per-call state owned by the response passthru closure; OutboundCall is never a container service
                 $this->buffer->add($capture);
             }
         } catch (Throwable $exception) {

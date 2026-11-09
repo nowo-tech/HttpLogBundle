@@ -17,6 +17,7 @@ How to capture HTTP traffic, use the admin UI, export, purge, and exclude routes
 - [Personal-data erasure (GDPR)](#personal-data-erasure-gdpr)
 - [Outbound and mailer usage](#outbound-and-mailer-usage)
   - [Outbound HttpClient calls](#outbound-httpclient-calls)
+  - [Mails](#mails)
   - [Tenant and project context](#tenant-and-project-context)
 - [Ignoring routes and paths](#ignoring-routes-and-paths)
 - [CLI commands](#cli-commands)
@@ -357,6 +358,20 @@ $s3 = new S3Client($config, httpClient: $this->httpLogWrapper->wrap(HttpClient::
 
 Outbound capture is suspended while the bundle itself dispatches or writes, so a Messenger transport or database
 driver that uses a decorated client cannot loop.
+
+### Mails
+
+`mailer.enabled` records one row per send attempt the Mailer transport events report (`MessageEvent`, then
+`SentMessageEvent` or `FailedMessageEvent`): `method` `SEND`, `path` `/`, the transport scheme and host (never its
+credentials), the provider (`mailer.providers`, else the scheme), the duration, `error_kind` (`http_4xx` / `http_5xx`
+with the provider status for an `HttpTransportException`, `transport`, `exception`) and, for a sent mail, the
+Message-ID without its angle brackets (`external_message_id`). Recipients, sender, subject, headers, bodies,
+attachments and exception messages are never read into a row.
+
+- A mail queued through Messenger (`SendEmailMessage`) is recorded once, when the worker sends it; with the context
+  middleware on the bus it carries the tenant / project of the code that sent it and the message id.
+- A failover or round-robin transport reports each attempt: one row per attempt.
+- An API transport over `http_client` (Resend, Postmark…) also produces an outbound row for its HTTP call.
 
 ### Tenant and project context
 

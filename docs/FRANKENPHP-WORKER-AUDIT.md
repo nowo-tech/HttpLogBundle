@@ -137,3 +137,19 @@ No other findings. Good patterns: request start time and request id are stored i
 ## Re-audit triggers
 
 Re-run this audit when a change adds: properties to `HttpLogRecorder` or the subscriber (buffers, batching), a dedicated entity manager or DBAL writer, new Doctrine listeners, capture of session or user data beyond the identifier, or any use of `$_SERVER` / `getenv()` at runtime.
+
+## HL-1 usage capture (Unreleased)
+
+| Service | State | Reset |
+| --- | --- | --- |
+| `HttpLogContext` | stack of frames (tenant, project, message id) | frames always popped in `finally`; `kernel.reset` empties the stack |
+| `HttpLogBuffer` | pending captures, overflow counter, suspension depth | `kernel.reset` flushes, then clears |
+| `MailerCaptureListener` | `WeakMap` of started sends | entries vanish with their message; `kernel.reset` replaces the map |
+| `LoggingHttpClient` | none (the decorated client only) | per-call state lives in the response's passthru closure (`OutboundCall`, not a service) |
+| `UsageEntryWriter` | none | DBAL insert, no entity kept: the identity map never grows |
+
+Worker tests run 1 000 sequential requests / messages on the same instances: no frame left, no tenant leaking into the
+next request, an empty buffer after each boundary, flat memory, an empty `WeakMap`. Igor reports one warning for
+`MailerCaptureListener` (it calls `HttpLogBuffer::add()`, a service that has its own `kernel.reset`); reviewed, not a
+leak.
+

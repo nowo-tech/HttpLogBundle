@@ -12,6 +12,7 @@ use Nowo\HttpLogBundle\Doctrine\UsageColumnsListener;
 use Nowo\HttpLogBundle\HttpClient\HttpLogHttpClientWrapper;
 use Nowo\HttpLogBundle\HttpClient\OutboundCapturePolicy;
 use Nowo\HttpLogBundle\HttpClient\OutboundClientFactory;
+use Nowo\HttpLogBundle\Mailer\MailerCaptureListener;
 use Nowo\HttpLogBundle\MessageHandler\PersistHttpLogHandler;
 use Nowo\HttpLogBundle\Usage\HttpLogBuffer;
 use Nowo\HttpLogBundle\Usage\UsageBufferFlushSubscriber;
@@ -135,6 +136,18 @@ final class UsageExtensionTest extends TestCase
         (new NowoHttpLogExtension(['outbound' => ['Nowo\\Missing\\HttpClient', 'symfony/http-client'], 'mailer' => NowoHttpLogExtension::REQUIRED_SYMBOLS['mailer']]))
             ->load([['security' => ['allow_unauthenticated' => true]]], $without);
         self::assertFalse($this->registered($without, HttpLogHttpClientWrapper::class));
+    }
+
+    #[Test]
+    public function mailerRegistersItsListenerWithTheSchemeMap(): void
+    {
+        $container = $this->load(['mailer' => ['enabled' => true, 'providers' => ['resend' => ['schemes' => ['resend', 'resend+api']], 'ses' => ['schemes' => ['ses+smtp']]]]]);
+        $listener  = $container->getDefinition(MailerCaptureListener::class);
+
+        self::assertSame(['resend' => 'resend', 'resend+api' => 'resend', 'ses+smtp' => 'ses'], $listener->getArgument(3));
+        self::assertTrue($listener->hasTag('kernel.event_subscriber'));
+        self::assertTrue($listener->hasTag('kernel.reset'));
+        self::assertFalse($this->registered($this->load([]), MailerCaptureListener::class));
     }
 
     #[Test]

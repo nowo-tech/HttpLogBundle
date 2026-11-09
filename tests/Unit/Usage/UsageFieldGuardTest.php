@@ -30,6 +30,14 @@ final class UsageFieldGuardTest extends TestCase
     }
 
     #[Test]
+    public function providerAlsoAcceptsTheSchemePlus(): void
+    {
+        self::assertSame('resend+api', UsageFieldGuard::provider('resend+api'));
+        self::assertNull(UsageFieldGuard::provider('a b'));
+        self::assertNull(UsageFieldGuard::provider(str_repeat('a', 65)));
+    }
+
+    #[Test]
     public function channelMethodAndScheme(): void
     {
         self::assertSame('outbound', UsageFieldGuard::channel('outbound'));
