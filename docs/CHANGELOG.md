@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.16.2] - 2026-11-10](#1162---2026-11-10)
 - [[1.16.1] - 2026-11-09](#1161---2026-11-09)
 - [[1.16.0] - 2026-11-09](#1160---2026-11-09)
 - [[1.15.0] - 2026-11-09](#1150---2026-11-09)
@@ -44,7 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Target 1.16.2.
+## [1.16.2] - 2026-11-10
+
+Security: HTTP log recording no longer flushes or resets the application's entity manager at kernel.terminate (validation bypass, GHSA). See [UPGRADING](https://github.com/nowo-tech/HttpLogBundle/blob/v1.16.2/docs/UPGRADING.md#to-1162).
+
 
 ### Security
 
@@ -70,6 +74,8 @@ Target 1.16.2.
 ### Documentation
 
 - USAGE: new section "Using it from a DDD / hexagonal application" (where the bundle sits in a hexagonal host, the ports, events and DTOs to build an anti-corruption layer on, and the known limitations).
+
+[1.16.2]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.16.2
 
 ## [1.16.1] - 2026-11-09
 
