@@ -7,6 +7,7 @@ namespace Nowo\HttpLogBundle\Tests\Integration;
 use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
+use Doctrine\ORM\Configuration;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\ORMSetup;
 use Doctrine\ORM\Tools\SchemaTool;
@@ -390,10 +391,47 @@ final class HttpLogEntryRepositoryTest extends TestCase
     }
 
     #[Test]
+    public function aClosedManagerSharedWithTheHostIsNotReset(): void
+    {
+        $configuration = ORMSetup::createAttributeMetadataConfiguration(
+            [dirname(__DIR__, 2) . '/src/Entity', dirname(__DIR__, 2) . '/tests/Fixtures/Entity'],
+            true,
+        );
+        if (PHP_VERSION_ID >= 80400) {
+            $configuration->enableNativeLazyObjects(true);
+        }
+        $shared = new EntityManager(DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true], $configuration), $configuration);
+        (new SchemaTool($shared))->createSchema([$shared->getClassMetadata(HttpLogEntry::class)]);
+        $shared->close();
+
+        $registry = $this->createMock(ManagerRegistry::class);
+        $registry->method('getManagerForClass')->willReturn($shared);
+        $registry->expects(self::never())->method('resetManager');
+
+        self::assertSame(0, (new HttpLogEntryRepository($registry))->countAll());
+    }
+
+    #[Test]
+    public function aClosedManagerWithoutMetadataDriverIsNotReset(): void
+    {
+        $closed = $this->createMock(EntityManager::class);
+        $closed->method('isOpen')->willReturn(false);
+        $closed->method('getConfiguration')->willReturn(new Configuration());
+
+        $registry = $this->createMock(ManagerRegistry::class);
+        $registry->method('getManagerForClass')->willReturn($closed);
+        $registry->expects(self::never())->method('resetManager');
+
+        self::assertFalse((new HttpLogEntryRepository($registry))->hasUsageColumns());
+    }
+
+    #[Test]
     public function resolveEntityManagerThrowsWhenClosedManagerCannotBeReset(): void
     {
         $closed = $this->createMock(EntityManager::class);
         $closed->method('isOpen')->willReturn(false);
+        // a dedicated manager: it maps the bundle's entry only
+        $closed->method('getConfiguration')->willReturn(ORMSetup::createAttributeMetadataConfiguration([dirname(__DIR__, 2) . '/src/Entity'], true));
 
         $other = $this->createMock(EntityManager::class);
         $other->method('isOpen')->willReturn(true);

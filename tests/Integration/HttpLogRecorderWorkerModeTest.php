@@ -79,7 +79,7 @@ final class HttpLogRecorderWorkerModeTest extends TestCase
     }
 
     #[Test]
-    public function failedFlushInOneRequestDoesNotBreakTheNextRequest(): void
+    public function failedInsertInOneRequestDoesNotBreakTheNextRequest(): void
     {
         $recorder = $this->createRecorder(['user' => false, 'max_body_bytes' => 65536]);
         $first    = $this->registry->current();
@@ -87,9 +87,9 @@ final class HttpLogRecorderWorkerModeTest extends TestCase
         $this->connection->executeStatement('DROP TABLE nowo_http_log_entry');
         $recorder->record(Request::create('/broken'), new Response('ok'), 1.0, 'req-broken');
 
-        self::assertFalse($first->isOpen());
-        self::assertNotSame($first, $this->registry->current());
-        self::assertTrue($this->registry->current()->isOpen());
+        // A DBAL insert never closes the manager, so nothing has to be reset (it may be the host's).
+        self::assertTrue($first->isOpen());
+        self::assertSame($first, $this->registry->current());
 
         $this->createSchema();
         $recorder->record(Request::create('/recovered'), new Response('ok'), 1.0, 'req-recovered');
@@ -98,7 +98,7 @@ final class HttpLogRecorderWorkerModeTest extends TestCase
     }
 
     #[Test]
-    public function repositoryUsesResetManagerAfterClosedFlush(): void
+    public function repositoryKeepsWorkingAfterAFailedInsert(): void
     {
         $recorder   = $this->createRecorder(['user' => false, 'max_body_bytes' => 65536]);
         $repository = $this->repository();
@@ -109,7 +109,6 @@ final class HttpLogRecorderWorkerModeTest extends TestCase
         $this->createSchema();
         $recorder->record(Request::create('/ok'), new Response('ok'), 1.0, 'req-ok');
 
-        // Same repository instance must query through the reset manager (not a cached closed EM).
         self::assertSame(1, $repository->countAll());
         self::assertNotNull($repository->find($repository->findFiltered([], 1, 1)['items'][0]->getId()));
         $repository->detachAll($repository->findFiltered([], 1, 1)['items']);

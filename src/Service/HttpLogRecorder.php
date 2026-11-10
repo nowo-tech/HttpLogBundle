@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\Service;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
@@ -22,7 +23,6 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Throwable;
 
-use function array_keys;
 use function is_string;
 
 /**
@@ -132,27 +132,36 @@ final readonly class HttpLogRecorder
     }
 
     /**
-     * Persists the capture and detaches the entry afterwards, so a long-lived EntityManager
-     * (worker mode without kernel reset) does not keep one entry per logged request.
-     * A manager closed by a failed flush is reset before the exception is rethrown.
+     * Writes the capture with one DBAL `INSERT` on the connection of the entry's EntityManager.
+     *
+     * Never `persist()` / `flush()`: with `async: false` (or a sync transport) this runs inside the host request at
+     * `kernel.terminate`, and a flush of the shared manager would also commit the host's pending changes (for example
+     * an entity edited by a form that failed validation). No entity is kept in the identity map (worker safe), and a
+     * failed insert does not close the manager. Columns, types and the table name come from the class metadata, so
+     * the configured prefixes and the optional usage columns apply.
      */
     public function persistCapture(HttpLogCapture $capture): void
     {
         $entityManager = $this->resolveEntityManager();
+        $metadata      = $entityManager->getClassMetadata(HttpLogEntry::class);
         $entry         = $this->createEntryFromCapture($capture);
+        $idGenerator   = $metadata->idGenerator;
 
-        try {
-            $entityManager->persist($entry);
-            $entityManager->flush();
-        } catch (Throwable $exception) {
-            $this->resetClosedEntityManager($entityManager);
-
-            throw $exception;
-        } finally {
-            if ($entityManager->isOpen() && $entityManager->contains($entry)) {
-                $entityManager->detach($entry);
+        $data  = [];
+        $types = [];
+        foreach ($metadata->getFieldNames() as $field) {
+            $isIdentifier = $metadata->isIdentifier($field);
+            if ($isIdentifier && $idGenerator->isPostInsertGenerator()) {
+                continue;
             }
+
+            $column = $metadata->getColumnName($field);
+            // SEQUENCE (or another pre-insert generator) chosen by the host's identity_generation_preferences
+            $data[$column]  = $isIdentifier ? $idGenerator->generateId($entityManager, $entry) : $metadata->getFieldValue($entry, $field);
+            $types[$column] = $metadata->getTypeOfField($field) ?? Types::STRING;
         }
+
+        $entityManager->getConnection()->insert($metadata->getTableName(), $data, $types);
     }
 
     public function createEntryFromCapture(HttpLogCapture $capture): HttpLogEntry
@@ -184,6 +193,10 @@ final readonly class HttpLogRecorder
         return $entry;
     }
 
+    /**
+     * The manager is only used for its metadata and connection: a closed manager still has both, so it is never reset
+     * here (it may be the host's default manager).
+     */
     private function resolveEntityManager(): EntityManagerInterface
     {
         if (!$this->managerRegistry instanceof ManagerRegistry) {
@@ -191,31 +204,8 @@ final readonly class HttpLogRecorder
         }
 
         $manager = $this->managerRegistry->getManagerForClass(HttpLogEntry::class);
-        if (!$manager instanceof EntityManagerInterface) {
-            return $this->entityManager;
-        }
 
-        return $this->resetClosedEntityManager($manager) ?? $manager;
-    }
-
-    private function resetClosedEntityManager(EntityManagerInterface $manager): ?EntityManagerInterface
-    {
-        if ($manager->isOpen() || !$this->managerRegistry instanceof ManagerRegistry) {
-            return null;
-        }
-
-        foreach (array_keys($this->managerRegistry->getManagerNames()) as $name) {
-            if ($this->managerRegistry->getManager($name) !== $manager) {
-                continue;
-            }
-
-            $this->logger->warning('Resetting closed EntityManager used for HTTP log entries.', ['manager' => $name]);
-            $reset = $this->managerRegistry->resetManager($name);
-
-            return $reset instanceof EntityManagerInterface ? $reset : null;
-        }
-
-        return null;
+        return $manager instanceof EntityManagerInterface ? $manager : $this->entityManager;
     }
 
     /**

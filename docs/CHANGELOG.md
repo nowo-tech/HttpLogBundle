@@ -44,6 +44,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Target 1.16.2.
+
+### Security
+
+- **A synchronous capture no longer commits the host's pending changes (rule 6).** `HttpLogRecorder::persistCapture()`
+  used to `persist()` the entry and `flush()` the EntityManager of `HttpLogEntry`, which is the host's default manager
+  in a standard install. With `async: false`, or with `async: true` and `PersistHttpLogMessage` handled synchronously
+  (no transport routing, or a `sync://` transport), that flush ran at `kernel.terminate` and wrote whatever the host
+  had left unflushed, for example an entity bound by a form that failed validation, or an entity persisted before an
+  exception was handled. The entry is now written with one DBAL `INSERT` on the connection of that manager (as the
+  usage writer already did): no `persist()`, no `flush()`, the host's unit of work is untouched. Affects 1.0.0 to
+  1.16.1.
+
+### Fixed
+
+- The recorder no longer resets a closed EntityManager (the insert does not need an open manager), and
+  `HttpLogEntryRepository` resets a closed manager only when it maps the bundle's entities alone (a dedicated manager).
+  A closed manager shared with the host is left for the host to reset; the repository keeps reading through it.
+
 ### Documentation
 
 - USAGE: new section "Using it from a DDD / hexagonal application" (where the bundle sits in a hexagonal host, the ports, events and DTOs to build an anti-corruption layer on, and the known limitations).
