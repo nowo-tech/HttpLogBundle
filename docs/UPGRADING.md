@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.16.3](#to-1163)
 - [To 1.16.2](#to-1162)
 - [To 1.16.1](#to-1161)
 - [To 1.16.0](#to-1160)
@@ -60,6 +61,18 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.16.3
+
+From **1.16.2**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
+
+No configuration change. Inside your open transactions, the bundle's savepoint is now named
+`nowo_http_log_insert_<random>` instead of `nowo_http_log_insert`, and a failed capture after a deadlock reports the
+original error.
 
 ## To 1.16.2
 

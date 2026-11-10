@@ -230,6 +230,12 @@ from its default) rewrites the `HttpLogEntry` mapping only. Changing either opti
 table: run the rename statements from [UPGRADING](UPGRADING.md#unreleased) (or generate a migration and turn the
 drop/create into a rename) instead of dropping the table.
 
+**PostgreSQL with a SEQUENCE id strategy** (only when you set DoctrineBundle's `identity_generation_preferences` to
+`SEQUENCE` for PostgreSQL; the ORM 3 default is IDENTITY, whose sequence PostgreSQL names after the prefixed table):
+the sequence keeps its unprefixed name `nowo_http_log_entry_id_seq`. The listener does not rename it, on purpose: a
+renamed sequence would make the schema tool create a new one starting at 1 next to the existing rows. If two installs
+share one database and schema with this strategy, give them separate schemas.
+
 ## export
 
 | Key | Default | Description |
