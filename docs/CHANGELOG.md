@@ -45,6 +45,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Target 1.16.3.
+
+### Fixed
+
+- **Original error kept when the savepoint is gone (audit KY-D-I2).** Inside a host transaction, when the entry insert
+  failed after a MySQL deadlock or lock wait timeout had already rolled back the whole transaction, the failing
+  `ROLLBACK TO SAVEPOINT` replaced the original error in the log. The original error is now the one reported.
+- **Savepoint name unique per call (audit KY-D-I1).** The insert's savepoint was always `nowo_http_log_insert`; on
+  MySQL / MariaDB a second `SAVEPOINT` with an existing name replaces the first, so a host savepoint of that name was
+  lost. The name now carries a random suffix per call.
+
+### Documentation
+
+- CONFIGURATION: with `table_prefix` on PostgreSQL and a SEQUENCE id strategy, the sequence keeps its unprefixed name
+  (audit KY-H-I5); why it is not renamed.
+
 ## [1.16.2] - 2026-11-10
 
 Security: HTTP log recording no longer flushes or resets the application's entity manager at kernel.terminate (validation bypass, GHSA). See [UPGRADING](https://github.com/nowo-tech/HttpLogBundle/blob/v1.16.2/docs/UPGRADING.md#to-1162).
