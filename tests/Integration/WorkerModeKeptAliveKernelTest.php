@@ -17,6 +17,8 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\HttpKernelInterface;
+use Symfony\Component\HttpKernel\TerminableInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 use Symfony\Component\Security\Core\User\InMemoryUser;
@@ -26,7 +28,8 @@ use function memory_get_usage;
 
 /**
  * FrankenPHP worker mode with the kernel kept alive (FRANKENPHP_RESET_KERNEL=false, no services resetter): one booted
- * kernel serves 1,200 requests with `async: false`. Memory stays flat, the shared EntityManager never holds an entry,
+ * kernel serves 1,200 requests with `async: false`, driven through the `http_kernel` service so that
+ * `services_resetter` never runs between them (`Kernel::handle()` would run it). Memory stays flat, the shared EntityManager never holds an entry,
  * and every row carries its own request's client and user (no state leaks between two visitors).
  */
 final class WorkerModeKeptAliveKernelTest extends TestCase
@@ -50,7 +53,11 @@ final class WorkerModeKeptAliveKernelTest extends TestCase
             self::assertInstanceOf(EntityManagerInterface::class, $em);
             (new SchemaTool($em))->createSchema([$em->getClassMetadata(HttpLogEntry::class)]);
 
-            // 1) full HTTP cycle (handle + terminate) for two alternating visitors
+            // 1) full HTTP cycle (handle + terminate) for two alternating visitors, through `http_kernel` directly:
+            //    Kernel::handle() would run services_resetter between requests, which this scenario must not rely on
+            $httpKernel = $container->get('http_kernel');
+            self::assertInstanceOf(HttpKernelInterface::class, $httpKernel);
+            self::assertInstanceOf(TerminableInterface::class, $httpKernel);
             $baseline = 0;
             for ($i = 0; $i < self::REQUESTS; ++$i) {
                 if ($i === self::WARMUP) {
@@ -58,8 +65,8 @@ final class WorkerModeKeptAliveKernelTest extends TestCase
                     $baseline = memory_get_usage();
                 }
                 $request  = Request::create('/hello', 'GET', server: ['REMOTE_ADDR' => $i % 2 === 0 ? '10.0.0.1' : '10.0.0.2']);
-                $response = $kernel->handle($request);
-                $kernel->terminate($request, $response);
+                $response = $httpKernel->handle($request);
+                $httpKernel->terminate($request, $response);
                 self::assertSame(0, $em->getUnitOfWork()->size());
             }
             gc_collect_cycles();

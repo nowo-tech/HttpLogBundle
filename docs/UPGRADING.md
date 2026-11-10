@@ -78,8 +78,11 @@ What you may notice:
 
 - Doctrine lifecycle events (`prePersist`, `postPersist`, `onFlush`, entity listeners) no longer fire for inbound
   `HttpLogEntry` rows. Usage rows (outbound, mailer) were already written this way.
-- A closed shared EntityManager is no longer reset by the bundle; reset it in your own error handling as before. A
-  manager that maps only the bundle's entities is still reset by `HttpLogEntryRepository`.
+- Inside a transaction you left open, the insert runs in a savepoint of that transaction (released on success,
+  rolled back alone on failure).
+- A closed shared EntityManager is no longer reset by the bundle (under FrankenPHP without kernel reset, nothing resets
+  it for you any more); reset it in your own error handling as before. A manager that maps only the bundle's entities
+  is still reset by `HttpLogEntryRepository`.
 
 ## To 1.16.1
 

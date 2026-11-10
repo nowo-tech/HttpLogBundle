@@ -137,7 +137,7 @@ final readonly class HttpLogRecorder
      * Never `persist()` / `flush()`: with `async: false` (or a sync transport) this runs inside the host request at
      * `kernel.terminate`, and a flush of the shared manager would also commit the host's pending changes (for example
      * an entity edited by a form that failed validation). No entity is kept in the identity map (worker safe), and a
-     * failed insert does not close the manager. Columns, types and the table name come from the class metadata, so
+     * failed insert does not close the manager. Inside an open host transaction the insert runs in a savepoint. Columns, types and the table name come from the class metadata, so
      * the configured prefixes and the optional usage columns apply.
      */
     public function persistCapture(HttpLogCapture $capture): void
@@ -161,7 +161,26 @@ final readonly class HttpLogRecorder
             $types[$column] = $metadata->getTypeOfField($field) ?? Types::STRING;
         }
 
-        $entityManager->getConnection()->insert($metadata->getTableName(), $data, $types);
+        $connection = $entityManager->getConnection();
+        if (!$connection->isTransactionActive()) {
+            $connection->insert($metadata->getTableName(), $data, $types);
+
+            return;
+        }
+
+        // Inside a transaction the host left open, the insert runs in a savepoint, so a failed insert (request id race,
+        // value too long) rolls back only itself: a plain failed statement would abort the host's whole transaction on
+        // PostgreSQL (SQLSTATE 25P02), which the ORM flush (a nested transaction) never did. Explicit savepoint calls,
+        // because DBAL 3 nests transactional() without a savepoint unless the host enabled them.
+        $connection->createSavepoint('nowo_http_log_insert');
+        try {
+            $connection->insert($metadata->getTableName(), $data, $types);
+        } catch (Throwable $exception) {
+            $connection->rollbackSavepoint('nowo_http_log_insert');
+
+            throw $exception;
+        }
+        $connection->releaseSavepoint('nowo_http_log_insert');
     }
 
     public function createEntryFromCapture(HttpLogCapture $capture): HttpLogEntry
