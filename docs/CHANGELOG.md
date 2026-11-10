@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.16.3] - 2026-11-10](#1163---2026-11-10)
 - [[1.16.2] - 2026-11-10](#1162---2026-11-10)
 - [[1.16.1] - 2026-11-09](#1161---2026-11-09)
 - [[1.16.0] - 2026-11-09](#1160---2026-11-09)
@@ -45,7 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Target 1.16.3.
+## [1.16.3] - 2026-11-10
+
+Savepoints are unique per insert, and the original database error is reported when the server already ended the host transaction. See [UPGRADING](https://github.com/nowo-tech/HttpLogBundle/blob/v1.16.3/docs/UPGRADING.md#to-1163).
+
 
 ### Fixed
 
@@ -61,10 +65,11 @@ Target 1.16.3.
 - CONFIGURATION: with `table_prefix` on PostgreSQL and a SEQUENCE id strategy, the sequence keeps its unprefixed name
   (audit KY-H-I5); why it is not renamed.
 
+[1.16.3]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.16.3
+
 ## [1.16.2] - 2026-11-10
 
 Security: HTTP log recording no longer flushes or resets the application's entity manager at kernel.terminate (validation bypass, GHSA). See [UPGRADING](https://github.com/nowo-tech/HttpLogBundle/blob/v1.16.2/docs/UPGRADING.md#to-1162).
-
 
 ### Security
 
