@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\Tests\Unit\Service;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Exception as DbalException;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Id\AbstractIdGenerator;
 use Doctrine\Persistence\ManagerRegistry;
-use Doctrine\Persistence\ObjectManager;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Enum\BodyContentType;
 use Nowo\HttpLogBundle\Message\PersistHttpLogMessage;
@@ -16,6 +17,7 @@ use Nowo\HttpLogBundle\Service\CapturePolicy;
 use Nowo\HttpLogBundle\Service\ContentTypeClassifier;
 use Nowo\HttpLogBundle\Service\HttpLogRecorder;
 use Nowo\HttpLogBundle\Service\HttpLogRedactor;
+use Nowo\HttpLogBundle\Tests\Support\UsageTestDatabase;
 use Nowo\HttpLogBundle\Usage\HttpLogBuffer;
 use Nowo\HttpLogBundle\Usage\UsageCaptureSink;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -39,11 +41,17 @@ use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 use Symfony\Component\Security\Core\User\InMemoryUser;
 use Symfony\Component\Security\Core\User\UserInterface;
 
+use function array_column;
 use function array_key_exists;
+use function array_map;
 use function str_repeat;
+
+use const DATE_ATOM;
 
 final class HttpLogRecorderTest extends TestCase
 {
+    private ?UsageTestDatabase $database = null;
+
     /** @var array<string, mixed> */
     private array $captureConfig = [
         'request_headers'       => true,
@@ -83,28 +91,19 @@ final class HttpLogRecorderTest extends TestCase
     #[Test]
     public function recordKeepsTheHostPortOfNonDefaultPorts(): void
     {
-        $hosts         = [];
-        $entityManager = $this->createMock(EntityManagerInterface::class);
-        $entityManager->method('persist')->willReturnCallback(static function (HttpLogEntry $entry) use (&$hosts): void {
-            $hosts[] = $entry->getHost();
-        });
         $messageBus = $this->createMock(MessageBusInterface::class);
 
-        $recorder = $this->createRecorder($entityManager, $messageBus, async: false);
+        $recorder = $this->createRecorder($this->database()->entityManager, $messageBus, async: false);
         $recorder->record(Request::create('http://127.0.0.1:8000/api/items'), new Response('ok'), 1.0, 'req-port');
         $recorder->record(Request::create('https://example.test/api/items'), new Response('ok'), 1.0, 'req-default');
 
-        self::assertSame(['127.0.0.1:8000', 'example.test'], $hosts);
+        self::assertSame(['127.0.0.1:8000', 'example.test'], array_column($this->database()->rows(), 'host'));
     }
 
     #[Test]
-    public function asyncFalsePersistsViaEntityManager(): void
+    public function asyncFalseWritesTheRowWithoutTouchingTheUnitOfWork(): void
     {
-        $entityManager = $this->createMock(EntityManagerInterface::class);
-        $entityManager->expects(self::once())
-            ->method('persist')
-            ->with(self::isInstanceOf(HttpLogEntry::class));
-        $entityManager->expects(self::once())->method('flush');
+        $entityManager = $this->database()->entityManager;
 
         $messageBus = $this->createMock(MessageBusInterface::class);
         $messageBus->expects(self::never())->method('dispatch');
@@ -116,6 +115,9 @@ final class HttpLogRecorderTest extends TestCase
             15.0,
             'req-sync',
         );
+
+        self::assertSame(['req-sync'], array_column($this->database()->rows(), 'request_id'));
+        self::assertSame(0, $entityManager->getUnitOfWork()->size());
     }
 
     #[Test]
@@ -150,19 +152,49 @@ final class HttpLogRecorderTest extends TestCase
     }
 
     #[Test]
-    public function persistCaptureDelegatesToEntityManager(): void
+    public function persistCaptureInsertsEveryMappedField(): void
     {
-        $entityManager = $this->createMock(EntityManagerInterface::class);
-        $entityManager->expects(self::once())->method('persist')->with(self::isInstanceOf(HttpLogEntry::class));
-        $entityManager->expects(self::once())->method('flush');
-
         $recorder = $this->createRecorder(
-            $entityManager,
+            $this->database()->entityManager,
             $this->createMock(MessageBusInterface::class),
             async: false,
         );
 
         $recorder->persistCapture($this->createCapture());
+
+        $entry = $this->lastEntry();
+        self::assertInstanceOf(HttpLogEntry::class, $entry);
+        self::assertSame('req-1', $entry->getRequestId());
+        self::assertSame('POST', $entry->getMethod());
+        self::assertSame('https', $entry->getScheme());
+        self::assertSame('example.test', $entry->getHost());
+        self::assertSame('api_create', $entry->getRouteName());
+        self::assertSame([], $entry->getQueryParams());
+        self::assertSame(201, $entry->getStatusCode());
+        self::assertSame('admin', $entry->getUserIdentifier());
+        self::assertNull($entry->getRequestBody());
+        self::assertSame('{"created":true}', $entry->getResponseBody());
+        self::assertTrue($entry->isResponseBodyStored());
+        self::assertFalse($entry->isRequestBodyTruncated());
+        self::assertSame(20.0, $entry->getDurationMs());
+        self::assertSame('2026-08-03T10:00:00+00:00', $entry->getCreatedAt()->format(DATE_ATOM));
+    }
+
+    #[Test]
+    public function persistCaptureUsesAPreInsertIdGeneratorChosenByTheHost(): void
+    {
+        $entityManager = $this->database()->entityManager;
+        $entityManager->getClassMetadata(HttpLogEntry::class)->setIdGenerator(new class extends AbstractIdGenerator {
+            public function generateId(EntityManagerInterface $em, ?object $entity): mixed
+            {
+                return 4242;
+            }
+        });
+
+        $this->createRecorder($entityManager, $this->createMock(MessageBusInterface::class), async: false)
+            ->persistCapture($this->createCapture());
+
+        self::assertSame([4242], array_map(intval(...), array_column($this->database()->rows(), 'id')));
     }
 
     #[Test]
@@ -186,17 +218,7 @@ final class HttpLogRecorderTest extends TestCase
     #[Test]
     public function recordWithCaptureFlagsDisabledStoresNullSensitiveFields(): void
     {
-        $capturedEntry = null;
-
-        $entityManager = $this->createMock(EntityManagerInterface::class);
-        $entityManager->expects(self::once())
-            ->method('persist')
-            ->with(self::callback(static function (HttpLogEntry $entry) use (&$capturedEntry): bool {
-                $capturedEntry = $entry;
-
-                return true;
-            }));
-        $entityManager->expects(self::once())->method('flush');
+        $entityManager = $this->database()->entityManager;
 
         $policy = $this->createMock(CapturePolicy::class);
         $policy->method('shouldCaptureRequestBody')->willReturn(true);
@@ -247,6 +269,7 @@ final class HttpLogRecorderTest extends TestCase
 
         $recorder->record($request, $response, 8.5, 'stream-1');
 
+        $capturedEntry = $this->lastEntry();
         self::assertInstanceOf(HttpLogEntry::class, $capturedEntry);
         self::assertNull($capturedEntry->getRequestHeaders());
         self::assertNull($capturedEntry->getResponseHeaders());
@@ -483,165 +506,78 @@ final class HttpLogRecorderTest extends TestCase
     }
 
     #[Test]
-    public function persistCaptureDetachesEntryAfterFlush(): void
-    {
-        $persisted     = null;
-        $entityManager = $this->createMock(EntityManagerInterface::class);
-        $entityManager->method('isOpen')->willReturn(true);
-        $entityManager->expects(self::once())
-            ->method('persist')
-            ->willReturnCallback(static function (HttpLogEntry $entry) use (&$persisted): void {
-                $persisted = $entry;
-            });
-        $entityManager->expects(self::once())->method('flush');
-        $entityManager->method('contains')->willReturnCallback(static function (object $entry) use (&$persisted): bool {
-            return $entry === $persisted;
-        });
-        $entityManager->expects(self::once())
-            ->method('detach')
-            ->with(self::isInstanceOf(HttpLogEntry::class));
-
-        $recorder = $this->createRecorder($entityManager, $this->createMock(MessageBusInterface::class), async: false);
-        $recorder->persistCapture($this->createCapture());
-    }
-
-    #[Test]
-    public function persistCaptureUsesManagerFromRegistryAndResetsItWhenClosed(): void
+    public function persistCaptureUsesTheManagerOfTheEntryFromTheRegistry(): void
     {
         $injected = $this->createMock(EntityManagerInterface::class);
-        $injected->expects(self::never())->method('persist');
+        $injected->expects(self::never())->method('getConnection');
 
-        $closed = $this->createMock(EntityManagerInterface::class);
-        $closed->method('isOpen')->willReturn(false);
-        $closed->expects(self::never())->method('persist');
-
-        $fresh = $this->createMock(EntityManagerInterface::class);
-        $fresh->method('isOpen')->willReturn(true);
-        $fresh->expects(self::once())->method('persist');
-        $fresh->expects(self::once())->method('flush');
-
-        $other    = $this->createMock(EntityManagerInterface::class);
-        $registry = $this->createMock(ManagerRegistry::class);
-        $registry->method('getManagerForClass')->with(HttpLogEntry::class)->willReturn($closed);
-        $registry->method('getManagerNames')->willReturn(['other' => 'doctrine.orm.other_entity_manager', 'logs' => 'doctrine.orm.logs_entity_manager']);
-        $registry->method('getManager')->willReturnMap([['other', $other], ['logs', $closed]]);
-        $registry->expects(self::once())->method('resetManager')->with('logs')->willReturn($fresh);
-
-        $logger = $this->createMock(LoggerInterface::class);
-        $logger->expects(self::once())->method('warning')->with(self::anything(), ['manager' => 'logs']);
-
-        $recorder = $this->createRecorder($injected, $this->createMock(MessageBusInterface::class), async: false, logger: $logger, managerRegistry: $registry);
+        $recorder = $this->createRecorder($injected, $this->createMock(MessageBusInterface::class), async: false, managerRegistry: $this->database());
         $recorder->persistCapture($this->createCapture());
+
+        self::assertCount(1, $this->database()->rows());
     }
 
     #[Test]
     public function persistCaptureFallsBackToInjectedManagerWhenRegistryHasNoManagerForEntity(): void
     {
-        $injected = $this->createMock(EntityManagerInterface::class);
-        $injected->method('isOpen')->willReturn(true);
-        $injected->expects(self::once())->method('persist');
-        $injected->expects(self::once())->method('flush');
-
         $registry = $this->createMock(ManagerRegistry::class);
         $registry->method('getManagerForClass')->willReturn(null);
         $registry->expects(self::never())->method('resetManager');
 
-        $recorder = $this->createRecorder($injected, $this->createMock(MessageBusInterface::class), async: false, managerRegistry: $registry);
+        $recorder = $this->createRecorder($this->database()->entityManager, $this->createMock(MessageBusInterface::class), async: false, managerRegistry: $registry);
         $recorder->persistCapture($this->createCapture());
+
+        self::assertCount(1, $this->database()->rows());
     }
 
     #[Test]
-    public function failedFlushResetsClosedManagerSoTheNextRequestCanLogAgain(): void
+    public function aClosedManagerStillWritesAndIsNeverReset(): void
     {
-        $open          = true;
-        $entityManager = $this->createMock(EntityManagerInterface::class);
-        $entityManager->method('isOpen')->willReturnCallback(static function () use (&$open): bool {
-            return $open;
-        });
-        $entityManager->method('flush')->willReturnCallback(static function () use (&$open): never {
-            $open = false;
-
-            throw new RuntimeException('insert failed');
-        });
-
-        $fresh = $this->createMock(EntityManagerInterface::class);
-        $fresh->method('isOpen')->willReturn(true);
-        $fresh->expects(self::once())->method('flush');
+        $entityManager = $this->database()->entityManager;
+        $entityManager->close();
 
         $registry = $this->createMock(ManagerRegistry::class);
-        $registry->method('getManagerForClass')->willReturnCallback(static function () use (&$open, $entityManager, $fresh): EntityManagerInterface {
-            return $open ? $entityManager : $fresh;
-        });
-        $registry->method('getManagerNames')->willReturn(['default' => 'doctrine.orm.default_entity_manager']);
-        $registry->method('getManager')->with('default')->willReturn($entityManager);
-        $registry->expects(self::once())->method('resetManager')->with('default')->willReturn($fresh);
+        $registry->method('getManagerForClass')->willReturn($entityManager);
+        $registry->expects(self::never())->method('resetManager');
+
+        $recorder = $this->createRecorder($entityManager, $this->createMock(MessageBusInterface::class), async: false, managerRegistry: $registry);
+        $recorder->persistCapture($this->createCapture());
+
+        self::assertCount(1, $this->database()->rows());
+    }
+
+    #[Test]
+    public function failedInsertIsRethrownAndLeavesTheManagerOpen(): void
+    {
+        $entityManager = $this->database()->entityManager;
+        $this->database()->connection()->executeStatement('DROP TABLE ' . $this->database()->table());
+
+        $recorder = $this->createRecorder($entityManager, $this->createMock(MessageBusInterface::class), async: false);
+
+        try {
+            $recorder->persistCapture($this->createCapture());
+            self::fail('The insert must fail without its table.');
+        } catch (DbalException) {
+            self::assertTrue($entityManager->isOpen());
+        }
+    }
+
+    #[Test]
+    public function failedInsertDuringRecordIsLogged(): void
+    {
+        $this->database()->connection()->executeStatement('DROP TABLE ' . $this->database()->table());
 
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects(self::once())->method('error')->with('Failed to record HTTP log entry.');
 
-        $recorder = $this->createRecorder($entityManager, $this->createMock(MessageBusInterface::class), async: false, logger: $logger, managerRegistry: $registry);
-
-        $recorder->record(Request::create('/first'), new Response('ok'), 1.0, 'req-1');
-        $recorder->record(Request::create('/second'), new Response('ok'), 1.0, 'req-2');
-    }
-
-    #[Test]
-    public function closedManagerIsKeptWhenRegistryCannotResetIt(): void
-    {
-        $closed = $this->createMock(EntityManagerInterface::class);
-        $closed->method('isOpen')->willReturn(false);
-        $closed->expects(self::once())->method('persist');
-        $closed->expects(self::never())->method('detach');
-
-        $registry = $this->createMock(ManagerRegistry::class);
-        $registry->method('getManagerForClass')->willReturn($closed);
-        $registry->method('getManagerNames')->willReturn(['default' => 'doctrine.orm.default_entity_manager', 'odm' => 'doctrine_mongodb.odm.default_document_manager']);
-        $registry->method('getManager')->willReturnMap([
-            ['default', $this->createMock(EntityManagerInterface::class)],
-            ['odm', $closed],
-        ]);
-        $registry->method('resetManager')->willReturn($this->createMock(ObjectManager::class));
-
-        $recorder = $this->createRecorder($closed, $this->createMock(MessageBusInterface::class), async: false, managerRegistry: $registry);
-        $recorder->persistCapture($this->createCapture());
-    }
-
-    #[Test]
-    public function closedManagerUnknownToRegistryIsNotReset(): void
-    {
-        $closed = $this->createMock(EntityManagerInterface::class);
-        $closed->method('isOpen')->willReturn(false);
-        $closed->expects(self::once())->method('persist');
-
-        $registry = $this->createMock(ManagerRegistry::class);
-        $registry->method('getManagerForClass')->willReturn($closed);
-        $registry->method('getManagerNames')->willReturn([]);
-        $registry->expects(self::never())->method('resetManager');
-
-        $recorder = $this->createRecorder($closed, $this->createMock(MessageBusInterface::class), async: false, managerRegistry: $registry);
-        $recorder->persistCapture($this->createCapture());
-    }
-
-    #[Test]
-    public function failedFlushWithoutRegistryIsRethrown(): void
-    {
-        $entityManager = $this->createMock(EntityManagerInterface::class);
-        $entityManager->method('isOpen')->willReturn(false);
-        $entityManager->method('flush')->willThrowException(new RuntimeException('insert failed'));
-
-        $recorder = $this->createRecorder($entityManager, $this->createMock(MessageBusInterface::class), async: false);
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('insert failed');
-
-        $recorder->persistCapture($this->createCapture());
+        $this->createRecorder($this->database()->entityManager, $this->createMock(MessageBusInterface::class), async: false, logger: $logger)
+            ->record(Request::create('/broken'), new Response('ok'), 1.0, 'req-1');
     }
 
     #[Test]
     public function requestJsonBodyIsRedactedBeforeTruncation(): void
     {
-        $capturedEntry = null;
-        $entityManager = $this->createCapturingEntityManager($capturedEntry);
+        $entityManager = $this->database()->entityManager;
 
         $recorder = $this->createRecorder(
             $entityManager,
@@ -658,6 +594,7 @@ final class HttpLogRecorderTest extends TestCase
 
         $recorder->record($request, new Response('{"ok":true}', 200, ['Content-Type' => 'application/json']), 1.0, null);
 
+        $capturedEntry = $this->lastEntry();
         self::assertInstanceOf(HttpLogEntry::class, $capturedEntry);
         self::assertTrue($capturedEntry->isRequestBodyTruncated());
         self::assertIsString($capturedEntry->getRequestBody());
@@ -668,8 +605,7 @@ final class HttpLogRecorderTest extends TestCase
     #[Test]
     public function formLoginBodyIsRedactedWithDefaultKeys(): void
     {
-        $capturedEntry = null;
-        $entityManager = $this->createCapturingEntityManager($capturedEntry);
+        $entityManager = $this->database()->entityManager;
 
         $recorder = $this->createRecorder(
             $entityManager,
@@ -696,6 +632,7 @@ final class HttpLogRecorderTest extends TestCase
 
         $recorder->record($request, new Response('', 302), 1.0, null);
 
+        $capturedEntry = $this->lastEntry();
         self::assertInstanceOf(HttpLogEntry::class, $capturedEntry);
         self::assertSame(
             '_username=ada&_password=%5BREDACTED%5D&_csrf_token=%5BREDACTED%5D',
@@ -706,8 +643,7 @@ final class HttpLogRecorderTest extends TestCase
     #[Test]
     public function responseBodyIsRedactedBeforeTruncation(): void
     {
-        $capturedEntry = null;
-        $entityManager = $this->createCapturingEntityManager($capturedEntry);
+        $entityManager = $this->database()->entityManager;
 
         $recorder = $this->createRecorder(
             $entityManager,
@@ -726,20 +662,24 @@ final class HttpLogRecorderTest extends TestCase
             null,
         );
 
+        $capturedEntry = $this->lastEntry();
         self::assertInstanceOf(HttpLogEntry::class, $capturedEntry);
         self::assertTrue($capturedEntry->isResponseBodyTruncated());
         self::assertStringNotContainsString('jwt-secret-value', (string) $capturedEntry->getResponseBody());
     }
 
-    private function createCapturingEntityManager(?HttpLogEntry &$capturedEntry): EntityManagerInterface
+    /** In-memory SQLite database of the entry (one per test). */
+    private function database(): UsageTestDatabase
     {
-        $entityManager = $this->createMock(EntityManagerInterface::class);
-        $entityManager->method('persist')
-            ->willReturnCallback(static function (HttpLogEntry $entry) use (&$capturedEntry): void {
-                $capturedEntry = $entry;
-            });
+        return $this->database ??= new UsageTestDatabase(usageColumns: false);
+    }
 
-        return $entityManager;
+    /** The last written entry, hydrated from its row. */
+    private function lastEntry(): ?HttpLogEntry
+    {
+        $this->database()->entityManager->clear();
+
+        return $this->database()->repository()->findOneBy([], ['id' => 'DESC']);
     }
 
     private function createUserToken(string $identifier): TokenInterface

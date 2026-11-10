@@ -109,8 +109,8 @@ docker compose up -d
 
 This bundle is designed for FrankenPHP **worker** mode even when the Symfony kernel is **not** rebooted between requests (scenario B: no `services_resetter`). Summary:
 
-- Log entries are **detached** after flush; admin list/detail and export batches detach after use.
-- A **closed** EntityManager is reset via `ManagerRegistry` so one failed insert does not brick the worker.
+- Log entries are written with a DBAL insert (no flush, nothing kept in the identity map); admin list/detail and export batches detach after use.
+- A failed insert does not close the EntityManager; a closed manager is reset by the bundle only when it maps the bundle's entities alone.
 - `userIdentifier` is stored only when a **secured firewall** handled the request (avoids stale `TokenStorage`).
 - Prefer routing `PersistHttpLogMessage` to a real Messenger transport; keep `services_resetter` when possible so Doctrine/Security framework state is cleared.
 

@@ -588,7 +588,9 @@ final readonly class HttpLogTenantScope implements TenantScope
 
 - `HttpLogContext` has no interface; wrap it as shown above.
 - No Symfony event is dispatched when an entry is recorded; read back through `HttpLogUsageReaderInterface`.
-- The entity mapping is always registered on the default entity manager.
+- The entity mapping is always registered on the default entity manager. The bundle never flushes it: entries are
+  written with DBAL inserts on its connection (since 1.16.2 for inbound entries), so the host's pending changes are
+  never committed by a capture.
 
 ## Usage erasure (credentials, tenants)
 

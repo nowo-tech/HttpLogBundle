@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.16.2](#to-1162)
 - [To 1.16.1](#to-1161)
 - [To 1.16.0](#to-1160)
   - [Named inbound channels (opt-in)](#named-inbound-channels-opt-in)
@@ -59,6 +60,29 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.16.2
+
+From **1.16.1**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
+
+No configuration change. Inbound entries are written with a DBAL `INSERT` instead of `persist()` + `flush()` of the
+EntityManager that manages `HttpLogEntry` (the default manager in a standard install), so a synchronous capture
+(`async: false`, or `PersistHttpLogMessage` handled synchronously) no longer commits the host's unflushed changes at
+`kernel.terminate`. Same table, same columns, same values.
+
+What you may notice:
+
+- Doctrine lifecycle events (`prePersist`, `postPersist`, `onFlush`, entity listeners) no longer fire for inbound
+  `HttpLogEntry` rows. Usage rows (outbound, mailer) were already written this way.
+- Inside a transaction you left open, the insert runs in a savepoint of that transaction (released on success,
+  rolled back alone on failure).
+- A closed shared EntityManager is no longer reset by the bundle (under FrankenPHP without kernel reset, nothing resets
+  it for you any more); reset it in your own error handling as before. A manager that maps only the bundle's entities
+  is still reset by `HttpLogEntryRepository`.
 
 ## To 1.16.1
 

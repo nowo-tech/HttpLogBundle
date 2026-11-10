@@ -11,6 +11,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
+use Doctrine\Persistence\Mapping\Driver\MappingDriver;
 use InvalidArgumentException;
 use LogicException;
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
@@ -32,6 +33,7 @@ use function is_string;
 use function max;
 use function min;
 use function sprintf;
+use function str_starts_with;
 
 /**
  * Resolves the EntityManager from {@see ManagerRegistry} on every call so a closed manager
@@ -321,7 +323,9 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
             throw new LogicException(sprintf('Could not find the entity manager for class "%s".', HttpLogEntry::class));
         }
 
-        if ($manager->isOpen()) {
+        // A closed manager still answers DQL / DBAL reads. It is reset only when it holds the bundle's entities alone
+        // (a dedicated manager): resetting a shared one would swap the host's manager under its own services.
+        if ($manager->isOpen() || !$this->isDedicatedManager($manager)) {
             return $manager;
         }
 
@@ -337,6 +341,23 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
         }
 
         throw new LogicException(sprintf('The entity manager for class "%s" is closed and could not be reset.', HttpLogEntry::class));
+    }
+
+    /** True when every class the manager maps belongs to this bundle. */
+    private function isDedicatedManager(EntityManagerInterface $manager): bool
+    {
+        $driver = $manager->getConfiguration()->getMetadataDriverImpl();
+        if (!$driver instanceof MappingDriver) {
+            return false;
+        }
+
+        foreach ($driver->getAllClassNames() as $className) {
+            if (!str_starts_with($className, 'Nowo\\HttpLogBundle\\Entity\\')) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /** @param array<string, mixed> $criteria */

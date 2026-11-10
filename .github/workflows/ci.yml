@@ -240,6 +240,53 @@ jobs:
       - name: PHPStan (level and ignoreErrors from phpstan.neon.dist; fails the build on any error)
         run: composer phpstan --no-interaction
 
+      - name: Igor worker-state audit (REQ-CS-008, FrankenPHP worker mode without kernel reset)
+        run: composer igor --no-interaction
+
+  real-databases:
+    name: Inbound capture in an open transaction on PostgreSQL and MySQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: ci-placeholder
+          POSTGRES_DB: http_log
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-placeholder
+          MYSQL_DATABASE: http_log
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -pci-placeholder" --health-interval 5s --health-timeout 5s --health-retries 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql, pdo_mysql, pdo_sqlite
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-progress --no-interaction
+
+      - name: PostgreSQL
+        env:
+          HTTPLOG_TEST_PGSQL_URL: postgresql://postgres:ci-placeholder@127.0.0.1:5432/http_log?serverVersion=17&charset=utf8
+        run: vendor/bin/phpunit --no-coverage tests/Integration/OpenHostTransactionTest.php
+
+      - name: MySQL
+        env:
+          HTTPLOG_TEST_MYSQL_URL: mysql://root:ci-placeholder@127.0.0.1:3306/http_log?serverVersion=8.4.0&charset=utf8mb4
+        run: vendor/bin/phpunit --no-coverage tests/Integration/OpenHostTransactionTest.php
+
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
