@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.17.0] - 2026-11-11](#1170---2026-11-11)
 - [[1.16.3] - 2026-11-10](#1163---2026-11-10)
 - [[1.16.2] - 2026-11-10](#1162---2026-11-10)
 - [[1.16.1] - 2026-11-09](#1161---2026-11-09)
@@ -46,6 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-11-11
+
+Slim admin list rows, keyset paging with a bounded cursor, composite indexes and an opt-in indexed prefix filter (Beacon PERF-1147-02). See [UPGRADING](https://github.com/nowo-tech/HttpLogBundle/blob/v1.17.0/docs/UPGRADING.md#to-1170).
+
 ### Changed
 
 - **Admin list: slim rows and keyset pagination (PERF-1147-02).** The list reads a scalar projection of the columns it
@@ -78,10 +83,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `HttpLogEntryRepository::findListPage()` (hydrates whole entries, pages by OFFSET): use `findListRows()`; removed in 2.0.
 
+[1.17.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.17.0
+
 ## [1.16.3] - 2026-11-10
 
 Savepoints are unique per insert, and the original database error is reported when the server already ended the host transaction. See [UPGRADING](https://github.com/nowo-tech/HttpLogBundle/blob/v1.16.3/docs/UPGRADING.md#to-1163).
-
 
 ### Fixed
 
