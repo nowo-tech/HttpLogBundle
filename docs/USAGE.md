@@ -110,6 +110,17 @@ Default URL: **`/admin/http-log`** (configurable via `web_ui.path_prefix`).
 Features:
 
 - Paginated list with filters (method, status, route, date range, free text) — UiKit list scaffold
+- The list reads only the columns it shows (never headers, bodies or the query string) and pages by keyset in
+  `(created_at, id)` order: the page links carry `?cursor=` (the position of the page they were rendered on) next to
+  `?page=`, so the next and previous pages seek through the `created_at` index and stay stable while new entries
+  arrive. A `?page=` link without a cursor still opens that page (by offset). When many entries arrived while you
+  paged, the count can announce more pages than remain after your position; those last pages are read by offset and
+  may repeat rows already shown (no row is skipped): go back to page 1 for the newest entries. At most 10 000 matching entries are
+  paginated and counted ("10000+": narrow the filters). Filters on status, client IP, route, channel, tenant, project
+  and date use indexes that end with `created_at`; the text filters `q` / `path` / `routeName` match anywhere by default
+  and the start of the value through indexes with `web_ui.filter_match: prefix` (`q` checks three columns at once:
+  prefer `path` or `routeName` on a large log)
+  ([CONFIGURATION](CONFIGURATION.md#web_ui), [UPGRADING 1.17](UPGRADING.md#to-1170)).
 - Detail view with headers and bodies — UiKit show scaffold
 - Export and purge actions (subject to access checker; hidden from users who may not use them); purge and delete
   confirm in the UiKit dialog

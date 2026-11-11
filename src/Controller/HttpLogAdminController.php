@@ -17,6 +17,7 @@ use Nowo\HttpLogBundle\Form\HttpLogExportType;
 use Nowo\HttpLogBundle\Form\HttpLogFilterType;
 use Nowo\HttpLogBundle\Form\HttpLogPurgeType;
 use Nowo\HttpLogBundle\Message\ExportHttpLogMessage;
+use Nowo\HttpLogBundle\Model\HttpLogListCursor;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
 use Nowo\HttpLogBundle\Security\HttpLogChannelAccessCheckerInterface;
@@ -120,9 +121,15 @@ final class HttpLogAdminController extends AbstractController
 
         $criteriaParams = $this->queryParamsFromCriteria($criteria);
         $page           = max(1, $request->query->getInt('page', 1));
-        // Bounded page + count (HttpLogEntryRepository::MAX_LISTED): no full COUNT / deep OFFSET on a large log.
-        $result = $this->repository->findListPage($this->withChannelAccess($criteria), $page, $this->pageSize);
-        $page   = $result['page'];
+        // Bounded count (HttpLogEntryRepository::MAX_LISTED), listed columns only, keyset pages from the cursor of the
+        // page the link was rendered on (PERF-1147-02). A plain ?page=n (1.16 links) still works, by offset.
+        $result = $this->repository->findListRows(
+            $this->withChannelAccess($criteria),
+            $page,
+            $this->pageSize,
+            HttpLogListCursor::fromString($request->query->get(HttpLogListCursor::PARAM)),
+        );
+        $page = $result['page'];
 
         $exportForms = [];
         foreach ([ExportFormat::Csv, ExportFormat::Json] as $format) {
@@ -132,7 +139,7 @@ final class HttpLogAdminController extends AbstractController
             }
         }
 
-        $response = $this->render($this->template('index'), [
+        return $this->render($this->template('index'), [
             'page' => $this->pages()->listPage(
                 $result['items'],
                 $result['total'],
@@ -148,12 +155,10 @@ final class HttpLogAdminController extends AbstractController
                 $this->canPurge(),
                 $this->canExport() ? $this->readyExports() : [],
                 $result['total_capped'],
+                $result['cursor'],
             ),
             'criteria' => $criteria,
         ]);
-        $this->repository->detachAll($result['items']);
-
-        return $response;
     }
 
     #[Route('/{id}', name: 'nowo_http_log_admin_show', requirements: ['id' => '\\d+'], methods: ['GET'])]

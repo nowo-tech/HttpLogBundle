@@ -85,9 +85,9 @@ final class HttpLogAdminControllerTest extends TestCase
 
         $repository = $this->createMock(HttpLogEntryRepository::class);
         $repository->expects(self::once())
-            ->method('findListPage')
-            ->with([], 2, 20)
-            ->willReturn(['items' => [$entry], 'total' => 1, 'total_capped' => false, 'page' => 2]);
+            ->method('findListRows')
+            ->with([], 2, 20, null)
+            ->willReturn(['items' => [$entry], 'total' => 1, 'total_capped' => false, 'page' => 2, 'cursor' => null]);
 
         $twig = $this->createMock(Environment::class);
         $twig->expects(self::once())
@@ -135,9 +135,9 @@ final class HttpLogAdminControllerTest extends TestCase
 
         $repository = $this->createMock(HttpLogEntryRepository::class);
         $repository->expects(self::once())
-            ->method('findListPage')
-            ->with([], 1, 20)
-            ->willReturn(['items' => [], 'total' => 0, 'total_capped' => false, 'page' => 1]);
+            ->method('findListRows')
+            ->with([], 1, 20, null)
+            ->willReturn(['items' => [], 'total' => 0, 'total_capped' => false, 'page' => 1, 'cursor' => null]);
 
         $twig = $this->createMock(Environment::class);
         $twig->expects(self::once())->method('render')->willReturn('index');
@@ -175,9 +175,9 @@ final class HttpLogAdminControllerTest extends TestCase
 
         $repository = $this->createMock(HttpLogEntryRepository::class);
         $repository->expects(self::once())
-            ->method('findListPage')
-            ->with(['statusCode' => 200], 1, 20)
-            ->willReturn(['items' => [], 'total' => 0, 'total_capped' => false, 'page' => 1]);
+            ->method('findListRows')
+            ->with(['statusCode' => 200], 1, 20, null)
+            ->willReturn(['items' => [], 'total' => 0, 'total_capped' => false, 'page' => 1, 'cursor' => null]);
 
         $twig = $this->createMock(Environment::class);
         $twig->expects(self::once())->method('render')->willReturn('index');
@@ -264,7 +264,7 @@ final class HttpLogAdminControllerTest extends TestCase
         $form->method('createView')->willReturn(new FormView());
 
         $repository = $this->createMock(HttpLogEntryRepository::class);
-        $repository->method('findListPage')->willReturn(['items' => [], 'total' => 0, 'total_capped' => false, 'page' => 1]);
+        $repository->method('findListRows')->willReturn(['items' => [], 'total' => 0, 'total_capped' => false, 'page' => 1, 'cursor' => null]);
 
         $twig = $this->createMock(Environment::class);
         $twig->expects(self::once())
@@ -385,7 +385,7 @@ final class HttpLogAdminControllerTest extends TestCase
         $form->method('createView')->willReturn(new FormView());
 
         $repository = $this->createMock(HttpLogEntryRepository::class);
-        $repository->method('findListPage')->willReturn(['items' => [], 'total' => 0, 'total_capped' => false, 'page' => 1]);
+        $repository->method('findListRows')->willReturn(['items' => [], 'total' => 0, 'total_capped' => false, 'page' => 1, 'cursor' => null]);
 
         $twig = $this->createMock(Environment::class);
         $twig->expects(self::once())
@@ -423,7 +423,7 @@ final class HttpLogAdminControllerTest extends TestCase
         $form->method('createView')->willReturn(new FormView());
 
         $repository = $this->createMock(HttpLogEntryRepository::class);
-        $repository->method('findListPage')->willReturn(['items' => [], 'total' => 0, 'total_capped' => false, 'page' => 1]);
+        $repository->method('findListRows')->willReturn(['items' => [], 'total' => 0, 'total_capped' => false, 'page' => 1, 'cursor' => null]);
 
         $accessChecker = $this->createMock(HttpLogAccessCheckerInterface::class);
         $accessChecker->method('canAccessAdmin')->willReturn(true);
@@ -587,7 +587,7 @@ final class HttpLogAdminControllerTest extends TestCase
         $form->method('isSubmitted')->willReturn(false);
         $form->method('createView')->willReturn(new FormView());
         $repository = $this->createMock(HttpLogEntryRepository::class);
-        $repository->method('findListPage')->willReturn(['items' => [], 'total' => 0, 'total_capped' => false, 'page' => 1]);
+        $repository->method('findListRows')->willReturn(['items' => [], 'total' => 0, 'total_capped' => false, 'page' => 1, 'cursor' => null]);
 
         $twig = $this->createMock(Environment::class);
         $twig->expects(self::once())

@@ -9,14 +9,21 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 
+use function mb_substr;
+
 #[ORM\Entity(repositoryClass: HttpLogEntryRepository::class)]
 #[ORM\Table(name: 'nowo_http_log_entry')]
-#[ORM\Index(name: 'idx_http_log_created_at', columns: ['created_at'])]
-#[ORM\Index(name: 'idx_http_log_route_name', columns: ['route_name'])]
-#[ORM\Index(name: 'idx_http_log_status_code', columns: ['status_code'])]
-#[ORM\Index(name: 'idx_http_log_client_ip', columns: ['client_ip'])]
+// 1.17 (PERF-1147-02): the list reads (created_at, id) by keyset, so the default index carries the id tie-break and each
+// filter index ends with created_at (filter + order + keyset bound from one index). Same names; see UPGRADING 1.17.
+#[ORM\Index(name: 'idx_http_log_created_at', columns: ['created_at', 'id'])]
+#[ORM\Index(name: 'idx_http_log_route_name', columns: ['route_name', 'created_at'])]
+#[ORM\Index(name: 'idx_http_log_status_code', columns: ['status_code', 'created_at'])]
+#[ORM\Index(name: 'idx_http_log_client_ip', columns: ['client_ip', 'created_at'])]
 class HttpLogEntry
 {
+    /** Length of {@see self::$pathPrefix}: 191 characters keep a utf8mb4 index entry under 767 bytes. */
+    public const PATH_PREFIX_LENGTH = 191;
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column(type: Types::INTEGER)]
@@ -37,6 +44,13 @@ class HttpLogEntry
 
     #[ORM\Column(type: Types::STRING, length: 2048)]
     private string $path = '/';
+
+    /**
+     * First {@see self::PATH_PREFIX_LENGTH} characters of the path, the indexed column of the prefix filters (1.17,
+     * `web_ui.filter_match: prefix`). NOT mapped by these attributes: PathPrefixColumnListener maps it only in that
+     * mode, so other hosts keep their schema. Set with the path.
+     */
+    private ?string $pathPrefix = null;
 
     #[ORM\Column(name: 'route_name', type: Types::STRING, length: 255, nullable: true)]
     private ?string $routeName = null;
@@ -196,8 +210,22 @@ class HttpLogEntry
     {
         // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
         $this->path = $path;
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
+        $this->pathPrefix = self::pathPrefixOf($path);
 
         return $this;
+    }
+
+    /** Indexed path prefix of the prefix filters (null until a path is set). */
+    public function getPathPrefix(): ?string
+    {
+        return $this->pathPrefix;
+    }
+
+    /** First {@see self::PATH_PREFIX_LENGTH} characters of a path (the value of the `path_prefix` column). */
+    public static function pathPrefixOf(string $path): string
+    {
+        return mb_substr($path, 0, self::PATH_PREFIX_LENGTH);
     }
 
     public function getRouteName(): ?string

@@ -11,6 +11,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use LogicException;
+use Nowo\HttpLogBundle\Doctrine\PathPrefixColumnListener;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Rollup\UsageRollupStore;
 
@@ -102,6 +103,11 @@ final readonly class UsageEntryWriter
             'responseBodyStored'    => [false, Types::BOOLEAN],
             'createdAt'             => [$capture->createdAt, Types::DATETIME_IMMUTABLE],
         ];
+
+        if ($metadata->hasField(PathPrefixColumnListener::FIELD)) {
+            // web_ui.filter_match: prefix (PERF-1147-02)
+            $values[PathPrefixColumnListener::FIELD] = [HttpLogEntry::pathPrefixOf($capture->path), ParameterType::STRING];
+        }
 
         $data  = [];
         $types = [];

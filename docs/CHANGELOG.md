@@ -46,6 +46,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Admin list: slim rows and keyset pagination (PERF-1147-02).** The list reads a scalar projection of the columns it
+  shows (`Model\HttpLogListRow`: id, time, method, path, status, duration, client IP, route, host, scheme, user,
+  request id, and channel / provider with the usage columns) instead of hydrating whole entries: never the query
+  string, headers or bodies, and nothing enters the identity map. Pages are read in a stable `(created_at, id)` order:
+  the page links carry the position of the page they were rendered on (`?cursor=` next to `?page=`), so the next /
+  previous page seeks through the `created_at` index instead of an `OFFSET` from the newest row, and stays stable while
+  new entries arrive. A `?page=` link without a cursor (1.16 bookmarks) or with a stale cursor still opens that page
+  (offset read, bounded by the 10 000-entry list cap). Up to 500 matches are read by primary key from the ids the
+  bounded count already collected (no planner walk of the `created_at` index for a few scattered rows), and no match
+  reads no page. A cursor is ignored (offset read) when its ids exceed the INTEGER `id` column or its page is past the
+  last page of the bounded count, so every skip stays within the cap in both directions. Filters, the channel access
+  restriction and the access checks are unchanged. Probe with 200 000 rows: a page is ~25 KB of row data instead of ~390 KB (MySQL, MariaDB,
+  PostgreSQL, SQLite), see the PR.
+- **Indexes for the list filters.** `idx_http_log_created_at` becomes `(created_at, id)` and `idx_http_log_route_name`,
+  `idx_http_log_status_code`, `idx_http_log_client_ip` end with `created_at`, so a filtered page is read and ordered from
+  one index. Same index names; run the migration of [UPGRADING](UPGRADING.md#to-1170) (queries work without it, only
+  slower).
+- Text filters (`q`, `path`, `routeName`) match `%` and `_` literally (they were LIKE wildcards).
+
+### Added
+
+- `web_ui.filter_match` (`contains` by default = 1.16 behaviour): `prefix` makes the `q`, `path` and `routeName` filters
+  match the start of the value through indexes and maps a new nullable `path_prefix` column (first 191 characters of
+  the path, filled on write) with `idx_http_log_path_prefix`. Opt-in with a migration, see UPGRADING.
+- `HttpLogEntryRepository::findListRows()` and `Model\HttpLogListCursor`.
+
+### Deprecated
+
+- `HttpLogEntryRepository::findListPage()` (hydrates whole entries, pages by OFFSET): use `findListRows()`; removed in 2.0.
+
 ## [1.16.3] - 2026-11-10
 
 Savepoints are unique per insert, and the original database error is reported when the server already ended the host transaction. See [UPGRADING](https://github.com/nowo-tech/HttpLogBundle/blob/v1.16.3/docs/UPGRADING.md#to-1163).

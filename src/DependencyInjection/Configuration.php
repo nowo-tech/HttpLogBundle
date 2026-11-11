@@ -55,6 +55,12 @@ final class Configuration implements ConfigurationInterface
     /** The 1.x default `web_ui.layout_template` (removed CDN layout); normalized to null = UiKit layout. */
     public const LEGACY_LAYOUT_TEMPLATE = '@NowoHttpLogBundle/layout.html.twig';
 
+    /** `web_ui.filter_match`: text filters match anywhere in the value (1.16 behaviour, full scan). */
+    public const FILTER_MATCH_CONTAINS = 'contains';
+
+    /** `web_ui.filter_match`: text filters match the start of the value, through indexes (PERF-1147-02). */
+    public const FILTER_MATCH_PREFIX = 'prefix';
+
     /** Pages the controller renders (`web_ui.templates.<page>`). */
     public const PAGE_TEMPLATES = [
         'index' => '@NowoHttpLogBundle/admin/index.html.twig',
@@ -252,6 +258,11 @@ final class Configuration implements ConfigurationInterface
                         ->integerNode('page_size')
                             ->defaultValue(50)
                             ->min(1)
+                        ->end()
+                        ->enumNode('filter_match')
+                            ->info('Text filters of the list (q, path, routeName): "contains" (LIKE \'%value%\', a scan of the table) or "prefix" (LIKE \'value%\' on indexes; maps the path_prefix column, see UPGRADING 1.17).')
+                            ->values([self::FILTER_MATCH_CONTAINS, self::FILTER_MATCH_PREFIX])
+                            ->defaultValue(self::FILTER_MATCH_CONTAINS)
                         ->end()
                         ->append($this->templatesNode())
                         ->append($this->cssClassesNode())

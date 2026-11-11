@@ -93,6 +93,7 @@ nowo_http_log:
         path_prefix: /admin/http-log      # Route prefix of the admin UI; must start with /
         layout_template: null             # null = UiKit admin layout (nowo_ui_kit.layouts.admin)
         page_size: 50
+        filter_match: contains            # contains (1.16, LIKE '%x%') | prefix (indexed, needs the path_prefix column)
         templates:                        # web_ui.templates.<page>
             index: '@NowoHttpLogBundle/admin/index.html.twig'
             show: '@NowoHttpLogBundle/admin/show.html.twig'
@@ -258,7 +259,8 @@ scaffold and the entry page `@NowoUiKit/page/show`, inside the layout configured
 | `enabled` | `true` | Registers admin routes and Twig templates. |
 | `path_prefix` | `/admin/http-log` | Route prefix of the admin UI (list, detail, export, purge, delete), applied by the router through the `nowo_http_log.web_ui.path_prefix` parameter. A trailing `/` is removed; `/` alone and `%` are rejected. Update your `access_control` rule when you change it. The recorder always skips this prefix (segment-aware: `/ops/logs` and `/ops/logs/…`, not `/ops/logsearch`) while the web UI is enabled, so you do not need to add it to `ignore_path_prefixes`. If you import the routes under an extra `prefix:`, admin requests are still skipped by the default `ignore_routes` entry `nowo_http_log_*`; keep it or add the full path to `ignore_path_prefixes`. |
 | `layout_template` | `null` | Layout the scaffolds extend for this bundle only (`page.layout`). `null` = `nowo_ui_kit.layouts.admin`. It must render the UiKit canonical blocks (`nowo_ui_document_title`, `nowo_ui_page_header`, `nowo_ui_flashes`, `nowo_ui_content`, …). The 1.x value `@NowoHttpLogBundle/layout.html.twig` (removed) is read as `null`. |
-| `page_size` | `50` | Pagination size on index. |
+| `page_size` | `50` | Pagination size on index. Pages are read by keyset in `(created_at, id)` order; the page links carry `?cursor=` (see [USAGE](USAGE.md#admin-ui)). |
+| `filter_match` | `contains` | How the text filters `q`, `path` and `routeName` match. `contains`: anywhere in the value (`LIKE '%value%'`, a table scan; the 1.16 behaviour). `prefix`: the start of the value through indexes; maps the nullable `path_prefix` column (first 191 characters of the path) and `idx_http_log_path_prefix`, which need a migration first ([UPGRADING 1.17](UPGRADING.md#prefix-filters-opt-in)). `%` and `_` always match literally. |
 | `templates.index` / `templates.show` | bundle pages | Page templates the controller renders. Point them at a host template that extends `@!NowoHttpLogBundle/admin/<page>.html.twig` and overrides one data block. |
 
 ```yaml
