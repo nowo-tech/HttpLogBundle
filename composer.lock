@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "1249bcae9d9a7ba91781fff22e67782c",
+    "content-hash": "08c3d2036199c6e50b4619934dc11c7a",
     "packages": [
         {
             "name": "doctrine/collections",
@@ -6866,6 +6866,121 @@
                 }
             ],
             "time": "2026-10-22T05:58:06+00:00"
+        },
+        {
+            "name": "nowo-tech/user-kit-bundle",
+            "version": "v1.14.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/nowo-tech/UserKitBundle.git",
+                "reference": "76854e4e0003989d8d8197a21c7b591fcb16bd22"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/nowo-tech/UserKitBundle/zipball/76854e4e0003989d8d8197a21c7b591fcb16bd22",
+                "reference": "76854e4e0003989d8d8197a21c7b591fcb16bd22",
+                "shasum": ""
+            },
+            "require": {
+                "doctrine/dbal": "^3.8 || ^4.0",
+                "doctrine/doctrine-bundle": "^2.10 || ^3.0",
+                "doctrine/orm": "^2.15 || ^3.0",
+                "nowo-tech/form-kit-bundle": "^2.17",
+                "nowo-tech/ui-kit-bundle": "^2.20",
+                "php": ">=8.2 <8.6",
+                "psr/cache": "^2.0 || ^3.0",
+                "psr/clock": "^1.0",
+                "symfony/clock": "^7.4 || ^8.0",
+                "symfony/config": "^7.4 || ^8.0",
+                "symfony/console": "^7.4 || ^8.0",
+                "symfony/dependency-injection": "^7.4 || ^8.0",
+                "symfony/event-dispatcher": "^7.4 || ^8.0",
+                "symfony/form": "^7.4 || ^8.0",
+                "symfony/framework-bundle": "^7.4 || ^8.0",
+                "symfony/http-foundation": "^7.4 || ^8.0",
+                "symfony/http-kernel": "^7.4 || ^8.0",
+                "symfony/property-access": "^7.4 || ^8.0",
+                "symfony/routing": "^7.4 || ^8.0",
+                "symfony/security-bundle": "^7.4 || ^8.0",
+                "symfony/security-core": "^7.4 || ^8.0",
+                "symfony/security-csrf": "^7.4 || ^8.0",
+                "symfony/security-http": "^7.4 || ^8.0",
+                "symfony/service-contracts": "^2.5 || ^3.0",
+                "symfony/translation-contracts": "^3.5",
+                "symfony/twig-bundle": "^7.4 || ^8.0",
+                "twig/extra-bundle": "^3.12",
+                "twig/string-extra": "^3.12",
+                "twig/twig": "^3.12"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.0",
+                "igor-php/igor-php": "^0.10.0",
+                "nowo-tech/phpstan-frankenphp": "^1.0",
+                "phpstan/extension-installer": "^1.0",
+                "phpstan/phpstan": "^2.0",
+                "phpstan/phpstan-phpunit": "^2.0",
+                "phpstan/phpstan-symfony": "^2.0",
+                "phpunit/phpunit": "^11.5",
+                "rector/rector": "^2.0",
+                "symfony/browser-kit": "^7.4 || ^8.0",
+                "symfony/cache": "^7.4 || ^8.0",
+                "symfony/css-selector": "^7.4 || ^8.0",
+                "symfony/dom-crawler": "^7.4 || ^8.0",
+                "symfony/messenger": "^7.4 || ^8.0",
+                "symfony/translation": "^7.4 || ^8.0",
+                "symfony/yaml": "^7.4 || ^8.0"
+            },
+            "type": "symfony-bundle",
+            "autoload": {
+                "psr-4": {
+                    "Nowo\\UserKitBundle\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Héctor Franco Aceituno",
+                    "email": "hectorfranco@nowo.tech",
+                    "homepage": "https://github.com/HecFranco",
+                    "role": "Developer"
+                },
+                {
+                    "name": "Nowo.tech",
+                    "homepage": "https://nowo.tech"
+                }
+            ],
+            "description": "Symfony bundle for user account enable/disable, last activity tracking, online presence, UI preferences, GDPR self-service and an opt-in session registry (list, revoke, concurrent-session limits).",
+            "homepage": "https://packagist.org/packages/nowo-tech/user-kit-bundle",
+            "keywords": [
+                "disabled-account",
+                "frankenphp",
+                "gdpr",
+                "last-activity",
+                "php",
+                "presence",
+                "security",
+                "session-limit",
+                "sessions",
+                "symfony",
+                "symfony-bundle",
+                "user-checker"
+            ],
+            "support": {
+                "docs": "https://github.com/nowo-tech/UserKitBundle/tree/main/docs",
+                "issues": "https://github.com/nowo-tech/UserKitBundle/issues",
+                "source": "https://github.com/nowo-tech/UserKitBundle"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/HecFranco",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-11-10T19:35:53+00:00",
+            "published-time": "2026-11-10T19:47:46+00:00"
         },
         {
             "name": "phar-io/manifest",

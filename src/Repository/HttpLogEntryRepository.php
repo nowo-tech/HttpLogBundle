@@ -6,6 +6,7 @@ namespace Nowo\HttpLogBundle\Repository;
 
 use DateTimeImmutable;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Mapping\ClassMetadata;
@@ -454,6 +455,12 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
     public function hasUsageColumns(): bool
     {
         return $this->resolveEntityManager()->getClassMetadata(HttpLogEntry::class)->hasField('channel');
+    }
+
+    /** Connection of the entity manager that holds the entries (transactions of the personal-data erasure). */
+    public function connection(): Connection
+    {
+        return $this->resolveEntityManager()->getConnection();
     }
 
     protected function getEntityManager(): EntityManagerInterface

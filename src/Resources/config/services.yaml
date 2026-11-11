@@ -25,6 +25,12 @@ services:
             - '../../Inbound/'
             - '../../Rollup/'
             - '../../Privacy/HttpLogUsageEraser.php'
+            # GDPR ports (1.18): value objects, and the UserKit adapters (registered by the extension with UserKit installed).
+            - '../../Privacy/HttpLogPersonalDataSubject.php'
+            - '../../Privacy/HttpLogErasureResult.php'
+            - '../../Privacy/HttpLogPersonalDataErasedEvent.php'
+            - '../../Privacy/HttpLogClientIpWindow.php'
+            - '../../Privacy/UserKit/'
             - '../../Command/RollupBackfillCommand.php'
 
     Nowo\HttpLogBundle\Repository\:
@@ -93,6 +99,24 @@ services:
     Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataEraserInterface:
         alias: Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataEraser
         public: true
+
+    # GDPR erasure by subject (result + event after the port's own commit) and export (1.18).
+    Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataErasureInterface:
+        alias: Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataErasure
+        public: true
+
+    Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataExporter:
+        arguments:
+            $exportLimit: '%nowo_http_log.personal_data.export_limit%'
+            $retentionConfig: '%nowo_http_log.retention%'
+
+    Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataExporterInterface:
+        alias: Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataExporter
+        public: true
+
+    # SPI of the UserKit bridge; personal_data.subject_resolver replaces the alias.
+    Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataSubjectResolverInterface:
+        alias: Nowo\HttpLogBundle\Privacy\UserIdentifierSubjectResolver
 
     # autoconfigure: false (REQ-SF-004 rule 7) — on Symfony >= 7.3 a #[Route] class is autoconfigured with the
     # routing.controller tag, and the host's `routing.controllers` resource would then expose the admin UI without
