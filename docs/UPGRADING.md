@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.19.0](#to-1190)
   - [Framework-free request-context resolver (deprecation)](#framework-free-request-context-resolver-deprecation)
 - [To 1.18.0](#to-1180)
 - [To 1.17.0](#to-1170)
@@ -67,6 +68,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.19.0
+
+From **1.18.0**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 Target **1.19.0**. No action is required: every 1.18 configuration and custom service keeps working, and the stored
 rows are unchanged.

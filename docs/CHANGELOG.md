@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.19.0] - 2026-11-11](#1190---2026-11-11)
 - [[1.18.0] - 2026-11-11](#1180---2026-11-11)
 - [[1.17.0] - 2026-11-11](#1170---2026-11-11)
 - [[1.16.3] - 2026-11-10](#1163---2026-11-10)
@@ -48,6 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-11-11
+
 Target **1.19.0** (minor; no behaviour change for existing hosts).
 
 ### Added
@@ -82,6 +85,8 @@ Target **1.19.0** (minor; no behaviour change for existing hosts).
 - `Inbound\HttpLogRequestContextResolverInterface` (`resolve(Request, ?TokenInterface, string)`): implement
   `HttpRequestContextResolverInterface` instead; removed in 2.0. Resolvers that implement only the old port keep
   working unchanged; the container build reports a deprecation for each.
+
+[1.19.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.19.0
 
 ## [1.18.0] - 2026-11-11
 
