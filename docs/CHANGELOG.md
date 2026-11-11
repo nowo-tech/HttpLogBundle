@@ -47,6 +47,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- GDPR erasure and export ports (Beacon re-audit extraction #4): `Privacy\HttpLogPersonalDataErasureInterface`
+  (`erase(HttpLogPersonalDataSubject): HttpLogErasureResult`), `Privacy\HttpLogPersonalDataExporterInterface`
+  (`export()` of request metadata only, newest `personal_data.export_limit` entries with the total, and
+  `clientIpWindows()`), the `HttpLogPersonalDataSubject` value object (`fromUserIdentifier()`, `fromClientIp()`), the
+  `HttpLogErasureResult` and the `HttpLogPersonalDataErasedEvent` (dispatched after the port's own commit only, never
+  inside the caller's transaction). Exact matching (the SQL `=` only pre-filters, `===` re-check), idempotent, keyset
+  batches. `HttpLogPersonalDataEraserInterface` is unchanged; the new port delegates to it.
+- Optional UserKit bridge: with `nowo-tech/user-kit-bundle` installed, the `http_log` personal-data eraser (priority
+  100, original identifier plus `context['previous_email']`) and the `http_requests` export section (priority -50)
+  register automatically. New `personal_data` configuration node (`enabled`, `export_limit`, `subject_resolver`) and
+  the `HttpLogPersonalDataSubjectResolverInterface` SPI.
+- CI: the GDPR port tests run on MySQL 8.4 and PostgreSQL 17.
+
 ## [1.17.0] - 2026-11-11
 
 Slim admin list rows, keyset paging with a bounded cursor, composite indexes and an opt-in indexed prefix filter (Beacon PERF-1147-02). See [UPGRADING](https://github.com/nowo-tech/HttpLogBundle/blob/v1.17.0/docs/UPGRADING.md#to-1170).

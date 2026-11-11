@@ -115,7 +115,7 @@ final readonly class HttpLogPersonalDataExporter implements HttpLogPersonalDataE
 
             foreach ($rows as $row) {
                 if ($row['value'] === $subject->value) {
-                    yield ['id' => (int) $row['id'], 'client_ip' => $row['client_ip'], 'created_at' => self::date($row['created_at'])];
+                    yield ['id' => (int) $row['id'], 'client_ip' => $row['client_ip'], 'created_at' => $this->date($row['created_at'])];
                 }
             }
             $afterId = $rows === [] ? $afterId : (int) $rows[count($rows) - 1]['id'];
@@ -190,16 +190,16 @@ final readonly class HttpLogPersonalDataExporter implements HttpLogPersonalDataE
             $row = $byId[$id] ?? null; // null: deleted between the scan and the read
             if ($row !== null) {
                 $out[] = [
-                    'created_at'  => self::date($row['created_at'])->format(DATE_ATOM),
+                    'created_at'  => $this->date($row['created_at'])->format(DATE_ATOM),
                     'method'      => (string) $row['method'],
-                    'scheme'      => self::stringOrNull($row['scheme']),
-                    'host'        => self::stringOrNull($row['host']),
+                    'scheme'      => $this->stringOrNull($row['scheme']),
+                    'host'        => $this->stringOrNull($row['host']),
                     'path'        => (string) $row['path'],
-                    'route_name'  => self::stringOrNull($row['route_name']),
+                    'route_name'  => $this->stringOrNull($row['route_name']),
                     'status_code' => is_numeric($row['status_code']) ? (int) $row['status_code'] : null,
                     'duration_ms' => is_numeric($row['duration_ms']) ? (float) $row['duration_ms'] : null,
-                    'client_ip'   => self::stringOrNull($row['client_ip']),
-                    'channel'     => self::stringOrNull($row['channel'] ?? null),
+                    'client_ip'   => $this->stringOrNull($row['client_ip']),
+                    'channel'     => $this->stringOrNull($row['channel'] ?? null),
                 ];
             }
         }
@@ -207,12 +207,12 @@ final readonly class HttpLogPersonalDataExporter implements HttpLogPersonalDataE
         return $out;
     }
 
-    private static function date(mixed $value): DateTimeImmutable
+    private function date(mixed $value): DateTimeImmutable
     {
         return $value instanceof DateTimeImmutable ? $value : new DateTimeImmutable(is_string($value) ? $value : 'now');
     }
 
-    private static function stringOrNull(mixed $value): ?string
+    private function stringOrNull(mixed $value): ?string
     {
         return is_string($value) ? $value : null;
     }

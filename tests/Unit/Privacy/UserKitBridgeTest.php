@@ -51,7 +51,7 @@ final class UserKitBridgeTest extends TestCase
 
         $eraser->erase(new ErasureRequest($user, null, ['previous_email' => 'old@example.test'], 'ana@example.test'));
         $eraser->erase(new ErasureRequest($user, null, ['previous_email' => 'ana@example.test'], 'ana@example.test'));
-        $eraser->erase(new ErasureRequest($user, null, ['previous_email' => ''], null));
+        $eraser->erase(new ErasureRequest($user, null, ['previous_email' => '']));
         $eraser->erase(new ErasureRequest($user, null, ['previous_email' => str_repeat('a', 256)]));
         $eraser->erase(new ErasureRequest($user, null, ['previous_email' => ['not a string']]));
 

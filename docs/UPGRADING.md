@@ -66,6 +66,20 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+Nothing to change. New optional APIs: the GDPR erasure and export ports
+(`HttpLogPersonalDataErasureInterface`, `HttpLogPersonalDataExporterInterface`, see
+[USAGE](USAGE.md#gdpr-erasure-and-export)); `HttpLogPersonalDataEraserInterface` is unchanged.
+
+With `nowo-tech/user-kit-bundle` installed, the `http_log` eraser and the `http_requests` export section now register
+automatically: UserKit's personal-data erasure deletes the user's HTTP log entries and its export contains their request
+metadata. If your app already erases this table in its own UserKit eraser, set:
+
+```yaml
+nowo_http_log:
+    personal_data:
+        enabled: false
+```
+
 ## To 1.17.0
 
 ```bash
