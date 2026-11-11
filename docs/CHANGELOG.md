@@ -48,6 +48,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Target **1.19.0** (minor; no behaviour change for existing hosts).
+
+### Added
+
+- REQ-ARCH-001 rule 3: framework-free request-context resolver port
+  `Inbound\HttpRequestContextResolverInterface::resolveContext(HttpRequestContext, string)`. The new
+  `HttpRequestContext` value object carries scalars only (method, path, route name and scalar parameters, scalar
+  request attributes, headers, and behind a secured firewall the guarded user identifier, role names and scalar token
+  attributes). Headers are an allowlist, new `redaction.context_headers` (default `accept`, `accept-language`,
+  `content-type`, `user-agent`, `x-request-id`; hosts add their tenant header). `Authorization`, `Proxy-Authorization`,
+  `Cookie`, `Referer`, `Forwarded`, `X-Original-URL`, `X-Rewrite-URL`, `PHP_AUTH_*`, the `credential_headers` /
+  `headers` entries and any header, route, request or token attribute whose name contains token, secret, key, auth,
+  session, signature, passw or cookie are never in it, even when listed; nor is the query string (audit MR-H-L1,
+  MR-H-L2). Both ports share the tag, the priority chain and the guard; a class implementing both is called through
+  the new one.
+- REQ-ARCH-001 rule 1: `Context\HttpLogContextInterface` (`run()`, `runFrame()`, `current()`), public service alias of
+  `HttpLogContext`.
+- REQ-ARCH-001 rule 4: `Event\HttpLogEntryRecordedEvent` (ids and scalars only: channel, request id, method, route,
+  status, duration, time, and for usage rows the tenant / project / credential keys and provider), dispatched after a
+  web entry or usage row is committed; never inside a transaction the host left open, never for a row that was not
+  written; a failing listener is logged and ignored, and a failure to read the transaction state skips the event with
+  its own warning (MR-H-I3). No new personal data: no path, query, headers, bodies, client IP or user identifier.
+  Documented: with `async: true` and `doctrine_transaction` the event is never dispatched (MR-H-I1), and ids a
+  listener copies must be erased with the erasure ports (MR-H-I2).
+- Docs: "Standard Symfony host" and "DDD / hexagonal host" sections in USAGE; worker audit section for the new ports.
+- Tests: `DddHostKernelTest` (resolver implementing only the new port, event listener, interface alias; 600 requests,
+  two tenants, services resetter never called, flat memory), old-vs-new port guard equivalence, entry-recorded event
+  commit / rollback / failure cases, and rows identical with and without a dispatcher.
+
+### Deprecated
+
+- `Inbound\HttpLogRequestContextResolverInterface` (`resolve(Request, ?TokenInterface, string)`): implement
+  `HttpRequestContextResolverInterface` instead; removed in 2.0. Resolvers that implement only the old port keep
+  working unchanged; the container build reports a deprecation for each.
+
 ## [1.18.0] - 2026-11-11
 
 ### Added

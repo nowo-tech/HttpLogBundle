@@ -20,7 +20,7 @@ use function max;
  * $context->run($organization->getUuid(), fn () => $sync->pull($board), $project->getUuid());
  * ```
  */
-final class HttpLogContext implements ResetInterface
+final class HttpLogContext implements HttpLogContextInterface, ResetInterface
 {
     /** @var list<HttpLogFrame> */
     private array $frames = [];

@@ -24,6 +24,10 @@
   - [W-07 — Repository cached a closed EntityManager after `resetManager()` (Medium)](#w-07--repository-cached-a-closed-entitymanager-after-resetmanager-medium)
 - [Usage recommendations in worker mode](#usage-recommendations-in-worker-mode)
 - [Re-audit triggers](#re-audit-triggers)
+- [HL-1 usage capture (1.15.0)](#hl-1-usage-capture-1150)
+- [HL-1 named channels and rollup (Unreleased)](#hl-1-named-channels-and-rollup-unreleased)
+- [GDPR ports (Unreleased)](#gdpr-ports-unreleased)
+- [Framework-free ports and the entry-recorded event (Unreleased)](#framework-free-ports-and-the-entry-recorded-event-unreleased)
 
 ## Execution model assumed
 
@@ -180,3 +184,18 @@ request, memory stays flat. Igor: the remaining warning is still `MailerCaptureL
 services resetter: the erasing request is never written, the next request of the same IP always is.
 `HttpLogPersonalDataPortsTest` runs export / erase for two users 1 000 times on one instance with flat memory.
 
+
+## Framework-free ports and the entry-recorded event (Unreleased)
+
+| Service | State | Reset |
+| --- | --- | --- |
+| `HttpLogRequestContextResolution` (now also calls `HttpRequestContextResolverInterface`) | none (`final readonly`); the `HttpRequestContextFactory` it owns holds only the configured header names | n/a |
+| `HttpRequestContext` | value object built per resolution and never kept by the bundle (the resolved result stays on the request, as before) | n/a |
+| `HttpLogRecorder`, `UsageEntryWriter` (dispatch `HttpLogEntryRecordedEvent`) | none (`final readonly`); the event is created per written row and never kept | n/a |
+| `HttpLogContextInterface` | alias of `HttpLogContext` (same instance, same frame stack popped at `kernel.terminate`) | unchanged |
+
+`DddHostKernelTest` runs 600 named-channel requests on one kernel with the services resetter never called, alternating
+two tenants and an unauthenticated request, through a resolver that implements only the framework-free port and a
+listener of the entry-recorded event: every row and every event holds only its own request's tenant and credential,
+the context depth is 0 after each terminate, and memory stays within 4 MB after warm-up. Igor: no new finding (the one
+existing warning is unchanged).

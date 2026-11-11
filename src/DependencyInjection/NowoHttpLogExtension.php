@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use LogicException;
 use Nowo\HttpLogBundle\Command\RollupBackfillCommand;
 use Nowo\HttpLogBundle\Context\HttpLogContext;
+use Nowo\HttpLogBundle\Context\HttpLogContextInterface;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
 use Nowo\HttpLogBundle\Doctrine\PathPrefixColumnListener;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
@@ -18,6 +19,7 @@ use Nowo\HttpLogBundle\HttpClient\OutboundCapturePolicy;
 use Nowo\HttpLogBundle\HttpClient\OutboundClientFactory;
 use Nowo\HttpLogBundle\Inbound\HttpLogRequestContextResolution;
 use Nowo\HttpLogBundle\Inbound\HttpLogRequestContextResolverInterface;
+use Nowo\HttpLogBundle\Inbound\HttpRequestContextResolverInterface;
 use Nowo\HttpLogBundle\Inbound\InboundChannelMatcher;
 use Nowo\HttpLogBundle\Inbound\InboundRequestRecorder;
 use Nowo\HttpLogBundle\Inbound\InboundRequestSubscriber;
@@ -427,6 +429,8 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
 
         $container->registerForAutoconfiguration(HttpLogRequestContextResolverInterface::class)
             ->addTag(HttpLogRequestContextResolverInterface::TAG);
+        $container->registerForAutoconfiguration(HttpRequestContextResolverInterface::class)
+            ->addTag(HttpLogRequestContextResolution::RESOLVER_TAG);
 
         foreach (['outbound' => $outbound['enabled'], 'mailer' => $mailer['enabled'], 'rollup' => $rollupConfig['enabled']] as $block => $enabled) {
             if (!is_bool($enabled)) {
@@ -469,6 +473,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         $container->setDefinition(HttpLogContext::class, (new Definition(HttpLogContext::class))
             ->setPublic(true)
             ->addTag('kernel.reset', ['method' => 'reset']));
+        $container->setAlias(HttpLogContextInterface::class, HttpLogContext::class)->setPublic(true);
 
         if ($messenger['middleware']) {
             $container->setDefinition(self::CONTEXT_MIDDLEWARE, (new Definition(HttpLogContextMiddleware::class))
@@ -488,7 +493,13 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
 
         if ($usageColumns || $rollupEnabled) {
             $container->setDefinition(UsageEntryWriter::class, (new Definition(UsageEntryWriter::class))
-                ->setArguments([new Reference('doctrine'), $rollupEnabled ? new Reference(UsageRollupStore::class) : null]));
+                ->setArguments([
+                    new Reference('doctrine'),
+                    $rollupEnabled ? new Reference(UsageRollupStore::class) : null,
+                    new Reference('event_dispatcher', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+                    $logger,
+                ])
+                ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
             $container->setDefinition(UsageCaptureSink::class, (new Definition(UsageCaptureSink::class))
                 ->setArguments([
                     new Reference(UsageEntryWriter::class),
@@ -703,6 +714,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                 new Reference('security.helper', ContainerInterface::NULL_ON_INVALID_REFERENCE),
                 new Reference('security.untracked_token_storage', ContainerInterface::NULL_ON_INVALID_REFERENCE),
                 $config['redaction']['credential_headers'],
+                $config['redaction']['context_headers'],
             ])
             ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
         $container->setDefinition(InboundRequestRecorder::class, (new Definition(InboundRequestRecorder::class))

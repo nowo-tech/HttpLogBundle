@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+  - [Framework-free request-context resolver (deprecation)](#framework-free-request-context-resolver-deprecation)
 - [To 1.18.0](#to-1180)
 - [To 1.17.0](#to-1170)
   - [Index migration](#index-migration)
@@ -66,6 +67,44 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+Target **1.19.0**. No action is required: every 1.18 configuration and custom service keeps working, and the stored
+rows are unchanged.
+
+### Framework-free request-context resolver (deprecation)
+
+`HttpLogRequestContextResolverInterface::resolve(Request, ?TokenInterface, string)` takes Symfony types, which
+REQ-ARCH-001 rule 3 no longer allows in public ports. It is **deprecated in 1.19 and removed in 2.0**:
+
+| Deprecated | Use instead |
+|---|---|
+| `Inbound\HttpLogRequestContextResolverInterface::resolve(Request, ?TokenInterface, string)` | `Inbound\HttpRequestContextResolverInterface::resolveContext(HttpRequestContext, string)` |
+| `HttpLogRequestContextResolverInterface::TAG` | `HttpLogRequestContextResolution::RESOLVER_TAG` (same value, `nowo_http_log.request_context_resolver`) |
+
+How to migrate a resolver:
+
+1. Implement `Nowo\HttpLogBundle\Inbound\HttpRequestContextResolverInterface` (you may keep the old interface during
+   the transition; the bundle calls the new method when both are implemented). Autoconfiguration tags it as before.
+2. Read the request from the value object: `$context->routeName`, `$context->routeParam('id')`,
+   `$context->attribute('…')`, `$context->header('…')`, `$context->userIdentifier`, `$context->roles`.
+3. Headers are an allowlist: if your resolver reads a header (a tenant header), add it to
+   `nowo_http_log.redaction.context_headers` (default: `accept`, `accept-language`, `content-type`, `user-agent`,
+   `x-request-id`). Credential-like headers (`Authorization`, `Proxy-Authorization`, `Cookie`, `Referer`, `Forwarded`,
+   `X-Original-URL`, `X-Rewrite-URL`, any name with token, secret, key, auth, session, signature, passw or cookie) are
+   never given, even when listed.
+4. Replace `$token->getAttribute('api_token')` (an object) with a **scalar id** your authenticator stores under a plain
+   name, for example `$token->setAttribute('credential_id', (string) $apiToken->getId())`, read as
+   `$context->tokenAttribute('credential_id')`. Attribute names with token, secret, key, auth, session, signature, passw
+   or cookie are dropped, and values that reach the context must be ids, never secrets.
+5. The credential itself is not in the context (no `Authorization`, cookies, credential or redacted headers, query
+   string): a resolver must not derive anything from it, which the guard already required.
+
+Other additions, all optional: `HttpLogContextInterface` (type-hint it instead of `HttpLogContext`) and the
+`HttpLogEntryRecordedEvent` ([USAGE](USAGE.md#entry-recorded-event)). The event is not dispatched when `async: true`
+writes through a bus with `doctrine_transaction`, and ids a listener copies must be erased together with the
+bundle's erasure ports.
+
+In 2.0 the deprecated interface and its `TAG` constant are removed.
 
 ## To 1.18.0
 
