@@ -5,6 +5,10 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.17.0](#to-1170)
+  - [Index migration](#index-migration)
+  - [Prefix filters (opt-in)](#prefix-filters-opt-in)
+  - [Template overrides of the list](#template-overrides-of-the-list)
 - [To 1.16.3](#to-1163)
 - [To 1.16.2](#to-1162)
 - [To 1.16.1](#to-1161)
@@ -61,6 +65,96 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.17.0
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
+
+The admin list now reads only the columns it shows and pages by keyset (PERF-1147-02). Existing admin URLs and filters
+keep working: a 1.16 `?page=n` link without `cursor` opens page `n` (read by offset, within the 10 000-entry list cap);
+the links the list renders now carry `?cursor=` as well. Nothing changes in capture, export, purge or access checks.
+
+### Index migration
+
+Four existing indexes keep their names and gain a column, so a filtered page is read in `(created_at, id)` order from
+one index. Everything works before you migrate (only slower on large logs). Generate the migration as usual
+(`php bin/console doctrine:migrations:diff`), or apply the equivalent SQL (default names; add your
+`doctrine.table_prefix` / `table_name_prefix`):
+
+```sql
+-- MySQL / MariaDB
+ALTER TABLE nowo_http_log_entry
+    DROP INDEX idx_http_log_created_at,  ADD INDEX idx_http_log_created_at (created_at, id),
+    DROP INDEX idx_http_log_route_name,  ADD INDEX idx_http_log_route_name (route_name, created_at),
+    DROP INDEX idx_http_log_status_code, ADD INDEX idx_http_log_status_code (status_code, created_at),
+    DROP INDEX idx_http_log_client_ip,   ADD INDEX idx_http_log_client_ip (client_ip, created_at);
+
+-- PostgreSQL (CONCURRENTLY: outside a transaction, no write lock on a large table)
+DROP INDEX CONCURRENTLY idx_http_log_created_at;  CREATE INDEX CONCURRENTLY idx_http_log_created_at ON nowo_http_log_entry (created_at, id);
+DROP INDEX CONCURRENTLY idx_http_log_route_name;  CREATE INDEX CONCURRENTLY idx_http_log_route_name ON nowo_http_log_entry (route_name, created_at);
+DROP INDEX CONCURRENTLY idx_http_log_status_code; CREATE INDEX CONCURRENTLY idx_http_log_status_code ON nowo_http_log_entry (status_code, created_at);
+DROP INDEX CONCURRENTLY idx_http_log_client_ip;   CREATE INDEX CONCURRENTLY idx_http_log_client_ip ON nowo_http_log_entry (client_ip, created_at);
+
+-- SQLite
+DROP INDEX idx_http_log_created_at;  CREATE INDEX idx_http_log_created_at ON nowo_http_log_entry (created_at, id);
+DROP INDEX idx_http_log_route_name;  CREATE INDEX idx_http_log_route_name ON nowo_http_log_entry (route_name, created_at);
+DROP INDEX idx_http_log_status_code; CREATE INDEX idx_http_log_status_code ON nowo_http_log_entry (status_code, created_at);
+DROP INDEX idx_http_log_client_ip;   CREATE INDEX idx_http_log_client_ip ON nowo_http_log_entry (client_ip, created_at);
+```
+
+Text filters now match `%` and `_` literally (in 1.16 they were LIKE wildcards).
+
+### Prefix filters (opt-in)
+
+By default (`web_ui.filter_match: contains`) the `q`, `path` and `routeName` filters keep matching anywhere in the value
+(`LIKE '%value%'`, a scan of the table). With `prefix` they match the **start** of the value through indexes; the path
+is matched on a new nullable column `path_prefix` (its first 191 characters, written with each entry; a longer needle
+also checks the full path):
+
+```yaml
+nowo_http_log:
+    web_ui:
+        filter_match: prefix
+```
+
+Add the column and its index **before** deploying the configuration (the mapping is only added in `prefix` mode, so
+`doctrine:migrations:diff` generates it once the option is set), then fill it for existing rows:
+
+```sql
+-- MySQL / MariaDB
+ALTER TABLE nowo_http_log_entry ADD path_prefix VARCHAR(191) DEFAULT NULL,
+    ADD INDEX idx_http_log_path_prefix (path_prefix, created_at);
+UPDATE nowo_http_log_entry SET path_prefix = LEFT(path, 191) WHERE path_prefix IS NULL;
+
+-- PostgreSQL: varchar_pattern_ops lets LIKE 'x%' use the index under a non-C collation (Doctrine sees no diff)
+ALTER TABLE nowo_http_log_entry ADD path_prefix VARCHAR(191) DEFAULT NULL;
+CREATE INDEX CONCURRENTLY idx_http_log_path_prefix ON nowo_http_log_entry (path_prefix varchar_pattern_ops, created_at);
+UPDATE nowo_http_log_entry SET path_prefix = LEFT(path, 191) WHERE path_prefix IS NULL;
+-- same for the route and client IP prefixes of the q / routeName filters:
+DROP INDEX CONCURRENTLY idx_http_log_route_name; CREATE INDEX CONCURRENTLY idx_http_log_route_name ON nowo_http_log_entry (route_name varchar_pattern_ops, created_at);
+DROP INDEX CONCURRENTLY idx_http_log_client_ip;  CREATE INDEX CONCURRENTLY idx_http_log_client_ip ON nowo_http_log_entry (client_ip varchar_pattern_ops, created_at);
+
+-- SQLite (LIKE is not an index range on SQLite; the column keeps the prefix semantics)
+ALTER TABLE nowo_http_log_entry ADD COLUMN path_prefix VARCHAR(191) DEFAULT NULL;
+CREATE INDEX idx_http_log_path_prefix ON nowo_http_log_entry (path_prefix, created_at);
+UPDATE nowo_http_log_entry SET path_prefix = substr(path, 1, 191) WHERE path_prefix IS NULL;
+```
+
+On a large table, run the `UPDATE` in batches (e.g. `... WHERE path_prefix IS NULL AND id BETWEEN :from AND :to`).
+Rows whose `path_prefix` is still `NULL` are not matched by the path filter. Going back to `contains` leaves the column
+unused (drop it when you no longer need it).
+
+### Template overrides of the list
+
+The list rows passed to `@NowoHttpLogBundle/admin/index.html.twig` (`page.items`, `row` in `nowo_ui_list_row`) are
+`Nowo\HttpLogBundle\Model\HttpLogListRow` objects instead of `HttpLogEntry`. Overrides that read `row.id`,
+`row.createdAt`, `row.method`, `row.path`, `row.statusCode`, `row.durationMs`, `row.clientIp`, `row.routeName`,
+`row.host`, `row.scheme`, `row.userIdentifier`, `row.requestId`, `row.channel` or `row.provider` keep working. Headers,
+bodies, query parameters and the other usage columns are no longer loaded for the list: show them on the entry page,
+or read the entry by id. Code calling `HttpLogEntryRepository::findListPage()` keeps working (deprecated; use
+`findListRows()`).
 
 ## To 1.16.3
 

@@ -8,6 +8,8 @@ use DateTimeImmutable;
 use Nowo\HttpLogBundle\DependencyInjection\LegacyThemeBridge;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Enum\ExportFormat;
+use Nowo\HttpLogBundle\Model\HttpLogListCursor;
+use Nowo\HttpLogBundle\Model\HttpLogListRow;
 use Nowo\HttpLogBundle\Service\ExportFileStore;
 use Nowo\UiKitBundle\View\Action;
 use Nowo\UiKitBundle\View\Column;
@@ -71,11 +73,12 @@ final readonly class AdminPages
     }
 
     /**
-     * @param iterable<HttpLogEntry> $entries entries of the current page
+     * @param iterable<HttpLogEntry|HttpLogListRow> $entries rows of the current page (1.17: the list projection; entries still render)
      * @param array<string, FormView> $exportForms export format (csv, json) => CSRF form with the criteria (only enabled formats)
      * @param list<array{name: string, format: ExportFormat, size: int, createdAt: DateTimeImmutable}> $downloads finished
      *                                                                                                            background exports ({@see ExportFileStore::ready()}), offered as header actions
      * @param bool $totalCapped more entries match than the list pages through: the count shows "N+"
+     * @param HttpLogListCursor|null $cursor keyset position of this page, carried by the page links (`?cursor=`)
      */
     public function listPage(
         iterable $entries,
@@ -90,6 +93,7 @@ final readonly class AdminPages
         bool $canPurge = true,
         array $downloads = [],
         bool $totalCapped = false,
+        ?HttpLogListCursor $cursor = null,
     ): ListPage {
         $exportUrl = $this->urls->generate('nowo_http_log_admin_export');
         $purgeUrl  = $this->urls->generate('nowo_http_log_admin_purge');
@@ -164,10 +168,11 @@ final readonly class AdminPages
             $columns,
             $entries,
             $filters,
-            fn (HttpLogEntry $entry): array => [
+            fn (HttpLogEntry|HttpLogListRow $entry): array => [
                 Action::view($this->urls->generate('nowo_http_log_admin_show', ['id' => $entry->getId()]), $this->label('admin.action.view')),
             ],
-            new Pagination($page, $pageSize, $total, route: 'nowo_http_log_admin_index'),
+            // the page links carry this page's keyset position (a stale ?cursor= of the request is replaced)
+            new Pagination($page, $pageSize, $total, route: 'nowo_http_log_admin_index', query: [HttpLogListCursor::PARAM => $cursor?->toString()]),
             new EmptyState($this->label('admin.index.empty')),
             $filtered ? $this->urls->generate('nowo_http_log_admin_index') : null,
             bundle: LegacyThemeBridge::BUNDLE,

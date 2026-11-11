@@ -6,6 +6,8 @@ namespace Nowo\HttpLogBundle\Tests\Integration;
 
 use DateTimeImmutable;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
+use Nowo\HttpLogBundle\Model\HttpLogListCursor;
+use Nowo\HttpLogBundle\Model\HttpLogListRow;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
 use Nowo\HttpLogBundle\Service\ExportHttpLogService;
@@ -38,11 +40,12 @@ final class PaginationKeepsFiltersTest extends TestCase
         $calls   = [];
 
         $repository = $this->createMock(HttpLogEntryRepository::class);
-        $repository->method('findListPage')->willReturnCallback(
-            static function (array $criteria, int $page, int $pageSize) use (&$calls): array {
-                $calls[] = ['criteria' => $criteria, 'page' => $page];
+        $repository->method('findListRows')->willReturnCallback(
+            static function (array $criteria, int $page, int $pageSize, ?HttpLogListCursor $cursor) use (&$calls): array {
+                $calls[] = ['criteria' => $criteria, 'page' => $page, 'cursor' => $cursor];
+                $row     = new HttpLogListRow(10 - $page, new DateTimeImmutable('2026-08-03 10:0' . $page . ':00'), 'POST', '/api/items/' . $page, 201);
 
-                return ['items' => [AdminTwigHarness::entry($page)], 'total' => 5, 'total_capped' => false, 'page' => $page];
+                return ['items' => [$row], 'total' => 5, 'total_capped' => false, 'page' => $page, 'cursor' => HttpLogListCursor::fromRows($page, $row)];
             },
         );
 
@@ -55,6 +58,7 @@ final class PaginationKeepsFiltersTest extends TestCase
         $nextUrl = html_entity_decode($match[1]);
         self::assertStringContainsString('http_log_filter[method]=POST', urldecode($nextUrl));
         self::assertStringContainsString('page=2', $nextUrl);
+        self::assertStringContainsString('cursor=1.20260803100100.9.20260803100100.9', $nextUrl, 'The link carries the keyset position of page 1.');
 
         $second   = Request::create($nextUrl, 'GET');
         $pageTwo  = (string) $this->controller($harness, $repository, $second)->index($second)->getContent();
@@ -63,6 +67,9 @@ final class PaginationKeepsFiltersTest extends TestCase
         self::assertCount(2, $calls);
         self::assertSame(1, $calls[0]['page']);
         self::assertSame(2, $calls[1]['page']);
+        self::assertNull($calls[0]['cursor']);
+        self::assertSame('1.20260803100100.9.20260803100100.9', $calls[1]['cursor']?->toString());
+        self::assertStringContainsString('cursor=2.20260803100200.8.20260803100200.8', $pageTwo, 'Page 2 links carry page 2\'s position, not the request\'s.');
         self::assertEquals($expected, $calls[0]['criteria']);
         self::assertEquals($expected, $calls[1]['criteria'], 'Page 2 must still be filtered.');
         self::assertStringContainsString('http_log_filter%5Bmethod%5D=POST', $pageTwo, 'Page 2 links keep the filters too.');

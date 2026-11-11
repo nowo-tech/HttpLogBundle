@@ -10,6 +10,7 @@ use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Enum\ExportFormat;
 use Nowo\HttpLogBundle\Form\HttpLogFilterType;
 use Nowo\HttpLogBundle\Message\ExportHttpLogMessage;
+use Nowo\HttpLogBundle\Model\HttpLogListRow;
 use Nowo\HttpLogBundle\Security\HttpLogAccessCheckerInterface;
 use Nowo\HttpLogBundle\Security\HttpLogChannelAccessCheckerInterface;
 use Nowo\HttpLogBundle\Service\ExportFileStore;
@@ -311,8 +312,8 @@ final class HttpLogAdminControllerChannelAccessTest extends TestCase
     {
         $paths = [];
         foreach ($rows as $row) {
-            self::assertInstanceOf(HttpLogEntry::class, $row);
-            $paths[] = $row->getPath();
+            self::assertInstanceOf(HttpLogListRow::class, $row);
+            $paths[] = $row->path;
         }
 
         return $paths;

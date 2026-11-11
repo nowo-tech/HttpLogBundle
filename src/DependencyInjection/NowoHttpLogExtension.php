@@ -9,6 +9,7 @@ use LogicException;
 use Nowo\HttpLogBundle\Command\RollupBackfillCommand;
 use Nowo\HttpLogBundle\Context\HttpLogContext;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
+use Nowo\HttpLogBundle\Doctrine\PathPrefixColumnListener;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
 use Nowo\HttpLogBundle\Doctrine\UsageColumnsListener;
 use Nowo\HttpLogBundle\EventSubscriber\HttpLogSubscriber;
@@ -319,6 +320,12 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         // REQ-ORM-002: the table naming listener only exists when a name differs from the mapped one.
         $container->setParameter($alias . '.doctrine.table_prefix', $config['doctrine']['table_prefix']);
         $container->setParameter($alias . '.doctrine.table_name_prefix', $config['doctrine']['table_name_prefix']);
+        $container->setParameter($alias . '.web_ui.filter_match', $config['web_ui']['filter_match']);
+        if ($config['web_ui']['filter_match'] === Configuration::FILTER_MATCH_PREFIX) {
+            // Prefix filters (PERF-1147-02): map path_prefix and its index, before TablePrefixListener (priority 0).
+            $container->setDefinition(PathPrefixColumnListener::class, (new Definition(PathPrefixColumnListener::class))
+                ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata', 'priority' => 100]));
+        }
         [$usageColumns, $rollup] = $this->registerUsage($container, $config);
         $this->registerTableName($container, $config['doctrine']['table_prefix'], $config['doctrine']['table_name_prefix'], $usageColumns, $rollup);
         if ($config['doctrine']['table_prefix'] === '' && $config['doctrine']['table_name_prefix'] === TablePrefixListener::DEFAULT_TABLE_NAME_PREFIX) {

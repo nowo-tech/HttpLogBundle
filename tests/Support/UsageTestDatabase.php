@@ -15,6 +15,7 @@ use Doctrine\ORM\Tools\ToolEvents;
 use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\Persistence\ObjectManager;
 use Doctrine\Persistence\ObjectRepository;
+use Nowo\HttpLogBundle\Doctrine\PathPrefixColumnListener;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
 use Nowo\HttpLogBundle\Doctrine\UsageColumnsListener;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
@@ -46,6 +47,8 @@ final readonly class UsageTestDatabase implements ManagerRegistry
         array $connectionParams = ['driver' => 'pdo_sqlite', 'memory' => true],
         bool $createSchema = true,
         bool $rollup = false,
+        // web_ui.filter_match: prefix (maps path_prefix)
+        bool $pathPrefix = false,
     ) {
         $events             = new EventManager();
         $this->rollupTables = RollupTables::fromPrefixes($tablePrefix, $tableNamePrefix);
@@ -54,6 +57,9 @@ final readonly class UsageTestDatabase implements ManagerRegistry
         }
         if ($usageColumns) {
             $events->addEventListener(Events::loadClassMetadata, new UsageColumnsListener());
+        }
+        if ($pathPrefix) {
+            $events->addEventListener(Events::loadClassMetadata, new PathPrefixColumnListener());
         }
         if ($tablePrefix !== '' || $tableNamePrefix !== TablePrefixListener::DEFAULT_TABLE_NAME_PREFIX) {
             $events->addEventListener(Events::loadClassMetadata, new TablePrefixListener($tablePrefix, $tableNamePrefix, $usageColumns));

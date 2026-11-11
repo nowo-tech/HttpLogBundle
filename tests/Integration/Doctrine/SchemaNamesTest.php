@@ -31,10 +31,10 @@ use const PHP_VERSION_ID;
 final class SchemaNamesTest extends TestCase
 {
     private const INDEXES = [
-        'idx_http_log_client_ip'   => 'client_ip',
-        'idx_http_log_created_at'  => 'created_at',
-        'idx_http_log_route_name'  => 'route_name',
-        'idx_http_log_status_code' => 'status_code',
+        'idx_http_log_client_ip'   => 'client_ip,created_at',
+        'idx_http_log_created_at'  => 'created_at,id',
+        'idx_http_log_route_name'  => 'route_name,created_at',
+        'idx_http_log_status_code' => 'status_code,created_at',
     ];
 
     #[Test]
@@ -58,10 +58,10 @@ final class SchemaNamesTest extends TestCase
     {
         self::assertSame(['app_nowo_http_log_entry' => [
             'UNIQ_FA816E21427EB8A5'        => 'request_id',
-            'app_idx_http_log_client_ip'   => 'client_ip',
-            'app_idx_http_log_created_at'  => 'created_at',
-            'app_idx_http_log_route_name'  => 'route_name',
-            'app_idx_http_log_status_code' => 'status_code',
+            'app_idx_http_log_client_ip'   => 'client_ip,created_at',
+            'app_idx_http_log_created_at'  => 'created_at,id',
+            'app_idx_http_log_route_name'  => 'route_name,created_at',
+            'app_idx_http_log_status_code' => 'status_code,created_at',
         ]], $this->schemaNames(['table_prefix' => 'app_']));
     }
 

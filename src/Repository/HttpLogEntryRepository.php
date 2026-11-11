@@ -15,7 +15,10 @@ use Doctrine\Persistence\Mapping\Driver\MappingDriver;
 use InvalidArgumentException;
 use LogicException;
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
+use Nowo\HttpLogBundle\Doctrine\PathPrefixColumnListener;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
+use Nowo\HttpLogBundle\Model\HttpLogListCursor;
+use Nowo\HttpLogBundle\Model\HttpLogListRow;
 use Nowo\HttpLogBundle\Usage\HttpLogChannel;
 use SortDirection;
 
@@ -24,6 +27,8 @@ use function array_filter;
 use function array_key_exists;
 use function array_keys;
 use function array_map;
+use function array_merge;
+use function array_reverse;
 use function array_values;
 use function ceil;
 use function count;
@@ -31,9 +36,11 @@ use function in_array;
 use function is_array;
 use function is_string;
 use function max;
+use function mb_strlen;
 use function min;
 use function sprintf;
 use function str_starts_with;
+use function strtr;
 
 /**
  * Resolves the EntityManager from {@see ManagerRegistry} on every call so a closed manager
@@ -45,6 +52,13 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
 {
     /** Entries the admin list paginates and counts at most (deeper results: narrow the filters). */
     public const MAX_LISTED = 10000;
+
+    /**
+     * Up to this many matching entries, the list pages read them by primary key from the ids the count already
+     * collected (PERF-1147-02): a planner that walks the created_at index for a few scattered matches would read most of
+     * the table. Below SQLite's oldest bound-parameter limit (999).
+     */
+    public const SMALL_MATCH_SET = 500;
 
     /** HL-1 exact-match filters of the admin list (applied only while the usage columns are mapped). */
     public const USAGE_EXACT_FILTERS = ['provider', 'tenantKey', 'projectKey', 'credentialKind'];
@@ -123,6 +137,9 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
      * Admin list page: at most {@see MAX_LISTED} matching entries are paginated and counted, so a huge log never costs a
      * full COUNT or a deep OFFSET per page view. `total_capped` is true when more entries match (narrow the filters).
      *
+     * @deprecated since 1.17, use {@see findListRows()}: this one hydrates full entries (headers and bodies) and pages
+     *             by OFFSET; it will be removed in 2.0
+     *
      * @param array<string, mixed> $criteria
      * @param int $maxListed cap (defaults to {@see MAX_LISTED})
      *
@@ -148,6 +165,131 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
         $items = $qb->getQuery()->getResult();
 
         return ['items' => $items, 'total' => $total, 'total_capped' => $matched > $maxListed, 'page' => $page];
+    }
+
+    /**
+     * Admin list page (PERF-1147-02): a scalar projection of the listed columns ({@see HttpLogListRow}; never the query
+     * string, headers or bodies) read in `(created_at, id)` order by keyset.
+     *
+     * At most {@see MAX_LISTED} matching entries are counted (`total_capped` = more match). Page 1 is the newest rows.
+     * With the `$cursor` of the page the link was rendered from, page `n` seeks past that page's last (older pages) or
+     * first (newer pages) row through the `created_at` index and skips only the pages in between: adjacent pages read
+     * exactly one page of rows, whatever their depth. Without a usable cursor (a 1.16 `?page=` link, a stale cursor),
+     * the page is read by OFFSET, bounded by the cap. Up to {@see SMALL_MATCH_SET} matches are read by primary key, and
+     * no match reads no page. `cursor` in the result is the position of the returned page.
+     *
+     * @param array<string, mixed> $criteria
+     * @param int $maxListed cap (defaults to {@see MAX_LISTED})
+     *
+     * @return array{items: list<HttpLogListRow>, total: int, total_capped: bool, page: int, cursor: HttpLogListCursor|null}
+     */
+    public function findListRows(array $criteria, int $page, int $pageSize, ?HttpLogListCursor $cursor = null, int $maxListed = self::MAX_LISTED): array
+    {
+        $pageSize = max(1, $pageSize);
+        $countQb  = $this->createQueryBuilder('e')->select('e.id')->setMaxResults($maxListed + 1);
+        $this->applyCriteria($countQb, $criteria);
+        /** @var list<array{id: int|string}> $idRows */
+        $idRows  = $countQb->getQuery()->getScalarResult();
+        $ids     = array_map(static fn (array $row): int => (int) $row['id'], $idRows);
+        $matched = count($ids);
+        $total   = min($matched, $maxListed);
+        $page    = min(max(1, $page), max(1, (int) ceil($total / $pageSize)));
+        // the last page of a capped list ends at the cap
+        $limit = max(1, min($pageSize, $total - ($page - 1) * $pageSize));
+        // a few matches: read them by primary key (their ids are the whole match set) instead of a created_at walk
+        $only = $matched <= min(self::SMALL_MATCH_SET, $maxListed) ? $ids : null;
+
+        $items = null;
+        if ($total === 0) {
+            $items = [];
+        } elseif ($page === 1) {
+            $items = $this->listRows($criteria, $limit, only: $only);
+        } elseif ($cursor instanceof HttpLogListCursor) {
+            $items = $this->seekListRows($criteria, $page, $pageSize, $limit, $cursor, $only);
+        }
+        // no cursor, or none of its rows left: offset from the newest row, bounded by the cap
+        $items ??= $this->listRows($criteria, $limit, ($page - 1) * $pageSize, only: $only);
+
+        return [
+            'items'        => $items,
+            'total'        => $total,
+            'total_capped' => $matched > $maxListed,
+            'page'         => $page,
+            'cursor'       => HttpLogListCursor::fromRows($page, ...$items),
+        ];
+    }
+
+    /**
+     * Rows of page `$page` relative to the page `$cursor` was taken from; null when no row is found there (the caller
+     * falls back to the offset read).
+     *
+     * @param array<string, mixed> $criteria
+     * @param list<int>|null $only ids of the whole (small) match set
+     *
+     * @return list<HttpLogListRow>|null
+     */
+    private function seekListRows(array $criteria, int $page, int $pageSize, int $limit, HttpLogListCursor $cursor, ?array $only): ?array
+    {
+        if ($page >= $cursor->page) {
+            // same page (reload): from its first row on; an older page: after its last row, skipping the pages between
+            [$createdAt, $id, $inclusive, $skip] = $page === $cursor->page
+                ? [$cursor->firstCreatedAt, $cursor->firstId, true, 0]
+                : [$cursor->lastCreatedAt, $cursor->lastId, false, ($page - $cursor->page - 1) * $pageSize];
+            $rows = $this->listRows($criteria, $limit, $skip, [$createdAt, $id, $inclusive ? '<=' : '<'], $only);
+        } else {
+            // a newer page: before its first row, read upwards (oldest first) and reversed
+            $rows = array_reverse($this->listRows($criteria, $limit, ($cursor->page - $page - 1) * $pageSize, [$cursor->firstCreatedAt, $cursor->firstId, '>'], $only));
+        }
+
+        // none: the cursor points past the rows that still match (purged, filtered out)
+        return $rows === [] ? null : $rows;
+    }
+
+    /**
+     * One page of the projection, newest first (`>` reads oldest first): `$after` = [created_at, id, operator] is the
+     * keyset bound (`<`, `<=` or `>` on the pair), `$offset` the rows skipped after it, `$only` the ids of a small match
+     * set (read by primary key; the criteria still apply).
+     *
+     * @param array<string, mixed> $criteria
+     * @param array{0: DateTimeImmutable, 1: int, 2: '<'|'<='|'>'}|null $after
+     * @param list<int>|null $only
+     *
+     * @return list<HttpLogListRow>
+     */
+    private function listRows(array $criteria, int $limit, int $offset = 0, ?array $after = null, ?array $only = null): array
+    {
+        $fields = HttpLogListRow::FIELDS;
+        if ($this->hasUsageColumns()) {
+            $fields = array_merge($fields, HttpLogListRow::USAGE_FIELDS);
+        }
+        $direction = $after !== null && $after[2] === '>' ? SortDirection::Ascending : SortDirection::Descending;
+
+        $qb = $this->createQueryBuilder('e')
+            ->select(array_map(static fn (string $field): string => 'e.' . $field, $fields))
+            ->orderBy('e.createdAt', $direction)
+            ->addOrderBy('e.id', $direction)
+            ->setFirstResult($offset)
+            ->setMaxResults($limit);
+        if ($after !== null) {
+            [$createdAt, $id, $operator] = $after;
+            // (created_at, id) <op> (:c, :i), written so the created_at bound alone is an index range
+            $qb->andWhere(match ($operator) {
+                '<'  => 'e.createdAt <= :keysetAt AND (e.createdAt < :keysetAt OR e.id < :keysetId)',
+                '<=' => 'e.createdAt <= :keysetAt AND (e.createdAt < :keysetAt OR e.id <= :keysetId)',
+                '>'  => 'e.createdAt >= :keysetAt AND (e.createdAt > :keysetAt OR e.id > :keysetId)',
+            })
+                ->setParameter('keysetAt', $createdAt)
+                ->setParameter('keysetId', $id);
+        }
+        if ($only !== null) {
+            $qb->andWhere('e.id IN (:listIds)')->setParameter('listIds', $only);
+        }
+        $this->applyCriteria($qb, $criteria);
+
+        /** @var list<array<string, mixed>> $rows */
+        $rows = $qb->getQuery()->getArrayResult();
+
+        return array_map(HttpLogListRow::fromArray(...), $rows);
     }
 
     /**
@@ -368,9 +510,11 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
                 ->setParameter('method', strtoupper($criteria['method']));
         }
 
+        $prefix = $this->hasPathPrefixColumn();
+
         if (isset($criteria['routeName']) && is_string($criteria['routeName']) && $criteria['routeName'] !== '') {
-            $qb->andWhere('e.routeName LIKE :routeName')
-                ->setParameter('routeName', '%' . $criteria['routeName'] . '%');
+            $qb->andWhere("e.routeName LIKE :routeName ESCAPE '!'")
+                ->setParameter('routeName', $this->likePattern($criteria['routeName'], $prefix));
         }
 
         if (array_key_exists('statusCode', $criteria) && $criteria['statusCode'] !== '' && $criteria['statusCode'] !== null) {
@@ -384,8 +528,11 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
         }
 
         if (isset($criteria['path']) && is_string($criteria['path']) && $criteria['path'] !== '') {
-            $qb->andWhere('e.path LIKE :path')
-                ->setParameter('path', '%' . $criteria['path'] . '%');
+            if ($prefix) {
+                $qb->andWhere($this->pathPrefixCondition($qb, $criteria['path'], 'path'));
+            } else {
+                $qb->andWhere("e.path LIKE :path ESCAPE '!'")->setParameter('path', $this->likePattern($criteria['path'], false));
+            }
         }
 
         if (isset($criteria['bodyContentType']) && is_string($criteria['bodyContentType']) && $criteria['bodyContentType'] !== '') {
@@ -413,12 +560,45 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
         if (isset($criteria['q']) && is_string($criteria['q']) && $criteria['q'] !== '') {
             $qb->andWhere(
                 $qb->expr()->orX(
-                    'e.path LIKE :q',
-                    'e.routeName LIKE :q',
-                    'e.clientIp LIKE :q',
+                    $prefix ? $this->pathPrefixCondition($qb, $criteria['q'], 'q') : "e.path LIKE :q ESCAPE '!'",
+                    "e.routeName LIKE :q ESCAPE '!'",
+                    "e.clientIp LIKE :q ESCAPE '!'",
                 ),
-            )->setParameter('q', '%' . $criteria['q'] . '%');
+            )->setParameter('q', $this->likePattern($criteria['q'], $prefix));
         }
+    }
+
+    /**
+     * Prefix match of the path on the indexed `path_prefix` column (parameter `:<param>_prefix`); a needle longer than
+     * the column also checks the full path (parameter `:<param>`, the full prefix pattern).
+     */
+    private function pathPrefixCondition(QueryBuilder $qb, string $needle, string $param): string
+    {
+        $qb->setParameter($param . '_prefix', $this->likePattern(HttpLogEntry::pathPrefixOf($needle), true));
+        $condition = sprintf("e.%s LIKE :%s_prefix ESCAPE '!'", PathPrefixColumnListener::FIELD, $param);
+        if (mb_strlen($needle) <= HttpLogEntry::PATH_PREFIX_LENGTH) {
+            return $condition;
+        }
+        $qb->setParameter($param, $this->likePattern($needle, true));
+
+        return sprintf("(%s AND e.path LIKE :%s ESCAPE '!')", $condition, $param);
+    }
+
+    /**
+     * LIKE pattern of a filter value: `%` and `_` typed by the user match literally (escape character `!`), then
+     * `value%` (prefix, index range) or `%value%` (contains, scan).
+     */
+    private function likePattern(string $value, bool $prefix): string
+    {
+        $escaped = strtr($value, ['!' => '!!', '%' => '!%', '_' => '!_']);
+
+        return ($prefix ? '' : '%') . $escaped . '%';
+    }
+
+    /** `web_ui.filter_match: prefix` maps the `path_prefix` column ({@see PathPrefixColumnListener}). */
+    public function hasPathPrefixColumn(): bool
+    {
+        return $this->resolveEntityManager()->getClassMetadata(HttpLogEntry::class)->hasField(PathPrefixColumnListener::FIELD);
     }
 
     /**
