@@ -80,6 +80,9 @@ final class ChannelsRollupExtensionTest extends TestCase
         self::assertSame([], $container->getDefinition(HttpLogRequestContextResolution::class)->getArgument(7), 'credential headers: Authorization only by default');
         $listed = $this->load(['channels' => ['api' => ['path_prefixes' => ['/api']]], 'redaction' => ['credential_headers' => ['X-Api-Key']]]);
         self::assertSame(['X-Api-Key'], $listed->getDefinition(HttpLogRequestContextResolution::class)->getArgument(7));
+        self::assertSame([], $container->getDefinition(HttpLogRequestContextResolution::class)->getArgument(9), 'context attributes: none by default');
+        $attributes = $this->load(['channels' => ['api' => ['path_prefixes' => ['/api']]], 'redaction' => ['context_attributes' => ['_app_api_credential']]]);
+        self::assertSame(['_app_api_credential'], $attributes->getDefinition(HttpLogRequestContextResolution::class)->getArgument(9));
     }
 
     #[Test]

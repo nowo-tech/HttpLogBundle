@@ -32,6 +32,11 @@ use function strval;
  *
  * Values that reach the context must be ids (tenant UUID, credential row id), never secrets: the filters above are a
  * safety net, not a licence to keep a token in an attribute.
+ *
+ * Request attributes named in `redaction.context_attributes` (default: none) are also copied with their raw value,
+ * objects included, into {@see HttpRequestContext::allowlistedAttribute()}: exact, case-sensitive names, and the host's
+ * explicit allowlist wins over the secret-name and `_` prefix rules (the host's responsibility). They are never part
+ * of {@see HttpRequestContext::$attributes} unless the default scalar rule already copies them.
  */
 final readonly class HttpRequestContextFactory
 {
@@ -50,14 +55,19 @@ final readonly class HttpRequestContextFactory
     /** @var list<string> */
     private array $allowedHeaders;
 
+    /** @var list<string> */
+    private array $allowedAttributes;
+
     /**
      * @param list<string> $excludedHeaders header names to leave out even when allowed (the credential and redacted headers)
      * @param list<string> $allowedHeaders `redaction.context_headers` (case-insensitive)
+     * @param list<string> $allowedAttributes `redaction.context_attributes`: request attributes copied with their raw value (exact names)
      */
-    public function __construct(array $excludedHeaders = [], array $allowedHeaders = self::DEFAULT_CONTEXT_HEADERS)
+    public function __construct(array $excludedHeaders = [], array $allowedHeaders = self::DEFAULT_CONTEXT_HEADERS, array $allowedAttributes = [])
     {
-        $excluded = array_merge(self::ALWAYS_EXCLUDED_HEADERS, array_map(strtolower(...), $excludedHeaders));
-        $allowed  = [];
+        $this->allowedAttributes = array_values(array_unique($allowedAttributes));
+        $excluded                = array_merge(self::ALWAYS_EXCLUDED_HEADERS, array_map(strtolower(...), $excludedHeaders));
+        $allowed                 = [];
         foreach (array_unique(array_map(strtolower(...), $allowedHeaders)) as $name) {
             if (!in_array($name, $excluded, true) && !self::isSecretName($name)) {
                 $allowed[] = $name;
@@ -76,6 +86,12 @@ final readonly class HttpRequestContextFactory
     public function allowedHeaders(): array
     {
         return $this->allowedHeaders;
+    }
+
+    /** @return list<string> the request attribute names copied with their raw value (`redaction.context_attributes`) */
+    public function allowedAttributes(): array
+    {
+        return $this->allowedAttributes;
     }
 
     /**
@@ -104,6 +120,13 @@ final readonly class HttpRequestContextFactory
             }
         }
 
+        $allowlisted = [];
+        foreach ($this->allowedAttributes as $name) {
+            if ($request->attributes->has($name)) {
+                $allowlisted[$name] = $request->attributes->get($name);
+            }
+        }
+
         $route = $request->attributes->get('_route');
 
         return new HttpRequestContext(
@@ -116,6 +139,7 @@ final readonly class HttpRequestContextFactory
             userIdentifier: $userIdentifier,
             roles: $token instanceof TokenInterface ? array_values(array_map(strval(...), $token->getRoleNames())) : [],
             tokenAttributes: $token instanceof TokenInterface ? $this->scalars($token->getAttributes()) : [],
+            allowlistedAttributes: $allowlisted,
         );
     }
 

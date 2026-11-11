@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+  - [Raw request attributes for resolvers (opt-in)](#raw-request-attributes-for-resolvers-opt-in)
 - [To 1.19.0](#to-1190)
   - [Framework-free request-context resolver (deprecation)](#framework-free-request-context-resolver-deprecation)
 - [To 1.18.0](#to-1180)
@@ -68,6 +69,37 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+Target **1.20.0**, from **1.19.0**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
+
+Nothing to change: the new `redaction.context_attributes` allowlist defaults to `[]`, and the `HttpRequestContext`
+given to resolvers is then exactly the 1.19 one.
+
+### Raw request attributes for resolvers (opt-in)
+
+To read an object your authenticator stamps on the request (a resolver migrating from the deprecated
+`HttpLogRequestContextResolverInterface`), name the attribute and read it with `allowlistedAttribute()`:
+
+```yaml
+nowo_http_log:
+    redaction:
+        context_attributes: ['_app_api_credential']
+```
+
+```php
+$credential = $request->allowlistedAttribute('_app_api_credential'); // raw value, objects included
+```
+
+- The explicit list **wins** over the secret-name rule (MR-H-L2) and the `_` prefix rule: an attribute you name is
+  given even when it is called `api_token`. Name only what your resolvers need, and keep secrets out of those objects:
+  this is your responsibility.
+- `HttpRequestContext::attribute()` keeps its 1.19 signature (scalar or null) and rule; it never returns an object.
+- The values never appear in a dump, `var_export()`, `(array)` cast, `json_encode()` or `serialize()` of the context;
+  a clone or unserialized copy has none. The bundle never logs or persists them.
 
 ## To 1.19.0
 

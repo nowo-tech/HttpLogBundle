@@ -29,6 +29,7 @@ final class ConfigurationTest extends TestCase
         self::assertFalse($config['capture']['response_body_by_type']['html']);
         self::assertSame(65536, $config['capture']['max_body_bytes']);
         self::assertContains('Authorization', $config['redaction']['headers']);
+        self::assertSame([], $config['redaction']['context_attributes'], 'opt-in: no raw request attribute by default');
         self::assertSame(['/admin/http-log'], $config['ignore_path_prefixes']);
         self::assertTrue($config['ignore_default_path_prefixes']);
         self::assertSame(30, $config['retention']['days']);

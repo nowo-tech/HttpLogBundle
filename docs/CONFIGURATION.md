@@ -83,6 +83,7 @@ nowo_http_log:
             - content-type
             - user-agent
             - x-request-id
+        context_attributes: []            # raw request attributes for HttpRequestContextResolverInterface (1.20, opt-in)
     retention:
         days: 30                          # null = keep forever
         purge_batch_size: 1000            # Rows deleted per statement (keyset batches by id)
@@ -185,6 +186,7 @@ Applied **before** persistence.
 | `query_params` | Query keys replaced with `[REDACTED]`. |
 | `json_paths` | JSON object keys; supports `*.suffix` wildcard for nested keys. |
 | `context_headers` | Default `[accept, accept-language, content-type, user-agent, x-request-id]`. Allowlist of the headers a framework-free request-context resolver (`HttpRequestContextResolverInterface`) may read through `HttpRequestContext::header()`; add your tenant header (`X-Tenant`). `Authorization`, `Proxy-Authorization`, `Cookie`, `Referer`, `Forwarded`, `X-Original-URL`, `X-Rewrite-URL`, the `credential_headers` / `headers` entries and any name containing `token`, `secret`, `key`, `auth`, `session`, `signature`, `passw` or `cookie` are never given, even when listed. Nothing is stored from it. Since 1.19.0. |
+| `context_attributes` | Default `[]`. Request attribute names (exact, case-sensitive) whose **raw** value, objects included, a framework-free request-context resolver reads through `HttpRequestContext::allowlistedAttribute()` (e.g. the credential object your authenticator stamps on the request). Your explicit list wins over the secret-name and `_` prefix rules of the scalar `attributes`: name only what your resolvers need (your responsibility). The values are never in a dump of the context, never logged and never persisted. Since 1.20.0. |
 | `credential_headers` | Default `[]`. Headers that carry the request's credential besides `Authorization` (e.g. `X-Api-Key` when your API authenticates with it). The named-channel resolver guard drops a returned value that contains, or is a 6+-character prefix of, `Authorization` or these headers; other redacted values are compared with the credential id by exact equality only. List each such header in `headers` as well, so web rows redact it. Since 1.16.1. |
 
 Bodies are redacted **in full, before** `max_body_bytes` truncation, according to their `Content-Type`:

@@ -91,6 +91,8 @@ final readonly class HttpLogRequestContextResolution
      *                                                          not authenticated yet
      * @param list<string> $credentialHeaders `redaction.credential_headers`: headers that carry the request's credential, like `Authorization`
      * @param list<string> $contextHeaders `redaction.context_headers`: the headers a framework-free resolver may read (allowlist)
+     * @param list<string> $contextAttributes `redaction.context_attributes`: the request attributes a framework-free resolver
+     *                                        receives with their raw value (allowlist, default none)
      */
     public function __construct(
         private iterable $resolvers = [],
@@ -103,9 +105,10 @@ final readonly class HttpLogRequestContextResolution
         private ?TokenStorageInterface $untrackedTokenStorage = null,
         private array $credentialHeaders = [],
         array $contextHeaders = HttpRequestContextFactory::DEFAULT_CONTEXT_HEADERS,
+        array $contextAttributes = [],
     ) {
         $this->logger         = $logger ?? new NullLogger();
-        $this->contextFactory = new HttpRequestContextFactory([...$redactedHeaders, ...$credentialHeaders], $contextHeaders);
+        $this->contextFactory = new HttpRequestContextFactory([...$redactedHeaders, ...$credentialHeaders], $contextHeaders, $contextAttributes);
     }
 
     /** The guarded context of the request, resolved on first call and kept on the request. */
