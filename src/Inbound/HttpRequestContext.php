@@ -15,10 +15,13 @@ use function strtolower;
  * security token. It carries scalars only and is never stored: the row still holds only what the resolver returns
  * (an {@see HttpLogRequestContext}), guarded as before.
  *
- * Credentials never reach it: the `Authorization` and `Cookie` headers, every header listed in
- * `redaction.credential_headers` or `redaction.headers`, and the query string are left out. Resolve the credential
- * from what your authenticator stored as a **scalar** token attribute or request attribute (its database id), or
- * from the user identifier.
+ * Headers are an allowlist (`redaction.context_headers`, default `accept`, `accept-language`, `content-type`,
+ * `user-agent`, `x-request-id`; add your tenant header). `Authorization`, `Proxy-Authorization`, `Cookie`, `Referer`,
+ * `Forwarded`, `X-Original-URL`, `X-Rewrite-URL`, the `redaction.credential_headers` / `redaction.headers` headers and
+ * any header or attribute whose name contains token, secret, key, auth, session, signature, passw or cookie are never
+ * in it, even when listed; nor is the query string. Resolve the credential from an **id** your authenticator stored as
+ * a scalar token or request attribute (for example `credential_id`), or from the user identifier. Values that reach
+ * the context must be ids, never secrets.
  */
 final readonly class HttpRequestContext
 {
@@ -26,13 +29,13 @@ final readonly class HttpRequestContext
      * @param string $method the HTTP method (upper case)
      * @param string $path the path info (no query string)
      * @param string|null $routeName the matched route (`_route`), null when unrouted
-     * @param array<string, scalar|null> $routeParams the matched route parameters with a scalar value (`_route_params`)
-     * @param array<string, list<string>> $headers the request headers (lower-case names) minus the credential, cookie and redacted ones
-     * @param array<string, scalar|null> $attributes the request attributes with a scalar value whose name does not start with `_`
+     * @param array<string, scalar|null> $routeParams the matched route parameters with a scalar value whose name does not look like a secret
+     * @param array<string, list<string>> $headers the allowlisted request headers (lower-case names) that were sent
+     * @param array<string, scalar|null> $attributes the request attributes with a scalar value whose name neither starts with `_` nor looks like a secret
      * @param string|null $userIdentifier the authenticated user's identifier; null without a secured firewall or user, and
      *                                    when it equals, contains or starts the request's credential
      * @param list<string> $roles the role names of the security token (empty without one)
-     * @param array<string, scalar|null> $tokenAttributes the security token attributes with a scalar value
+     * @param array<string, scalar|null> $tokenAttributes the security token attributes with a scalar value whose name does not look like a secret
      */
     public function __construct(
         public string $method,
@@ -47,7 +50,7 @@ final readonly class HttpRequestContext
     ) {
     }
 
-    /** The first value of a header (case-insensitive name), or null when it is absent or left out. */
+    /** The first value of a header (case-insensitive name), or null when it is absent or not allowlisted. */
     public function header(string $name): ?string
     {
         return $this->headers[strtolower($name)][0] ?? null;

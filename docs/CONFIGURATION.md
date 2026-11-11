@@ -76,6 +76,13 @@ nowo_http_log:
             - '*.token'
             - '*._token'
             - '*._csrf_token'
+        credential_headers: []
+        context_headers:                  # allowlist for HttpRequestContextResolverInterface (1.19)
+            - accept
+            - accept-language
+            - content-type
+            - user-agent
+            - x-request-id
     retention:
         days: 30                          # null = keep forever
         purge_batch_size: 1000            # Rows deleted per statement (keyset batches by id)
@@ -177,6 +184,7 @@ Applied **before** persistence.
 | `headers` | Header names replaced with `[REDACTED]` (case-insensitive). |
 | `query_params` | Query keys replaced with `[REDACTED]`. |
 | `json_paths` | JSON object keys; supports `*.suffix` wildcard for nested keys. |
+| `context_headers` | Default `[accept, accept-language, content-type, user-agent, x-request-id]`. Allowlist of the headers a framework-free request-context resolver (`HttpRequestContextResolverInterface`) may read through `HttpRequestContext::header()`; add your tenant header (`X-Tenant`). `Authorization`, `Proxy-Authorization`, `Cookie`, `Referer`, `Forwarded`, `X-Original-URL`, `X-Rewrite-URL`, the `credential_headers` / `headers` entries and any name containing `token`, `secret`, `key`, `auth`, `session`, `signature`, `passw` or `cookie` are never given, even when listed. Nothing is stored from it. Since 1.19.0. |
 | `credential_headers` | Default `[]`. Headers that carry the request's credential besides `Authorization` (e.g. `X-Api-Key` when your API authenticates with it). The named-channel resolver guard drops a returned value that contains, or is a 6+-character prefix of, `Authorization` or these headers; other redacted values are compared with the credential id by exact equality only. List each such header in `headers` as well, so web rows redact it. Since 1.16.1. |
 
 Bodies are redacted **in full, before** `max_body_bytes` truncation, according to their `Content-Type`:

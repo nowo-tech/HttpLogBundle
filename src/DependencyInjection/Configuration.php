@@ -7,6 +7,7 @@ namespace Nowo\HttpLogBundle\DependencyInjection;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
 use Nowo\HttpLogBundle\Enum\CssFramework;
 use Nowo\HttpLogBundle\Enum\ExportFormat;
+use Nowo\HttpLogBundle\Inbound\HttpRequestContextFactory;
 use Nowo\HttpLogBundle\View\AdminChrome;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\NodeDefinition;
@@ -147,6 +148,11 @@ final class Configuration implements ConfigurationInterface
                             ->info('Headers that carry the request credential besides Authorization (e.g. X-Api-Key when your API authenticates with it). The named-channel resolver guard drops a value that contains or starts them; every other redacted value only when equal. Default: Authorization only.')
                             ->scalarPrototype()->cannotBeEmpty()->end()
                             ->defaultValue([])
+                        ->end()
+                        ->arrayNode('context_headers')
+                            ->info('Headers a framework-free request-context resolver (HttpRequestContextResolverInterface) may read: an allowlist. Add your tenant header (e.g. X-Tenant). Authorization, Proxy-Authorization, Cookie, Referer, Forwarded, X-Original-URL, X-Rewrite-URL, the credential and redacted headers, and any name containing token, secret, key, auth, session, signature, passw or cookie are never given, even when listed.')
+                            ->scalarPrototype()->cannotBeEmpty()->end()
+                            ->defaultValue(HttpRequestContextFactory::DEFAULT_CONTEXT_HEADERS)
                         ->end()
                         ->arrayNode('json_paths')
                             ->scalarPrototype()->end()

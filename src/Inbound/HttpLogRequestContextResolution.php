@@ -90,6 +90,7 @@ final readonly class HttpLogRequestContextResolution
      * @param TokenStorageInterface|null $untrackedTokenStorage `security.untracked_token_storage`, to tell a lazy firewall that has
      *                                                          not authenticated yet
      * @param list<string> $credentialHeaders `redaction.credential_headers`: headers that carry the request's credential, like `Authorization`
+     * @param list<string> $contextHeaders `redaction.context_headers`: the headers a framework-free resolver may read (allowlist)
      */
     public function __construct(
         private iterable $resolvers = [],
@@ -101,9 +102,10 @@ final readonly class HttpLogRequestContextResolution
         // any implementation (a host may decorate it); only Symfony's TokenStorage tells a pending lazy authentication
         private ?TokenStorageInterface $untrackedTokenStorage = null,
         private array $credentialHeaders = [],
+        array $contextHeaders = HttpRequestContextFactory::DEFAULT_CONTEXT_HEADERS,
     ) {
         $this->logger         = $logger ?? new NullLogger();
-        $this->contextFactory = new HttpRequestContextFactory([...$redactedHeaders, ...$credentialHeaders]);
+        $this->contextFactory = new HttpRequestContextFactory([...$redactedHeaders, ...$credentialHeaders], $contextHeaders);
     }
 
     /** The guarded context of the request, resolved on first call and kept on the request. */

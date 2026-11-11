@@ -575,7 +575,7 @@ final class ApiTokenUsageResolver implements HttpRequestContextResolverInterface
 
     public function resolveContext(HttpRequestContext $request, string $channel): ?HttpLogRequestContext
     {
-        $tokenId = $request->tokenAttribute('api_token_id');  // a scalar your authenticator stored on the token
+        $tokenId = $request->tokenAttribute('credential_id'); // the row id your authenticator stored on the token
         if (!is_string($tokenId)) {
             return null;
         }
@@ -592,12 +592,22 @@ final class ApiTokenUsageResolver implements HttpRequestContextResolverInterface
 ```
 
 `HttpRequestContext` holds scalars only: `method`, `path`, `routeName`, `routeParams` (`routeParam()`), the request
-`attributes` with a scalar value whose name does not start with `_` (`attribute()`), the `headers` (`header()`), and,
-only when a firewall with security enabled handled the request, the guarded `userIdentifier`, the token's `roles` and
-its scalar `tokenAttributes` (`tokenAttribute()`). **Credentials never reach it:** `Authorization`, `Cookie`, the
-`PHP_AUTH_*` values, every header in `redaction.credential_headers` / `redaction.headers` and the query string are left
-out. Have your authenticator store the credential's **database id** as a scalar token attribute (or request attribute)
-and read that.
+`attributes` whose name does not start with `_` (`attribute()`), the allowlisted `headers` (`header()`), and, only
+when a firewall with security enabled handled the request, the guarded `userIdentifier`, the token's `roles` and its
+scalar `tokenAttributes` (`tokenAttribute()`).
+
+- **Headers are an allowlist**, `redaction.context_headers` ([CONFIGURATION](CONFIGURATION.md#redaction)): by default
+  `Accept`, `Accept-Language`, `Content-Type`, `User-Agent` and `X-Request-Id`. Add your tenant header there
+  (`X-Tenant`) if your resolver reads one.
+- **Never given, even when listed:** `Authorization`, `Proxy-Authorization`, `Cookie`, `Referer` (it carries the
+  previous page's query), `Forwarded`, `X-Original-URL`, `X-Rewrite-URL`, `PHP_AUTH_*`, every header in
+  `redaction.credential_headers` / `redaction.headers`, and any header whose name contains `token`, `secret`, `key`,
+  `auth`, `session`, `signature`, `passw` or `cookie` (`X-Auth-Token`, `X-Forwarded-Access-Token`…). The query string is
+  never part of the context.
+- **Attributes:** request, route and token attributes are copied only when their value is a scalar and their name does
+  not match the same secret-name rule (`api_token`, `session_id` and `refresh_secret` are dropped).
+- **Values that reach the context must be ids, never secrets.** Have your authenticator store the credential's
+  **database id** under a plain name (`credential_id`) and read that; the filters are a safety net.
 
 The 1.18 port, `HttpLogRequestContextResolverInterface::resolve(Request, ?TokenInterface, string)`, is **deprecated
 since 1.19 and removed in 2.0** ([UPGRADING](UPGRADING.md#unreleased)). Resolvers that implement only it keep working
@@ -769,8 +779,15 @@ final readonly class CountApiCalls
 
 - Not dispatched inside a transaction your code left open (the row could still roll back), for a row that was not
   written (a redelivered message, a duplicate request id, a count-only rollup event), or when the write failed.
-- With `async: true` it is dispatched by the Messenger consumer that writes the row, not in the HTTP request.
+- With `async: true` it is dispatched by the Messenger consumer that writes the row, not in the HTTP request. If that
+  bus wraps handlers in `doctrine_transaction`, the insert always runs inside the middleware's transaction, so the
+  **web event is never dispatched** (the same holds for usage rows written there): listen to it only with `async: false`
+  or on a bus without `doctrine_transaction`.
 - A listener that throws is logged as a warning; the row stays written and the request is not affected.
+- **Copies are yours to erase.** Ids a listener keeps (tenant, credential, request id) are outside the bundle's tables,
+  so the erasure ports (`HttpLogPersonalDataErasureInterface`, `HttpLogUsageEraserInterface`) do not reach them: erase
+  them in the same use case that calls those ports (listen to `HttpLogPersonalDataErasedEvent`), and keep only what
+  your retention rules allow.
 - Outbound calls a listener makes are captured like any other (a listener that calls an API for every `outbound` row
   would feed itself: filter on the channel).
 

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\Tests\Integration;
 
 use DateTimeImmutable;
+use Doctrine\Persistence\ManagerRegistry;
+use Doctrine\Persistence\ObjectManager;
 use LogicException;
 use Nowo\HttpLogBundle\Event\HttpLogEntryRecordedEvent;
 use Nowo\HttpLogBundle\Rollup\UsageRollupStore;
@@ -23,6 +25,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use ReflectionClass;
 use ReflectionProperty;
+use RuntimeException;
 use Symfony\Component\Clock\MockClock;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -104,6 +107,32 @@ final class EntryRecordedEventTest extends TestCase
         self::assertCount(2, $warnings);
         self::assertSame([LogicException::class, LogicException::class], array_map(static fn (array $w): mixed => $w['context']['exception_class'] ?? null, $warnings));
         self::assertCount(2, $logger->records, 'the capture itself did not fail');
+    }
+
+    /** MR-H-I3: failing to read the transaction state skips the event and is not reported as a listener failure. */
+    #[Test]
+    public function aTransactionStateLookupFailureSkipsTheEventWithItsOwnWarning(): void
+    {
+        $db       = new UsageTestDatabase();
+        $calls    = 0;
+        $registry = $this->createStub(ManagerRegistry::class);
+        $registry->method('getManagerForClass')->willReturnCallback(static function () use ($db, &$calls): ObjectManager {
+            if (++$calls > 1) {
+                throw new RuntimeException('registry failure');
+            }
+
+            return $db->entityManager;
+        });
+        $events = $this->dispatcher($db);
+        $logger = new CollectingLogger();
+
+        self::assertTrue((new UsageEntryWriter($registry, null, $events, $logger))->write($this->usage('outbound')));
+
+        self::assertCount(1, $db->rows(), 'the row is written');
+        self::assertSame([], $events->dispatched);
+        self::assertCount(1, $logger->warnings());
+        self::assertSame('HTTP log entry-recorded event skipped: the transaction state could not be read.', $logger->warnings()[0]['message']);
+        self::assertSame(RuntimeException::class, $logger->warnings()[0]['context']['exception_class'] ?? null);
     }
 
     #[Test]

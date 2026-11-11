@@ -15,6 +15,7 @@ use function in_array;
 use function is_array;
 use function is_scalar;
 use function is_string;
+use function preg_match;
 use function str_starts_with;
 use function strtolower;
 use function strval;
@@ -23,21 +24,58 @@ use function strval;
  * HTTP edge of {@see HttpRequestContextResolverInterface}: builds the framework-free {@see HttpRequestContext} from a
  * Symfony request and token. Internal to the bundle (the resolution calls it); hosts receive the value object only.
  *
- * Credentials are left out: `Authorization`, `Cookie`, the `PHP_AUTH_*` pseudo headers, and every header listed in
- * `redaction.credential_headers` / `redaction.headers`. The query string is not part of the context at all.
+ * Headers are an **allowlist**: only the names in `redaction.context_headers` (default {@see DEFAULT_CONTEXT_HEADERS})
+ * are copied. Even a listed name is dropped when it is one of {@see ALWAYS_EXCLUDED_HEADERS}, is listed in
+ * `redaction.credential_headers` / `redaction.headers`, or looks like a secret ({@see SECRET_NAME_PATTERN}: token,
+ * secret, key, auth, session, signature, password, cookie). Request and token attributes keep only scalar values whose
+ * name does not look like a secret. The query string is never part of the context.
+ *
+ * Values that reach the context must be ids (tenant UUID, credential row id), never secrets: the filters above are a
+ * safety net, not a licence to keep a token in an attribute.
  */
 final readonly class HttpRequestContextFactory
 {
-    /** Headers that always carry a credential or a session. */
-    public const ALWAYS_EXCLUDED_HEADERS = ['authorization', 'cookie', 'php-auth-user', 'php-auth-pw', 'php-auth-digest'];
+    /** Safe default of `redaction.context_headers`. */
+    public const DEFAULT_CONTEXT_HEADERS = ['accept', 'accept-language', 'content-type', 'user-agent', 'x-request-id'];
+
+    /** Headers never copied, even when the host lists them. */
+    public const ALWAYS_EXCLUDED_HEADERS = [
+        'authorization', 'proxy-authorization', 'cookie', 'set-cookie', 'referer', 'forwarded', 'x-original-url',
+        'x-rewrite-url', 'php-auth-user', 'php-auth-pw', 'php-auth-digest',
+    ];
+
+    /** A header or attribute name matching this is never copied (case-insensitive). */
+    public const SECRET_NAME_PATTERN = '/token|secret|key|auth|session|signature|passw|cookie/i';
 
     /** @var list<string> */
-    private array $excludedHeaders;
+    private array $allowedHeaders;
 
-    /** @param list<string> $excludedHeaders extra header names to leave out (case-insensitive) */
-    public function __construct(array $excludedHeaders = [])
+    /**
+     * @param list<string> $excludedHeaders header names to leave out even when allowed (the credential and redacted headers)
+     * @param list<string> $allowedHeaders `redaction.context_headers` (case-insensitive)
+     */
+    public function __construct(array $excludedHeaders = [], array $allowedHeaders = self::DEFAULT_CONTEXT_HEADERS)
     {
-        $this->excludedHeaders = array_values(array_unique(array_merge(self::ALWAYS_EXCLUDED_HEADERS, array_map(strtolower(...), $excludedHeaders))));
+        $excluded = array_merge(self::ALWAYS_EXCLUDED_HEADERS, array_map(strtolower(...), $excludedHeaders));
+        $allowed  = [];
+        foreach (array_unique(array_map(strtolower(...), $allowedHeaders)) as $name) {
+            if (!in_array($name, $excluded, true) && !self::isSecretName($name)) {
+                $allowed[] = $name;
+            }
+        }
+        $this->allowedHeaders = $allowed;
+    }
+
+    /** True when a header or attribute name looks like it carries a secret (never copied). */
+    public static function isSecretName(string $name): bool
+    {
+        return preg_match(self::SECRET_NAME_PATTERN, $name) === 1;
+    }
+
+    /** @return list<string> the header names actually copied (the allowlist minus the exclusions) */
+    public function allowedHeaders(): array
+    {
+        return $this->allowedHeaders;
     }
 
     /**
@@ -47,24 +85,22 @@ final readonly class HttpRequestContextFactory
     public function create(Request $request, ?TokenInterface $token, ?string $userIdentifier): HttpRequestContext
     {
         $headers = [];
-        foreach ($request->headers->all() as $name => $values) {
-            $name = strtolower((string) $name);
-            if (in_array($name, $this->excludedHeaders, true)) {
-                continue;
-            }
+        foreach ($this->allowedHeaders as $name) {
             $list = [];
-            foreach ($values as $value) {
+            foreach ($request->headers->all($name) as $value) {
                 if (is_string($value)) {
                     $list[] = $value;
                 }
             }
-            $headers[$name] = $list;
+            if ($list !== []) {
+                $headers[$name] = $list;
+            }
         }
 
         $attributes = [];
-        foreach ($request->attributes->all() as $name => $value) {
-            if (!str_starts_with((string) $name, '_') && ($value === null || is_scalar($value))) {
-                $attributes[(string) $name] = $value;
+        foreach ($this->scalars($request->attributes->all()) as $name => $value) {
+            if (!str_starts_with($name, '_')) {
+                $attributes[$name] = $value;
             }
         }
 
@@ -83,7 +119,11 @@ final readonly class HttpRequestContextFactory
         );
     }
 
-    /** @return array<string, scalar|null> */
+    /**
+     * The scalar (or null) values whose name does not look like a secret.
+     *
+     * @return array<string, scalar|null>
+     */
     private function scalars(mixed $values): array
     {
         if (!is_array($values)) {
@@ -92,8 +132,9 @@ final readonly class HttpRequestContextFactory
 
         $scalars = [];
         foreach ($values as $name => $value) {
-            if ($value === null || is_scalar($value)) {
-                $scalars[(string) $name] = $value;
+            $name = (string) $name;
+            if (($value === null || is_scalar($value)) && !self::isSecretName($name)) {
+                $scalars[$name] = $value;
             }
         }
 

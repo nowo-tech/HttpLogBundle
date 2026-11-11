@@ -48,6 +48,8 @@ final class DddHostKernelTest extends TestCase
         'sampling_rate'        => 1.0,
         'ignore_path_prefixes' => ['/api'],
         'channels'             => ['api' => ['path_prefixes' => ['/api/']]],
+        // the host allowlists its tenant header for the framework-free resolver (MR-H-L1)
+        'redaction' => ['context_headers' => ['accept', 'X-Test-Org']],
     ];
 
     #[Test]

@@ -83,12 +83,19 @@ final readonly class UsageEntryWriter
             return;
         }
 
+        // the row is written: a failure to tell whether it is committed only skips the event
         try {
             $manager = $this->registry->getManagerForClass(HttpLogEntry::class);
             if (!$manager instanceof EntityManagerInterface || $manager->getConnection()->isTransactionActive()) {
                 return;
             }
+        } catch (Throwable $exception) {
+            $this->logger?->warning('HTTP log entry-recorded event skipped: the transaction state could not be read.', ['exception_class' => $exception::class]);
 
+            return;
+        }
+
+        try {
             $this->events->dispatch(new HttpLogEntryRecordedEvent(
                 channel: $capture->channel,
                 requestId: $capture->eventId,

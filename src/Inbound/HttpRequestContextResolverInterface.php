@@ -21,7 +21,8 @@ namespace Nowo\HttpLogBundle\Inbound;
 interface HttpRequestContextResolverInterface
 {
     /**
-     * @param HttpRequestContext $request scalars of the request; never the credential headers, cookies or query string
+     * @param HttpRequestContext $request scalars of the request: allowlisted headers only, never a credential, cookie,
+     *                                    secret-named value or the query string
      * @param string $channel the named channel that matched (`api`, `webhooks`…)
      */
     public function resolveContext(HttpRequestContext $request, string $channel): ?HttpLogRequestContext;

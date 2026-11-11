@@ -9,6 +9,7 @@ use Nowo\HttpLogBundle\Inbound\HttpLogRequestContext;
 use Nowo\HttpLogBundle\Inbound\HttpLogRequestContextResolution;
 use Nowo\HttpLogBundle\Inbound\HttpLogRequestContextResolverInterface;
 use Nowo\HttpLogBundle\Inbound\HttpRequestContext;
+use Nowo\HttpLogBundle\Inbound\HttpRequestContextFactory;
 use Nowo\HttpLogBundle\Inbound\HttpRequestContextResolverInterface;
 use Nowo\HttpLogBundle\Tests\Support\CollectingLogger;
 use Nowo\HttpLogBundle\Tests\Support\RecordingContextResolver;
@@ -22,6 +23,7 @@ use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 use Symfony\Component\Security\Core\User\InMemoryUser;
 
 use function array_column;
+use function array_keys;
 use function base64_encode;
 use function is_string;
 use function json_encode;
@@ -35,6 +37,16 @@ use const JSON_THROW_ON_ERROR;
  */
 final class HttpRequestContextResolverPortTest extends TestCase
 {
+    /**
+     * A host allowlist that also names every header the bundle must refuse anyway (MR-H-L1): only `accept` and the
+     * tenant header survive.
+     */
+    private const CONTEXT_HEADERS = [
+        'Accept', 'X-Test-Org', 'Authorization', 'Proxy-Authorization', 'Cookie', 'Referer', 'Forwarded', 'X-Original-URL',
+        'X-Rewrite-URL', 'X-Auth-Token', 'X-Forwarded-Access-Token', 'X-Access-Token', 'X-Session-Id', 'X-Hub-Signature',
+        'X-Client-Secret', 'X-Api-Key', 'X-Beacon-Token',
+    ];
+
     private CollectingLogger $logger;
 
     protected function setUp(): void
@@ -43,9 +55,10 @@ final class HttpRequestContextResolverPortTest extends TestCase
     }
 
     /** @param list<HttpLogRequestContextResolverInterface|HttpRequestContextResolverInterface> $resolvers */
-    private function resolution(array $resolvers, ?TokenStorage $storage = null): HttpLogRequestContextResolution
+    /** @param list<string> $contextHeaders */
+    private function resolution(array $resolvers, ?TokenStorage $storage = null, array $contextHeaders = self::CONTEXT_HEADERS): HttpLogRequestContextResolution
     {
-        return new HttpLogRequestContextResolution($resolvers, ['Authorization', 'Cookie', 'X-Api-Key'], ['token', 'api_key'], $this->logger, $storage, null, null, ['X-Beacon-Token']);
+        return new HttpLogRequestContextResolution($resolvers, ['Authorization', 'Cookie', 'X-Api-Key'], ['token', 'api_key'], $this->logger, $storage, null, null, ['X-Beacon-Token'], $contextHeaders);
     }
 
     private function legacy(?HttpLogRequestContext $context): HttpLogRequestContextResolverInterface
@@ -106,16 +119,30 @@ final class HttpRequestContextResolverPortTest extends TestCase
     {
         $resolver = $this->port(null);
         $request  = Request::create('/api/tasks/42?token=SEED15placeholder', 'POST', [], ['sid' => 'SEED31cookie'], [], [
-            'HTTP_AUTHORIZATION'  => 'Basic ' . base64_encode('client:SEED33secret'),
-            'HTTP_X_API_KEY'      => 'SEED30placeholder',
-            'HTTP_X_BEACON_TOKEN' => 'SEED36beacon',
-            'HTTP_X_TEST_ORG'     => 'org-a',
-            'HTTP_ACCEPT'         => 'application/json',
+            'HTTP_AUTHORIZATION'            => 'Basic ' . base64_encode('client:SEED33secret'),
+            'HTTP_X_API_KEY'                => 'SEED30placeholder',
+            'HTTP_X_BEACON_TOKEN'           => 'SEED36beacon',
+            'HTTP_X_TEST_ORG'               => 'org-a',
+            'HTTP_ACCEPT'                   => 'application/json',
+            'HTTP_X_AUTH_TOKEN'             => 'SEED40placeholder',
+            'HTTP_X_FORWARDED_ACCESS_TOKEN' => 'SEED41placeholder',
+            'HTTP_X_ACCESS_TOKEN'           => 'SEED42placeholder',
+            'HTTP_PROXY_AUTHORIZATION'      => 'Basic SEED43placeholder',
+            'HTTP_REFERER'                  => 'https://app.example.test/share?token=SEED44placeholder',
+            'HTTP_FORWARDED'                => 'for=192.0.2.60;proto=https',
+            'HTTP_X_ORIGINAL_URL'           => '/api/tasks/42?token=SEED45placeholder',
+            'HTTP_X_REWRITE_URL'            => '/api/tasks/42?token=SEED46placeholder',
+            'HTTP_X_SESSION_ID'             => 'SEED47placeholder',
+            'HTTP_X_HUB_SIGNATURE'          => 'sha256=SEED48placeholder',
+            'HTTP_X_CLIENT_SECRET'          => 'SEED49placeholder',
+            'HTTP_USER_AGENT'               => 'not-allowlisted-here',
         ]);
         $request->attributes->add([
             '_route'        => 'api_task',
-            '_route_params' => ['id' => '42', 'nested' => ['x']],
-            'api_token_id'  => 'pt-7',
+            '_route_params' => ['id' => '42', 'nested' => ['x'], 'token' => 'SEED52placeholder'],
+            'credential_id' => 'pt-7',
+            'api_token'     => 'SEED50placeholder',
+            'session_id'    => 'SEED51placeholder',
             'object'        => new HttpLogRequestContext(),
             '_internal'     => 'hidden',
         ]);
@@ -130,11 +157,12 @@ final class HttpRequestContextResolverPortTest extends TestCase
         self::assertSame('api_task', $context->routeName);
         self::assertSame(['id' => '42'], $context->routeParams);
         self::assertSame('42', $context->routeParam('id'));
-        self::assertSame(['api_token_id' => 'pt-7'], $context->attributes);
-        self::assertSame('pt-7', $context->attribute('api_token_id'));
+        self::assertSame(['credential_id' => 'pt-7'], $context->attributes, 'secret-like attribute names are dropped');
+        self::assertSame('pt-7', $context->attribute('credential_id'));
+        self::assertSame(['accept' => ['application/json'], 'x-test-org' => ['org-a']], $context->headers, 'allowlist minus the always-excluded and secret-like names');
         self::assertSame('org-a', $context->header('X-Test-Org'));
-        self::assertSame('application/json', $context->header('accept'));
-        foreach (['authorization', 'cookie', 'x-api-key', 'x-beacon-token', 'php-auth-user', 'php-auth-pw'] as $name) {
+        self::assertNull($context->header('user-agent'), 'not in this host\'s allowlist');
+        foreach (['authorization', 'proxy-authorization', 'cookie', 'referer', 'forwarded', 'x-original-url', 'x-rewrite-url', 'x-auth-token', 'x-forwarded-access-token', 'x-access-token', 'x-session-id', 'x-hub-signature', 'x-client-secret', 'x-api-key', 'x-beacon-token', 'php-auth-user', 'php-auth-pw'] as $name) {
             self::assertNull($context->header($name), $name);
         }
         self::assertNull($context->userIdentifier);
@@ -148,8 +176,10 @@ final class HttpRequestContextResolverPortTest extends TestCase
     public function theUserRolesAndScalarTokenAttributesComeOnlyFromASecuredFirewall(): void
     {
         $token = new UsernamePasswordToken(new InMemoryUser('ana@example.test', null, ['ROLE_API']), 'api', ['ROLE_API']);
-        $token->setAttribute('api_token_id', 'pt-9');
-        $token->setAttribute('api_token', new HttpLogRequestContext());
+        $token->setAttribute('credential_id', 'pt-9');
+        $token->setAttribute('api_token_id', 'SEED53placeholder');
+        $token->setAttribute('refresh_secret', 'SEED54placeholder');
+        $token->setAttribute('tenant', new HttpLogRequestContext());
         $storage = new TokenStorage();
         $storage->setToken($token);
 
@@ -164,10 +194,11 @@ final class HttpRequestContextResolverPortTest extends TestCase
         self::assertSame('ana@example.test', $context->userIdentifier);
         self::assertTrue($context->isAuthenticated());
         self::assertSame(['ROLE_API'], $context->roles);
-        self::assertSame(['api_token_id' => 'pt-9'], $context->tokenAttributes);
-        self::assertSame('pt-9', $context->tokenAttribute('api_token_id'));
-        self::assertTrue($context->hasTokenAttribute('api_token_id'));
-        self::assertFalse($context->hasTokenAttribute('api_token'));
+        self::assertSame(['credential_id' => 'pt-9'], $context->tokenAttributes, 'objects and secret-like names are dropped');
+        self::assertSame('pt-9', $context->tokenAttribute('credential_id'));
+        self::assertTrue($context->hasTokenAttribute('credential_id'));
+        self::assertFalse($context->hasTokenAttribute('api_token_id'));
+        self::assertFalse($context->hasTokenAttribute('tenant'));
 
         // a user identifier that is the request's credential is not given to the port either
         $storage->setToken(new UsernamePasswordToken(new InMemoryUser('SEED14placeholder', null), 'api'));
@@ -176,6 +207,33 @@ final class HttpRequestContextResolverPortTest extends TestCase
         $leaky = $this->port(null);
         $this->resolution([$leaky], $storage)->resolve($bearer, 'api');
         self::assertNull(($leaky->contexts[0] ?? null)?->userIdentifier);
+    }
+
+    #[Test]
+    public function theDefaultAllowlistGivesOnlyTheSafeHeaders(): void
+    {
+        $resolver = $this->port(null);
+        $request  = Request::create('/api/x', 'GET', [], [], [], [
+            'HTTP_ACCEPT'          => 'application/json',
+            'HTTP_ACCEPT_LANGUAGE' => 'es',
+            'CONTENT_TYPE'         => 'application/json',
+            'HTTP_USER_AGENT'      => 'agent/1.0',
+            'HTTP_X_REQUEST_ID'    => 'req-1',
+            'HTTP_X_TEST_ORG'      => 'org-a',
+            'HTTP_X_AUTH_TOKEN'    => 'SEED40placeholder',
+            'HTTP_REFERER'         => 'https://app.example.test/?token=SEED44placeholder',
+        ]);
+
+        $this->resolution([$resolver], null, HttpRequestContextFactory::DEFAULT_CONTEXT_HEADERS)->resolve($request, 'api');
+
+        $context = $resolver->contexts[0] ?? null;
+        self::assertInstanceOf(HttpRequestContext::class, $context);
+        self::assertSame(['accept', 'accept-language', 'content-type', 'user-agent', 'x-request-id'], array_keys($context->headers));
+        self::assertNull($context->header('x-test-org'), 'a tenant header must be allowlisted by the host');
+        self::assertStringNotContainsString('SEED', json_encode($context, JSON_THROW_ON_ERROR));
+        self::assertSame(['accept', 'x-test-org'], (new HttpRequestContextFactory(['X-Api-Key'], self::CONTEXT_HEADERS))->allowedHeaders());
+        self::assertTrue(HttpRequestContextFactory::isSecretName('X-Forwarded-Access-Token'));
+        self::assertFalse(HttpRequestContextFactory::isSecretName('credential_id'));
     }
 
     #[Test]
