@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\Privacy\UserKit;
 
 use InvalidArgumentException;
+use Nowo\HttpLogBundle\Privacy\HttpLogErasedSubjects;
 use Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataErasureInterface;
 use Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataSubject;
 use Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataSubjectResolverInterface;
@@ -30,6 +31,7 @@ final readonly class HttpLogUserKitPersonalDataEraser implements PersonalDataEra
     public function __construct(
         private HttpLogPersonalDataErasureInterface $erasure,
         private HttpLogPersonalDataSubjectResolverInterface $subjects,
+        private ?HttpLogErasedSubjects $erased = null,
     ) {
     }
 
@@ -45,6 +47,11 @@ final readonly class HttpLogUserKitPersonalDataEraser implements PersonalDataEra
 
     public function erase(ErasureRequest $request): void
     {
+        // Self-service: the current request is the person's own; an anonymising eraser may already have changed the
+        // identifier the recorder would log at kernel.terminate, so the request's own capture is dropped (LY-L2).
+        if ($request->isSelfService()) {
+            $this->erased?->dropCurrentRequest();
+        }
         // UserKit >= 1.12 captures the identifier before any eraser ran; older versions have no such property.
         $original = get_object_vars($request)['originalIdentifier'] ?? null;
         $subjects = $this->subjects->subjectsFor($request->user, is_string($original) ? $original : null);

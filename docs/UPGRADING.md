@@ -70,15 +70,23 @@ Nothing to change. New optional APIs: the GDPR erasure and export ports
 (`HttpLogPersonalDataErasureInterface`, `HttpLogPersonalDataExporterInterface`, see
 [USAGE](USAGE.md#gdpr-erasure-and-export)); `HttpLogPersonalDataEraserInterface` is unchanged.
 
-With `nowo-tech/user-kit-bundle` installed, the `http_log` eraser and the `http_requests` export section now register
-automatically: UserKit's personal-data erasure deletes the user's HTTP log entries and its export contains their request
-metadata. If your app already erases this table in its own UserKit eraser, set:
+The UserKit bridge is opt-in (`personal_data.enabled` defaults to `false`): nothing changes on upgrade. Set
+`personal_data.enabled: true` to let UserKit erase / export HTTP logs (the `http_log` eraser and the `http_requests`
+export section register then); keep `false` if you must retain access logs.
 
 ```yaml
 nowo_http_log:
     personal_data:
-        enabled: false
+        enabled: true
 ```
+
+Before enabling it, remove your own UserKit export provider with the section key `http_requests`, if any: UserKit's
+exporter throws a `LogicException` ("Duplicate personal data export section") on two providers with the same key, and
+the whole export fails. Your own eraser for this table can go too (the bundle's `http_log` eraser replaces it; two
+erasers would both run and the second would find nothing).
+
+Behaviour change: captures of a user identifier or client IP erased earlier in the same request, command or message are
+no longer written (the erasing request itself at `kernel.terminate`, buffered outbound / mailer captures).
 
 ## To 1.17.0
 

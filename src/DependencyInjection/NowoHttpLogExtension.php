@@ -26,6 +26,7 @@ use Nowo\HttpLogBundle\Inbound\RouteTemplateMap;
 use Nowo\HttpLogBundle\Mailer\MailerCaptureListener;
 use Nowo\HttpLogBundle\MessageHandler\PersistHttpLogHandler;
 use Nowo\HttpLogBundle\Messenger\HttpLogContextMiddleware;
+use Nowo\HttpLogBundle\Privacy\HttpLogErasedSubjects;
 use Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataSubjectResolverInterface;
 use Nowo\HttpLogBundle\Privacy\HttpLogUsageEraser;
 use Nowo\HttpLogBundle\Privacy\HttpLogUsageEraserInterface;
@@ -495,7 +496,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                     new Reference('messenger.default_bus', ContainerInterface::NULL_ON_INVALID_REFERENCE),
                 ]));
             $container->setDefinition(HttpLogBuffer::class, (new Definition(HttpLogBuffer::class))
-                ->setArguments([new Reference(UsageCaptureSink::class), $logger])
+                ->setArguments([new Reference(UsageCaptureSink::class), $logger, new Reference(HttpLogErasedSubjects::class)])
                 ->addTag('kernel.reset', ['method' => 'reset'])
                 ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
             $container->setDefinition(UsageBufferFlushSubscriber::class, (new Definition(UsageBufferFlushSubscriber::class))
@@ -714,6 +715,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                 $logger,
                 $rollupEnabled,
                 $rollupEnabled && $config['rollup']['web'],
+                new Reference(HttpLogErasedSubjects::class),
             ])
             ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
         $container->setDefinition(InboundRequestSubscriber::class, (new Definition(InboundRequestSubscriber::class))

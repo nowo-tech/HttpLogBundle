@@ -13,6 +13,8 @@ use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Enum\BodyContentType;
 use Nowo\HttpLogBundle\Message\PersistHttpLogMessage;
 use Nowo\HttpLogBundle\Model\HttpLogCapture;
+use Nowo\HttpLogBundle\Privacy\HttpLogErasedSubjects;
+use Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataSubject;
 use Nowo\HttpLogBundle\Service\CapturePolicy;
 use Nowo\HttpLogBundle\Service\ContentTypeClassifier;
 use Nowo\HttpLogBundle\Service\HttpLogRecorder;
@@ -700,6 +702,7 @@ final class HttpLogRecorderTest extends TestCase
         ?ManagerRegistry $managerRegistry = null,
         ?Security $security = null,
         ?HttpLogBuffer $buffer = null,
+        ?HttpLogErasedSubjects $erased = null,
     ): HttpLogRecorder {
         $clock = $this->createMock(ClockInterface::class);
         $clock->method('now')->willReturn(new DateTimeImmutable('2026-08-03T10:00:00+00:00'));
@@ -732,7 +735,38 @@ final class HttpLogRecorderTest extends TestCase
             $managerRegistry,
             $security,
             $buffer,
+            $erased,
         );
+    }
+
+    #[Test]
+    public function aRequestOfAValueErasedInTheSameRequestIsNotRecorded(): void
+    {
+        $erased   = new HttpLogErasedSubjects();
+        $tokens   = new TokenStorage();
+        $recorder = $this->createRecorder($this->database()->entityManager, $this->createMock(MessageBusInterface::class), false, captureConfig: ['user' => true] + $this->captureConfig, tokenStorage: $tokens, erased: $erased);
+        $tokens->setToken($this->createUserToken('ana'));
+
+        $erased->remember(HttpLogPersonalDataSubject::fromUserIdentifier('ana'));
+        $recorder->record($this->createFirewalledRequest('/account/delete'), new Response('ok'), 1.0, 'req-erase');
+        self::assertSame([], $this->database()->rows(), 'the erasing request is not written at kernel.terminate (LY-L2)');
+
+        $erased->reset();
+        $erased->remember(HttpLogPersonalDataSubject::fromClientIp('127.0.0.1'));
+        $tokens->setToken(null);
+        $recorder->record(Request::create('/x'), new Response('ok'), 1.0, 'req-ip');
+        self::assertSame([], $this->database()->rows(), 'matched by client IP');
+
+        $erased->reset();
+        $erased->dropCurrentRequest();
+        $tokens->setToken($this->createUserToken('anonymised-1'));
+        $recorder->record($this->createFirewalledRequest('/account/delete'), new Response('ok'), 1.0, 'req-self');
+        self::assertSame([], $this->database()->rows(), 'self-service: the identifier changed, the request is still dropped');
+
+        $erased->reset();
+        $tokens->setToken($this->createUserToken('ana'));
+        $recorder->record($this->createFirewalledRequest('/hello'), new Response('ok'), 1.0, 'req-next');
+        self::assertSame(['ana'], array_column($this->database()->rows(), 'user_identifier'), 'the next request is recorded');
     }
 
     #[Test]

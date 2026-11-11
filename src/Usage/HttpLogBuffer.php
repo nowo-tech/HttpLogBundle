@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\Usage;
 
+use Nowo\HttpLogBundle\Privacy\HttpLogErasedSubjects;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Symfony\Contracts\Service\ResetInterface;
@@ -38,9 +39,13 @@ final class HttpLogBuffer implements ResetInterface
 
     private readonly LoggerInterface $logger;
 
+    /**
+     * @param HttpLogErasedSubjects|null $erased captures of a value erased in the same boundary are dropped (LY-L2)
+     */
     public function __construct(
         private readonly UsageCaptureSink $sink,
         ?LoggerInterface $logger = null,
+        private readonly ?HttpLogErasedSubjects $erased = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -77,6 +82,9 @@ final class HttpLogBuffer implements ResetInterface
         while ($this->pending !== []) {
             $batch = array_splice($this->pending, 0);
             foreach ($batch as $capture) {
+                if ($this->erased?->matches($capture->userIdentifier, $capture->clientIp) === true) {
+                    continue; // personal data erased earlier in this request / command / message
+                }
                 $this->suspended(function () use ($capture): void {
                     try {
                         $this->sink->write($capture);

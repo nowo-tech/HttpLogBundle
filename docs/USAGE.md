@@ -361,6 +361,19 @@ $result->entries;                               // rows deleted; 0 on a second r
   in the body, headers or query string of their own entries is not searched.
 - A client IP may be shared (NAT, offices, carrier-grade NAT): erasing or exporting by IP reaches every person behind
   it. The UserKit bridge never erases by IP.
+- Captures written later in the same request are dropped: the erasing request itself is recorded at `kernel.terminate`
+  and outbound / mailer captures wait in a buffer until then, i.e. after the erasure. Every erased user identifier and
+  client IP goes into a request-scoped skip list (`HttpLogErasedSubjects`, internal), and a capture of the same
+  request, command or message with one of those values is not written (a named-channel request keeps only its anonymous
+  rollup count). After a self-service erasure through the UserKit bridge (`ErasureRequest::isSelfService()`) the
+  current request is dropped as well, even when an earlier eraser already anonymised the identifier the recorder would
+  log. The list is cleared at the next main request and after each boundary (`kernel.terminate`, `console.terminate`, a
+  worker message), and on `kernel.reset`, so it never reaches the next request of a kept-alive worker. Captures already
+  dispatched to an async transport before the erasure are written by the consumer (rerun the erasure, or let retention
+  purge them).
+- Separate entity manager: with `entity_manager` pointing at an entity manager on another connection than UserKit's,
+  `erase()` commits its own transaction; if a later UserKit eraser fails and UserKit rolls back, the HTTP log part stays
+  erased. Re-running the erasure is safe (idempotent).
 
 **Export shape** (JSON-serialisable; ATOM dates):
 
@@ -385,7 +398,8 @@ users' entries. `client_ip_windows` covers every matching entry (not only the ex
 
 ### UserKit bridge
 
-With `nowo-tech/user-kit-bundle` installed and `personal_data.enabled: true` (the default), the bundle registers:
+The bridge is **opt-in**: with `nowo-tech/user-kit-bundle` installed and `personal_data.enabled: true` (default `false`:
+access logs are often kept on purpose, GDPR art. 17(3)), the bundle registers:
 
 | Service | UserKit tag | Key | Priority |
 |---|---|---|---|
@@ -401,8 +415,13 @@ section holds one export document per subject.
 When the identifier logged for a user differs from `getUserIdentifier()` (several historical identifiers, an id instead
 of the e-mail), implement `HttpLogPersonalDataSubjectResolverInterface::subjectsFor(object $user, ?string
 $originalIdentifier): list<HttpLogPersonalDataSubject>` (`$originalIdentifier` is null on export) and point
-`personal_data.subject_resolver` at the service. Without UserKit, or with `personal_data.enabled: false` (your app
-already erases this table), nothing is registered; the ports stay available.
+`personal_data.subject_resolver` at the service. Without UserKit, or with `personal_data.enabled: false` (the default),
+nothing is registered; the ports stay available.
+
+The section key `http_requests` and the eraser key `http_log` must be unique: UserKit's exporter throws a
+`LogicException` ("Duplicate personal data export section") when two providers use the same section key, so remove
+your own provider of that key before enabling the bridge (two erasers with the same key both run; the second finds
+nothing).
 
 Worker mode: the ports and adapters are stateless readonly services (a kept-alive worker test runs two users 1,000 times
 in one instance with flat memory).

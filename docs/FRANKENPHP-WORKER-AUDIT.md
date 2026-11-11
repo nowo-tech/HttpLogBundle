@@ -169,3 +169,14 @@ leak.
 request, memory stays flat. Igor: the remaining warning is still `MailerCaptureListener` (above); the closures run by
 `Connection::transactional()` are annotated (run once, never kept).
 
+## GDPR ports (Unreleased)
+
+| Service | State | Reset |
+| --- | --- | --- |
+| `HttpLogPersonalDataErasure`, `HttpLogPersonalDataExporter`, `UserIdentifierSubjectResolver`, UserKit adapters | none (`final readonly`) | n/a |
+| `HttpLogErasedSubjects` | erased user identifiers / client IPs of the current boundary, a self-service flag (capped at 10 000 values, fail closed beyond) | cleared at every main `kernel.request` (4096), after `kernel.terminate` / `console.terminate` / worker message handled or failed (-4096, after the buffer flush and the web capture), and on `kernel.reset` |
+
+`PersonalDataKernelTest` runs 50 rounds of "log, erase in the request, log again" through `http_kernel` without the
+services resetter: the erasing request is never written, the next request of the same IP always is.
+`HttpLogPersonalDataPortsTest` runs export / erase for two users 1 000 times on one instance with flat memory.
+

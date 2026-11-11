@@ -119,6 +119,8 @@ final class UsageKernel extends Kernel
     private function configureRoutes(RoutingConfigurator $routes): void
     {
         $routes->add('usage_hello', '/hello')->controller([UsageTestController::class, 'hello']);
+        // LY-L2: erasure inside a request (PersonalDataEraseTestController is registered by that test)
+        $routes->add('gdpr_erase_my_ip', '/gdpr/erase-my-ip')->controller([PersonalDataEraseTestController::class, 'eraseMyIp']);
         // HL-1 S4: routes of the named-channel tests (ApiTestController is registered by those tests)
         $routes->add('api_task', '/api/tasks/{id}')->controller([ApiTestController::class, 'task']);
         $routes->add('api_share', '/api/share/{token}')->controller([ApiTestController::class, 'share']);

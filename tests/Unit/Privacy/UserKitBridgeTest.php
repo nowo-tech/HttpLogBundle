@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\Tests\Unit\Privacy;
 
+use Nowo\HttpLogBundle\Privacy\HttpLogErasedSubjects;
 use Nowo\HttpLogBundle\Privacy\HttpLogErasureResult;
 use Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataErasureInterface;
 use Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataExporterInterface;
@@ -56,6 +57,20 @@ final class UserKitBridgeTest extends TestCase
         $eraser->erase(new ErasureRequest($user, null, ['previous_email' => ['not a string']]));
 
         self::assertSame(['ana@example.test', 'old@example.test', 'ana@example.test', 'anon-1', 'anon-1', 'anon-1'], $erasure->erased);
+    }
+
+    #[Test]
+    public function aSelfServiceErasureDropsTheCurrentRequestsCapture(): void
+    {
+        $erased = new HttpLogErasedSubjects();
+        $eraser = new HttpLogUserKitPersonalDataEraser($this->erasure(), new UserIdentifierSubjectResolver(), $erased);
+        $user   = new InMemoryUser('ana', null);
+
+        $eraser->erase(new ErasureRequest($user, new InMemoryUser('admin', null)));
+        self::assertFalse($erased->dropsCurrentRequest(), 'an admin erasing someone else keeps their own request log');
+
+        $eraser->erase(new ErasureRequest($user, $user));
+        self::assertTrue($erased->dropsCurrentRequest(), 'LY-L2: the person\'s own request is not logged after the erasure');
     }
 
     #[Test]

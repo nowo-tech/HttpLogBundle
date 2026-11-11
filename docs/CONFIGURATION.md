@@ -107,7 +107,7 @@ nowo_http_log:
         access_checker: null                # Custom service id implementing HttpLogAccessCheckerInterface
         allow_unauthenticated: false      # true only for trusted internal networks
     personal_data:                        # GDPR ports and UserKit bridge, see "personal_data"
-        enabled: true                     # with nowo-tech/user-kit-bundle: register the http_log eraser / http_requests export
+        enabled: false                    # opt-in: with nowo-tech/user-kit-bundle, register the http_log eraser / http_requests export
         export_limit: 1000                # entries exported at most per subject (newest first)
         subject_resolver: null            # service id implementing HttpLogPersonalDataSubjectResolverInterface
     channels: {}                          # Named inbound channels (api, webhooks…), matched before the web ignores, see "channels"
@@ -344,7 +344,7 @@ Unreleased.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `true` | With `nowo-tech/user-kit-bundle` installed, registers the `http_log` eraser (priority 100) and the `http_requests` export section (priority -50). Set `false` when your app already erases this table. Without UserKit it has no effect. The ports themselves are always available. |
+| `enabled` | bool | `false` | **Opt-in.** `true` with `nowo-tech/user-kit-bundle` installed registers the `http_log` eraser (priority 100) and the `http_requests` export section (priority -50), so UserKit's account erasure deletes the person's HTTP log entries and its export contains their request metadata. Keep `false` when you must retain access / security logs (GDPR art. 17(3)) or your app already erases this table. Without UserKit it has no effect. The ports themselves are always available. |
 | `export_limit` | int (1–100000) | `1000` | Entries exported at most per subject, newest first. The export still reports `total` and `truncated`. |
 | `subject_resolver` | string\|null | `null` | Service id implementing `Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataSubjectResolverInterface`. Default: the user's original identifier, else `getUserIdentifier()`. |
 

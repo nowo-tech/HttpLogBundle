@@ -27,9 +27,9 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 final class PersonalDataExtensionTest extends TestCase
 {
     #[Test]
-    public function withUserKitTheBridgeIsRegisteredWithItsPriorities(): void
+    public function withUserKitAndOptInTheBridgeIsRegisteredWithItsPriorities(): void
     {
-        $container = $this->load([]);
+        $container = $this->load(['personal_data' => ['enabled' => true]]);
 
         self::assertTrue($container->getAlias(HttpLogPersonalDataErasureInterface::class)->isPublic());
         self::assertSame(HttpLogPersonalDataErasure::class, (string) $container->getAlias(HttpLogPersonalDataErasureInterface::class));
@@ -42,14 +42,19 @@ final class PersonalDataExtensionTest extends TestCase
     }
 
     #[Test]
-    public function disabledOrWithoutUserKitNothingIsTagged(): void
+    public function byDefaultDisabledOrWithoutUserKitNothingIsTagged(): void
     {
+        $default = $this->load([]);
+        self::assertFalse($default->hasDefinition(HttpLogUserKitPersonalDataEraser::class), 'opt-in (LY-L1): nothing by default');
+        self::assertFalse($default->hasDefinition(HttpLogUserKitExportProvider::class));
+        self::assertTrue($default->hasAlias(HttpLogPersonalDataErasureInterface::class), 'the ports are always available');
+
         $disabled = $this->load(['personal_data' => ['enabled' => false]]);
         self::assertFalse($disabled->hasDefinition(HttpLogUserKitPersonalDataEraser::class));
         self::assertFalse($disabled->hasDefinition(HttpLogUserKitExportProvider::class));
         self::assertTrue($disabled->hasAlias(HttpLogPersonalDataErasureInterface::class), 'the ports stay');
 
-        $withoutUserKit = $this->load([], ['user_kit' => ['Nowo\\Missing\\PersonalDataEraserInterface', 'nowo-tech/user-kit-bundle']] + NowoHttpLogExtension::REQUIRED_SYMBOLS);
+        $withoutUserKit = $this->load(['personal_data' => ['enabled' => true]], ['user_kit' => ['Nowo\\Missing\\PersonalDataEraserInterface', 'nowo-tech/user-kit-bundle']] + NowoHttpLogExtension::REQUIRED_SYMBOLS);
         self::assertFalse($withoutUserKit->hasDefinition(HttpLogUserKitPersonalDataEraser::class));
         self::assertFalse($withoutUserKit->hasDefinition(HttpLogUserKitExportProvider::class));
     }
@@ -67,7 +72,7 @@ final class PersonalDataExtensionTest extends TestCase
     public function configurationDefaultsAndValidation(): void
     {
         $config = (new Processor())->processConfiguration(new Configuration(), [[]]);
-        self::assertSame(['enabled' => true, 'export_limit' => 1000, 'subject_resolver' => null], $config['personal_data']);
+        self::assertSame(['enabled' => false, 'export_limit' => 1000, 'subject_resolver' => null], $config['personal_data']);
 
         $this->expectException(InvalidConfigurationException::class);
         (new Processor())->processConfiguration(new Configuration(), [['personal_data' => ['subject_resolver' => '']]]);

@@ -11,6 +11,7 @@ use Doctrine\Persistence\ManagerRegistry;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Message\PersistHttpLogMessage;
 use Nowo\HttpLogBundle\Model\HttpLogCapture;
+use Nowo\HttpLogBundle\Privacy\HttpLogErasedSubjects;
 use Nowo\HttpLogBundle\Usage\HttpLogBuffer;
 use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
@@ -50,14 +51,22 @@ final readonly class HttpLogRecorder
         private ?Security $security = null,
         // HL-1: set while outbound / mailer capture is enabled, so this dispatch / write is never captured itself
         private ?HttpLogBuffer $buffer = null,
+        // LY-L2: the request that erased this person's data is not written again at kernel.terminate
+        private ?HttpLogErasedSubjects $erased = null,
     ) {
     }
 
     public function record(Request $request, Response $response, float $durationMs, ?string $requestId): void
     {
         try {
+            if ($this->erased?->dropsCurrentRequest() === true) {
+                return;
+            }
             $capture = $this->buildCapture($request, $response, $durationMs, $requestId);
-            $write   = function () use ($capture): void {
+            if ($this->erased?->matches($capture->userIdentifier, $capture->clientIp) === true) {
+                return;
+            }
+            $write = function () use ($capture): void {
                 if ($this->async) {
                     $this->messageBus->dispatch(new PersistHttpLogMessage($capture->toArray()));
 

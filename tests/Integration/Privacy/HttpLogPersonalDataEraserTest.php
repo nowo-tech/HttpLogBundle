@@ -14,12 +14,14 @@ use Doctrine\Persistence\ManagerRegistry;
 use InvalidArgumentException;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
+use Nowo\HttpLogBundle\Privacy\HttpLogErasedSubjects;
 use Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataEraser;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 use function dirname;
+use function str_repeat;
 use function str_replace;
 
 use const PHP_VERSION_ID;
@@ -76,6 +78,24 @@ final class HttpLogPersonalDataEraserTest extends TestCase
         self::assertSame(0, $eraser->countByClientIp('10.0.0.1'));
         self::assertSame(1, $eraser->countByClientIp('10.0.0.9'));
         self::assertSame(1, $eraser->countByClientIp('10.0.0.2'));
+    }
+
+    #[Test]
+    public function deletedValuesGoIntoTheRequestScopedSkipList(): void
+    {
+        $erased = new HttpLogErasedSubjects();
+        $eraser = $this->eraser([], $erased);
+
+        self::assertSame(3, $eraser->countByUserIdentifier('ana'));
+        self::assertTrue($erased->isEmpty(), 'counting erases nothing');
+        $eraser->deleteByUserIdentifier('ana');
+        $eraser->deleteByClientIp('10.0.0.9');
+        $eraser->deleteByUserIdentifier(str_repeat('a', 300));
+
+        self::assertTrue($erased->matches('ana', null), 'LY-L2: a later capture of the erased user is dropped');
+        self::assertTrue($erased->matches(null, '10.0.0.9'));
+        self::assertFalse($erased->matches('luis', '10.0.0.1'));
+        self::assertFalse($erased->matches(str_repeat('a', 300), null), 'longer than the column: never stored, not remembered');
     }
 
     #[Test]
@@ -138,13 +158,13 @@ final class HttpLogPersonalDataEraserTest extends TestCase
     /**
      * @param array<string, mixed> $retention
      */
-    private function eraser(array $retention): HttpLogPersonalDataEraser
+    private function eraser(array $retention, ?HttpLogErasedSubjects $erased = null): HttpLogPersonalDataEraser
     {
         $registry = $this->createStub(ManagerRegistry::class);
         $registry->method('getManagerForClass')->willReturn($this->entityManager);
         $registry->method('getManager')->willReturn($this->entityManager);
         $registry->method('getManagerNames')->willReturn(['default' => 'doctrine.orm.default_entity_manager']);
 
-        return new HttpLogPersonalDataEraser(new HttpLogEntryRepository($registry), $retention);
+        return new HttpLogPersonalDataEraser(new HttpLogEntryRepository($registry), $retention, $erased);
     }
 }
