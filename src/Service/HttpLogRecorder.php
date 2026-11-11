@@ -9,11 +9,13 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
+use Nowo\HttpLogBundle\Event\HttpLogEntryRecordedEvent;
 use Nowo\HttpLogBundle\Message\PersistHttpLogMessage;
 use Nowo\HttpLogBundle\Model\HttpLogCapture;
 use Nowo\HttpLogBundle\Privacy\HttpLogErasedSubjects;
 use Nowo\HttpLogBundle\Usage\HttpLogBuffer;
 use Psr\Clock\ClockInterface;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\Request;
@@ -53,6 +55,8 @@ final readonly class HttpLogRecorder
         private ?HttpLogBuffer $buffer = null,
         // LY-L2: the request that erased this person's data is not written again at kernel.terminate
         private ?HttpLogErasedSubjects $erased = null,
+        // REQ-ARCH-001 rule 4: HttpLogEntryRecordedEvent after a committed insert
+        private ?EventDispatcherInterface $events = null,
     ) {
     }
 
@@ -175,6 +179,7 @@ final readonly class HttpLogRecorder
         $connection = $entityManager->getConnection();
         if (!$connection->isTransactionActive()) {
             $connection->insert($metadata->getTableName(), $data, $types);
+            $this->notifyRecorded($capture);
 
             return;
         }
@@ -200,6 +205,31 @@ final readonly class HttpLogRecorder
             throw $exception;
         }
         $connection->releaseSavepoint($savepoint);
+    }
+
+    /**
+     * {@see HttpLogEntryRecordedEvent} for a web entry written outside any open transaction (autocommit: committed).
+     * Inside a host transaction the row may still roll back, so nothing is dispatched. A failing listener is logged.
+     */
+    private function notifyRecorded(HttpLogCapture $capture): void
+    {
+        if (!$this->events instanceof EventDispatcherInterface) {
+            return;
+        }
+
+        try {
+            $this->events->dispatch(new HttpLogEntryRecordedEvent(
+                channel: HttpLogEntryRecordedEvent::CHANNEL_WEB,
+                requestId: $capture->requestId,
+                method: $capture->method,
+                routeName: $capture->routeName,
+                statusCode: $capture->statusCode,
+                durationMs: $capture->durationMs,
+                recordedAt: $capture->createdAt,
+            ));
+        } catch (Throwable $exception) {
+            $this->logger->warning('HTTP log entry-recorded listener failed.', ['exception_class' => $exception::class]);
+        }
     }
 
     public function createEntryFromCapture(HttpLogCapture $capture): HttpLogEntry

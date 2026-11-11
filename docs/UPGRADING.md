@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+  - [Framework-free request-context resolver (deprecation)](#framework-free-request-context-resolver-deprecation)
 - [To 1.18.0](#to-1180)
 - [To 1.17.0](#to-1170)
   - [Index migration](#index-migration)
@@ -66,6 +67,36 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+Target **1.19.0**. No action is required: every 1.18 configuration and custom service keeps working, and the stored
+rows are unchanged.
+
+### Framework-free request-context resolver (deprecation)
+
+`HttpLogRequestContextResolverInterface::resolve(Request, ?TokenInterface, string)` takes Symfony types, which
+REQ-ARCH-001 rule 3 no longer allows in public ports. It is **deprecated in 1.19 and removed in 2.0**:
+
+| Deprecated | Use instead |
+|---|---|
+| `Inbound\HttpLogRequestContextResolverInterface::resolve(Request, ?TokenInterface, string)` | `Inbound\HttpRequestContextResolverInterface::resolveContext(HttpRequestContext, string)` |
+| `HttpLogRequestContextResolverInterface::TAG` | `HttpLogRequestContextResolution::RESOLVER_TAG` (same value, `nowo_http_log.request_context_resolver`) |
+
+How to migrate a resolver:
+
+1. Implement `Nowo\HttpLogBundle\Inbound\HttpRequestContextResolverInterface` (you may keep the old interface during
+   the transition; the bundle calls the new method when both are implemented). Autoconfiguration tags it as before.
+2. Read the request from the value object: `$context->routeName`, `$context->routeParam('id')`,
+   `$context->attribute('…')`, `$context->header('X-…')`, `$context->userIdentifier`, `$context->roles`.
+3. Replace `$token->getAttribute('api_token')` (an object) with a **scalar** attribute your authenticator stores, for
+   example `$token->setAttribute('api_token_id', (string) $apiToken->getId())`, read as
+   `$context->tokenAttribute('api_token_id')`; load what else you need from your own repository.
+4. The credential itself is not in the context (no `Authorization`, cookies, credential or redacted headers, query
+   string): a resolver must not derive anything from it, which the guard already required.
+
+Other additions, all optional: `HttpLogContextInterface` (type-hint it instead of `HttpLogContext`) and the
+`HttpLogEntryRecordedEvent` ([USAGE](USAGE.md#entry-recorded-event)).
+
+In 2.0 the deprecated interface and its `TAG` constant are removed.
 
 ## To 1.18.0
 

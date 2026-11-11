@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle;
 
 use Nowo\HttpLogBundle\DependencyInjection\Compiler\CsrfProtectionPass;
+use Nowo\HttpLogBundle\DependencyInjection\Compiler\DeprecatedRequestContextResolverPass;
 use Nowo\HttpLogBundle\DependencyInjection\Compiler\OutboundHttpClientPass;
 use Nowo\HttpLogBundle\DependencyInjection\Compiler\TwigPathsPass;
 use Nowo\HttpLogBundle\DependencyInjection\NowoHttpLogExtension;
@@ -20,6 +21,7 @@ final class NowoHttpLogBundle extends Bundle
         $container->addCompilerPass(new TwigPathsPass());
         $container->addCompilerPass(new CsrfProtectionPass());
         $container->addCompilerPass(new OutboundHttpClientPass());
+        $container->addCompilerPass(new DeprecatedRequestContextResolverPass());
     }
 
     public function getContainerExtension(): ExtensionInterface

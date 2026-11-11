@@ -15,6 +15,11 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
  * Called at most once per request of a named channel: just before the controller runs (so outbound calls and mails it
  * makes inherit the tenant), or at `kernel.terminate` when no controller ran. A resolver that throws is skipped with
  * one warning; the request is never affected.
+ *
+ * @deprecated since 1.19, implement the framework-free {@see HttpRequestContextResolverInterface} instead
+ *             (REQ-ARCH-001 rule 3: no `Request` or `TokenInterface` in public ports); removed in 2.0. Resolvers that
+ *             implement only this interface keep working unchanged until then (same tag, same priority order, same
+ *             guard); the container build reports a deprecation for each of them.
  */
 interface HttpLogRequestContextResolverInterface
 {

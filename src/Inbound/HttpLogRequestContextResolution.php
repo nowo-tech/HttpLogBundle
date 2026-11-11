@@ -54,6 +54,11 @@ use function trim;
  *
  * A resolver that throws is skipped with one warning (its class and the exception class).
  *
+ * Resolvers implement the framework-free {@see HttpRequestContextResolverInterface} (given an {@see HttpRequestContext}
+ * built by {@see HttpRequestContextFactory}, at most once per call) or the deprecated
+ * {@see HttpLogRequestContextResolverInterface} (given the request and the token); both kinds share the tag and its
+ * priority order, and the guard applies to both.
+ *
  * The token is passed only when a firewall with security enabled handled the request (the 1.14 rule of the user
  * identifier: a worker's token storage may still hold the previous request's token).
  */
@@ -61,6 +66,9 @@ final readonly class HttpLogRequestContextResolution
 {
     /** Request attribute holding the resolved context (resolved at most once per request). */
     public const ATTRIBUTE = '_nowo_http_log_request_context';
+
+    /** Tag of the request-context resolvers, both ports (autoconfigured). */
+    public const RESOLVER_TAG = 'nowo_http_log.request_context_resolver';
 
     /** A returned value that is a prefix of a request credential this long or longer is dropped. */
     public const MIN_PREFIX_LENGTH = 6;
@@ -73,8 +81,10 @@ final readonly class HttpLogRequestContextResolution
 
     private LoggerInterface $logger;
 
+    private HttpRequestContextFactory $contextFactory;
+
     /**
-     * @param iterable<HttpLogRequestContextResolverInterface> $resolvers tagged `nowo_http_log.request_context_resolver`
+     * @param iterable<HttpLogRequestContextResolverInterface|HttpRequestContextResolverInterface> $resolvers tagged `nowo_http_log.request_context_resolver`
      * @param list<string> $redactedHeaders `redaction.headers`
      * @param list<string> $redactedQueryParams `redaction.query_params`
      * @param TokenStorageInterface|null $untrackedTokenStorage `security.untracked_token_storage`, to tell a lazy firewall that has
@@ -92,7 +102,8 @@ final readonly class HttpLogRequestContextResolution
         private ?TokenStorageInterface $untrackedTokenStorage = null,
         private array $credentialHeaders = [],
     ) {
-        $this->logger = $logger ?? new NullLogger();
+        $this->logger         = $logger ?? new NullLogger();
+        $this->contextFactory = new HttpRequestContextFactory([...$redactedHeaders, ...$credentialHeaders]);
     }
 
     /** The guarded context of the request, resolved on first call and kept on the request. */
@@ -158,10 +169,16 @@ final readonly class HttpLogRequestContextResolution
             return new HttpLogRequestContext();
         }
 
-        $token = $afterResponse ? $this->tokenAfterResponse($request) : $this->token($request);
+        $token   = $afterResponse ? $this->tokenAfterResponse($request) : $this->token($request);
+        $context = null;
         foreach ($this->resolvers as $resolver) {
             try {
-                $result = $resolver->resolve($request, $token, $channel);
+                if ($resolver instanceof HttpRequestContextResolverInterface) {
+                    $context ??= $this->requestContext($request, $token);
+                    $result = $resolver->resolveContext($context, $channel);
+                } else {
+                    $result = $resolver->resolve($request, $token, $channel);
+                }
             } catch (Throwable $exception) {
                 $this->logger->warning('HTTP log request context resolver failed.', ['resolver' => $resolver::class, 'exception_class' => $exception::class]);
 
@@ -204,7 +221,21 @@ final readonly class HttpLogRequestContextResolution
      */
     public function userIdentifier(Request $request): ?string
     {
-        $user = $this->tokenAfterResponse($request)?->getUser();
+        return $this->guardedUserIdentifier($request, $this->tokenAfterResponse($request));
+    }
+
+    /**
+     * The framework-free context given to {@see HttpRequestContextResolverInterface}: the token is the one
+     * {@see token()} returns (only behind a secured firewall), the user identifier is guarded like {@see userIdentifier()}.
+     */
+    public function requestContext(Request $request, ?TokenInterface $token): HttpRequestContext
+    {
+        return $this->contextFactory->create($request, $token, $this->guardedUserIdentifier($request, $token));
+    }
+
+    private function guardedUserIdentifier(Request $request, ?TokenInterface $token): ?string
+    {
+        $user = $token?->getUser();
         if (!$user instanceof UserInterface) {
             return null;
         }

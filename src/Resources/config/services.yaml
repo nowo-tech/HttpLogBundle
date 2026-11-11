@@ -8,6 +8,7 @@ services:
         exclude:
             - '../../DependencyInjection/'
             - '../../Entity/'
+            - '../../Event/'
             - '../../Enum/'
             - '../../Message/'
             - '../../View/'

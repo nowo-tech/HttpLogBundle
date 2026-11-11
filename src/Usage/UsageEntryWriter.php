@@ -13,7 +13,11 @@ use Doctrine\Persistence\ManagerRegistry;
 use LogicException;
 use Nowo\HttpLogBundle\Doctrine\PathPrefixColumnListener;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
+use Nowo\HttpLogBundle\Event\HttpLogEntryRecordedEvent;
 use Nowo\HttpLogBundle\Rollup\UsageRollupStore;
+use Psr\EventDispatcher\EventDispatcherInterface;
+use Psr\Log\LoggerInterface;
+use Throwable;
 
 /**
  * Writes usage rows with one DBAL `INSERT` on the connection of the entry's EntityManager (HL-1 §7.2). While the rollup
@@ -30,6 +34,9 @@ final readonly class UsageEntryWriter
     public function __construct(
         private ManagerRegistry $registry,
         private ?UsageRollupStore $rollup = null,
+        // REQ-ARCH-001 rule 4: HttpLogEntryRecordedEvent after a committed row
+        private ?EventDispatcherInterface $events = null,
+        private ?LoggerInterface $logger = null,
     ) {
     }
 
@@ -43,9 +50,14 @@ final readonly class UsageEntryWriter
     {
         if ($capture->rollup && $this->rollup instanceof UsageRollupStore) {
             // @igor-ignore - closure run once by record(), not kept
-            return $this->rollup->record($capture, $capture->row ? function (Connection $connection) use ($capture): void {
+            $written = $this->rollup->record($capture, $capture->row ? function (Connection $connection) use ($capture): void {
                 $this->insert($connection, $capture);
             } : null);
+            if ($written && $capture->row) {
+                $this->notifyRecorded($capture);
+            }
+
+            return $written;
         }
         if (!$capture->row) {
             return false;
@@ -56,8 +68,44 @@ final readonly class UsageEntryWriter
         } catch (UniqueConstraintViolationException) {
             return false;
         }
+        $this->notifyRecorded($capture);
 
         return true;
+    }
+
+    /**
+     * {@see HttpLogEntryRecordedEvent} for a usage row, only once it is committed: never while a transaction the host
+     * left open is still active on the entry's connection. A failing listener is logged.
+     */
+    private function notifyRecorded(UsageCapture $capture): void
+    {
+        if (!$this->events instanceof EventDispatcherInterface) {
+            return;
+        }
+
+        try {
+            $manager = $this->registry->getManagerForClass(HttpLogEntry::class);
+            if (!$manager instanceof EntityManagerInterface || $manager->getConnection()->isTransactionActive()) {
+                return;
+            }
+
+            $this->events->dispatch(new HttpLogEntryRecordedEvent(
+                channel: $capture->channel,
+                requestId: $capture->eventId,
+                method: $capture->method,
+                routeName: $capture->routeName,
+                statusCode: $capture->statusCode,
+                durationMs: $capture->durationMs,
+                recordedAt: $capture->createdAt,
+                tenantKey: $capture->tenantKey,
+                projectKey: $capture->projectKey,
+                credentialKind: $capture->credentialKind,
+                credentialId: $capture->credentialId,
+                provider: $capture->provider,
+            ));
+        } catch (Throwable $exception) {
+            $this->logger?->warning('HTTP log entry-recorded listener failed.', ['exception_class' => $exception::class]);
+        }
     }
 
     /**

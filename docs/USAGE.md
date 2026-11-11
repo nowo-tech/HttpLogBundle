@@ -25,8 +25,10 @@ How to capture HTTP traffic, use the admin UI, export, purge, and exclude routes
   - [Credential and tenant resolver](#credential-and-tenant-resolver)
 - [Daily rollup and read API](#daily-rollup-and-read-api)
   - [Backfill](#backfill)
-- [Using it from a DDD / hexagonal application](#using-it-from-a-ddd--hexagonal-application)
+- [Standard Symfony host](#standard-symfony-host)
+- [DDD / hexagonal host](#ddd--hexagonal-host)
   - [Keeping your domain free of the bundle](#keeping-your-domain-free-of-the-bundle)
+  - [Entry-recorded event](#entry-recorded-event)
   - [Known limitations](#known-limitations)
 - [Usage erasure (credentials, tenants)](#usage-erasure-credentials-tenants)
 - [Ignoring routes and paths](#ignoring-routes-and-paths)
@@ -557,37 +559,57 @@ with the rollup, counts every API call.
 
 ### Credential and tenant resolver
 
-Implement `HttpLogRequestContextResolverInterface` (autoconfigured; tag `nowo_http_log.request_context_resolver`,
-`priority` orders several, the first non-null answer wins) to name the credential and tenant of a request:
+Implement `Nowo\HttpLogBundle\Inbound\HttpRequestContextResolverInterface` (autoconfigured; tag
+`nowo_http_log.request_context_resolver`, `priority` orders several, the first non-null answer wins) to name the
+credential and tenant of a request. It receives an `HttpRequestContext` value object, not the Symfony `Request` or
+security token:
 
 ```php
 use Nowo\HttpLogBundle\Inbound\HttpLogRequestContext;
-use Nowo\HttpLogBundle\Inbound\HttpLogRequestContextResolverInterface;
+use Nowo\HttpLogBundle\Inbound\HttpRequestContext;
+use Nowo\HttpLogBundle\Inbound\HttpRequestContextResolverInterface;
 
-final class ApiTokenUsageResolver implements HttpLogRequestContextResolverInterface
+final class ApiTokenUsageResolver implements HttpRequestContextResolverInterface
 {
-    public function resolve(Request $request, ?TokenInterface $token, string $channel): ?HttpLogRequestContext
+    public function __construct(private PersonalAccessTokens $tokens) {}
+
+    public function resolveContext(HttpRequestContext $request, string $channel): ?HttpLogRequestContext
     {
-        $apiToken = $token?->getAttribute('api_token');   // whatever your authenticator stored
-        if (!$apiToken instanceof PersonalAccessToken) {
+        $tokenId = $request->tokenAttribute('api_token_id');  // a scalar your authenticator stored on the token
+        if (!is_string($tokenId)) {
             return null;
         }
+        $token = $this->tokens->find($tokenId);              // your own read model / repository
 
-        return new HttpLogRequestContext(
+        return $token === null ? null : new HttpLogRequestContext(
             credentialKind: 'personal_token',
-            credentialId: (string) $apiToken->getId(),        // the database id, NEVER the token or its prefix
-            tenantKey: $apiToken->getOrganization()->getUuid(),
-            projectKey: $apiToken->getProject()?->getUuid(),
+            credentialId: $tokenId,                           // the database id, NEVER the token or its prefix
+            tenantKey: $token->organizationId(),
+            projectKey: $token->projectId(),
         );
     }
 }
 ```
 
+`HttpRequestContext` holds scalars only: `method`, `path`, `routeName`, `routeParams` (`routeParam()`), the request
+`attributes` with a scalar value whose name does not start with `_` (`attribute()`), the `headers` (`header()`), and,
+only when a firewall with security enabled handled the request, the guarded `userIdentifier`, the token's `roles` and
+its scalar `tokenAttributes` (`tokenAttribute()`). **Credentials never reach it:** `Authorization`, `Cookie`, the
+`PHP_AUTH_*` values, every header in `redaction.credential_headers` / `redaction.headers` and the query string are left
+out. Have your authenticator store the credential's **database id** as a scalar token attribute (or request attribute)
+and read that.
+
+The 1.18 port, `HttpLogRequestContextResolverInterface::resolve(Request, ?TokenInterface, string)`, is **deprecated
+since 1.19 and removed in 2.0** ([UPGRADING](UPGRADING.md#unreleased)). Resolvers that implement only it keep working
+unchanged (same tag, same priority chain, same guard); the container build reports a deprecation for each. A class
+that implements both interfaces is called through the new one.
+
 - It runs at most once per request: just before the controller (then the tenant / project become the request's
   `HttpLogContext` frame, so outbound calls and mails made by the controller inherit them), or at `kernel.terminate`
   when no controller ran (a 401 from the firewall) or when running earlier could start a **lazy firewall**'s
   authentication (then outbound calls do not inherit the tenant: wrap them in `HttpLogContext::run()`).
-- The `$token` argument is set only when a firewall with security enabled handled the request.
+- The user identifier, roles and token attributes (the `$token` argument of the deprecated port) are set only when a
+  firewall with security enabled handled the request.
 - **Guard:** a returned value that fails the opaque-key rule (`^[A-Za-z0-9._:@-]+$`, kind <= 32, others <= 64
   characters), or that equals, contains or starts (6+ characters) the request's credential (the `Authorization`
   value, and each header listed in `redaction.credential_headers`), is stored as NULL, with one warning naming the
@@ -660,20 +682,38 @@ Only days on which a channel has **no bucket** are built (a day with live bucket
 never before the cutoff. Counts of a sampled channel are lower bounds (its unsampled successes had no row): the
 output says so. Stored times are read in the PHP default time zone they were written in.
 
-## Using it from a DDD / hexagonal application
+## Standard Symfony host
 
-HttpLogBundle is an observability adapter with its own table (`nowo_http_log_entry`, plus optional rollup tables).
-It never maps or references your entities: the user is stored as `getUserIdentifier()`, and tenant, project and
-credential are opaque string keys you provide. There is no `resolve_target_entities`, no base class and no trait to
-extend.
+Nothing to configure: install the bundle, run the migration, and the web channel captures requests. The entity is
+bundle-owned (its own table, attribute mapping registered for the bundle's namespace only); it never references your
+entities (the user is stored as `getUserIdentifier()`, tenant / project / credential as opaque string keys). Optional
+hooks are autoconfigured services: the request-context resolver
+([Credential and tenant resolver](#credential-and-tenant-resolver)), the access checkers
+([Admin UI](#admin-ui)), and listeners of `HttpLogEntryRecordedEvent` ([below](#entry-recorded-event)).
+
+## DDD / hexagonal host
+
+The same bundle, with the domain kept free of Symfony and Doctrine types (REQ-ARCH-001). Nothing is forced: no base
+class, no trait, no `resolve_target_entities`, no XML mapping to ship (the bundle owns its table and never maps your
+entities). Every port a host implements or calls takes scalars or bundle value objects:
+
+| Need | Port (no framework type) | Value objects |
+|---|---|---|
+| Name the credential / tenant of a request | `Inbound\HttpRequestContextResolverInterface` (implement) | `HttpRequestContext` in, `HttpLogRequestContext` out |
+| Tenant context for outbound calls and mails | `Context\HttpLogContextInterface` (call; public alias) | `HttpLogFrame` |
+| React to recorded traffic | listen to `Event\HttpLogEntryRecordedEvent` | ids and scalars only |
+| Read usage | `Usage\HttpLogUsageReaderInterface` (call) | `UsageQuery`, `CallQuery`, `DailyUsage`, `CallPage` |
+| Erase / export personal data | `Privacy\HttpLogPersonalDataErasureInterface`, `HttpLogPersonalDataExporterInterface` | `HttpLogPersonalDataSubject`, `HttpLogErasureResult` |
+| Erase usage of a credential or tenant | `Privacy\HttpLogUsageEraserInterface` | scalars |
 
 ### Keeping your domain free of the bundle
 
-- **Feeding context in.** Implement `HttpLogRequestContextResolverInterface` in your infrastructure layer and
-  return an `HttpLogRequestContext` built from ids your domain already exposes (tenant UUID, credential id). Never
-  return secrets: values that look like the request credential are stored as NULL.
-- **Tenant context for outbound work.** Wrap application use cases that call external APIs in
-  `HttpLogContext::run($tenantKey, $fn, $projectKey)`. Keep that call in an application/infrastructure decorator,
+- **Feeding context in.** Implement `HttpRequestContextResolverInterface` in your infrastructure layer and return an
+  `HttpLogRequestContext` built from ids your domain already exposes (tenant UUID, credential id). It receives an
+  `HttpRequestContext`, never the `Request` or the security token. Never return secrets: values that look like the
+  request credential are stored as NULL.
+- **Tenant context for outbound work.** Depend on `HttpLogContextInterface` and wrap application use cases that call
+  external APIs in `run($tenantKey, $fn, $projectKey)`. Keep that call in an application/infrastructure decorator,
   not in domain services:
 
 ```php
@@ -687,7 +727,7 @@ interface TenantScope
 // Infrastructure
 final readonly class HttpLogTenantScope implements TenantScope
 {
-    public function __construct(private \Nowo\HttpLogBundle\Context\HttpLogContext $context) {}
+    public function __construct(private \Nowo\HttpLogBundle\Context\HttpLogContextInterface $context) {}
 
     public function run(string $tenantId, callable $fn, ?string $projectId = null): mixed
     {
@@ -699,18 +739,48 @@ final readonly class HttpLogTenantScope implements TenantScope
 - Add the Messenger middleware (`nowo_http_log.messenger.context_middleware`) so async handlers keep the tenant.
 - **Reading usage.** Depend on `HttpLogUsageReaderInterface` (`daily()`, `calls()`, `lastUsed()`) with the
   `UsageQuery` / `CallQuery` value objects; map `DailyUsage` / `CallPage` to your own view models at the edge.
-- **Erasure.** Call `HttpLogPersonalDataEraserInterface` from your "forget user" use case and
+- **Erasure.** Call `HttpLogPersonalDataErasureInterface` from your "forget user" use case and
   `HttpLogUsageEraserInterface` when a credential or tenant is deleted.
 - **Access.** Implement `HttpLogAccessCheckerInterface` (and `HttpLogChannelAccessCheckerInterface` for
   per-channel views) on top of your own authorization policy.
 
+### Entry-recorded event
+
+`Nowo\HttpLogBundle\Event\HttpLogEntryRecordedEvent` is dispatched (through the PSR-14 event dispatcher) after a
+row is written and committed: a web entry (`channel` `web`) or a usage row of a named inbound channel, `outbound` or
+`mailer`. It carries `channel`, `requestId` (the row's `request_id`), `method`, `routeName`, `statusCode`,
+`durationMs`, `recordedAt`, and for usage rows `tenantKey`, `projectKey`, `credentialKind`, `credentialId` and
+`provider`. It never carries the path, query string, headers, bodies, client IP or user identifier.
+
+```php
+#[AsEventListener]
+final readonly class CountApiCalls
+{
+    public function __construct(private ApiCallCounter $counter) {}
+
+    public function __invoke(HttpLogEntryRecordedEvent $event): void
+    {
+        if ($event->channel === 'api' && $event->tenantKey !== null) {
+            $this->counter->increment($event->tenantKey, $event->statusCode);
+        }
+    }
+}
+```
+
+- Not dispatched inside a transaction your code left open (the row could still roll back), for a row that was not
+  written (a redelivered message, a duplicate request id, a count-only rollup event), or when the write failed.
+- With `async: true` it is dispatched by the Messenger consumer that writes the row, not in the HTTP request.
+- A listener that throws is logged as a warning; the row stays written and the request is not affected.
+- Outbound calls a listener makes are captured like any other (a listener that calls an API for every `outbound` row
+  would feed itself: filter on the channel).
+
 ### Known limitations
 
-- `HttpLogContext` has no interface; wrap it as shown above.
-- No Symfony event is dispatched when an entry is recorded; read back through `HttpLogUsageReaderInterface`.
 - The entity mapping is always registered on the default entity manager. The bundle never flushes it: entries are
   written with DBAL inserts on its connection (since 1.16.2 for inbound entries), so the host's pending changes are
   never committed by a capture.
+- The access checkers still receive the security user as `?object $user` (an edge adapter, never called from a
+  domain).
 
 ## Usage erasure (credentials, tenants)
 

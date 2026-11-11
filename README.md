@@ -45,6 +45,7 @@ Http Log Bundle captures each HTTP exchange on kernel terminate, classifies resp
 - ✅ Messenger async: persist, export, purge handlers
 - ✅ Ignore routes (`fnmatch`) and path prefixes (admin UI excluded by default)
 - ✅ Symfony Flex recipe and FrankenPHP demo (`demo/symfony8`)
+- ✅ Standard Symfony hosts zero-config; DDD / hexagonal hosts through framework-free ports and value objects ([Standard host](docs/USAGE.md#standard-symfony-host), [DDD host](docs/USAGE.md#ddd--hexagonal-host))
 - ✅ GitHub Spec Kit baseline and 100% coverage target on `src/`
 
 
