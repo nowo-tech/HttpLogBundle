@@ -189,11 +189,12 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
         $countQb  = $this->createQueryBuilder('e')->select('e.id')->setMaxResults($maxListed + 1);
         $this->applyCriteria($countQb, $criteria);
         /** @var list<array{id: int|string}> $idRows */
-        $idRows  = $countQb->getQuery()->getScalarResult();
-        $ids     = array_map(static fn (array $row): int => (int) $row['id'], $idRows);
-        $matched = count($ids);
-        $total   = min($matched, $maxListed);
-        $page    = min(max(1, $page), max(1, (int) ceil($total / $pageSize)));
+        $idRows   = $countQb->getQuery()->getScalarResult();
+        $ids      = array_map(static fn (array $row): int => (int) $row['id'], $idRows);
+        $matched  = count($ids);
+        $total    = min($matched, $maxListed);
+        $lastPage = max(1, (int) ceil($total / $pageSize));
+        $page     = min(max(1, $page), $lastPage);
         // the last page of a capped list ends at the cap
         $limit = max(1, min($pageSize, $total - ($page - 1) * $pageSize));
         // a few matches: read them by primary key (their ids are the whole match set) instead of a created_at walk
@@ -204,7 +205,9 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
             $items = [];
         } elseif ($page === 1) {
             $items = $this->listRows($criteria, $limit, only: $only);
-        } elseif ($cursor instanceof HttpLogListCursor) {
+        } elseif ($cursor instanceof HttpLogListCursor && $cursor->idsInRange() && $cursor->page <= $lastPage) {
+            // a cursor past the last page of the bounded count is forged or stale (LU-L2): ignoring it keeps every skip
+            // below the list cap in both directions
             $items = $this->seekListRows($criteria, $page, $pageSize, $limit, $cursor, $only);
         }
         // no cursor, or none of its rows left: offset from the newest row, bounded by the cap

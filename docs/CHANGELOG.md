@@ -57,7 +57,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   new entries arrive. A `?page=` link without a cursor (1.16 bookmarks) or with a stale cursor still opens that page
   (offset read, bounded by the 10 000-entry list cap). Up to 500 matches are read by primary key from the ids the
   bounded count already collected (no planner walk of the `created_at` index for a few scattered rows), and no match
-  reads no page. Filters, the channel access restriction and the access checks are unchanged. Probe with 200 000 rows: a page is ~25 KB of row data instead of ~390 KB (MySQL, MariaDB,
+  reads no page. A cursor is ignored (offset read) when its ids exceed the INTEGER `id` column or its page is past the
+  last page of the bounded count, so every skip stays within the cap in both directions. Filters, the channel access
+  restriction and the access checks are unchanged. Probe with 200 000 rows: a page is ~25 KB of row data instead of ~390 KB (MySQL, MariaDB,
   PostgreSQL, SQLite), see the PR.
 - **Indexes for the list filters.** `idx_http_log_created_at` becomes `(created_at, id)` and `idx_http_log_route_name`,
   `idx_http_log_status_code`, `idx_http_log_client_ip` end with `created_at`, so a filtered page is read and ordered from

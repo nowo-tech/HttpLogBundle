@@ -19,16 +19,20 @@ use function sprintf;
  *
  * Text form: `<page>.<first YmdHis>.<first id>.<last YmdHis>.<last id>` (wall-clock time of the stored DATETIME, no
  * time zone conversion). It only selects a position inside the rows the filters and the channel access already allow;
- * an invalid or stale cursor is ignored (the page is then read by offset).
+ * an invalid or stale cursor (ids beyond {@see MAX_ID}, a page past the last one) is ignored (the page is then read by
+ * offset, within the list cap).
  */
 final readonly class HttpLogListCursor
 {
     /** Query parameter of the admin list. */
     public const PARAM = 'cursor';
 
+    /** Largest id of the INTEGER `id` column on every platform: a larger one would fail on PostgreSQL (SQLSTATE 22003). */
+    public const MAX_ID = 2147483647;
+
     private const TIME_FORMAT = 'YmdHis';
 
-    private const PATTERN = '/^([1-9]\d{0,5})\.(\d{14})\.([1-9]\d{0,17})\.(\d{14})\.([1-9]\d{0,17})$/D';
+    private const PATTERN = '/^([1-9]\d{0,5})\.(\d{14})\.([1-9]\d{0,9})\.(\d{14})\.([1-9]\d{0,9})$/D';
 
     public function __construct(
         public int $page,
@@ -59,11 +63,17 @@ final readonly class HttpLogListCursor
         }
         $first = self::time($match[2]);
         $last  = self::time($match[4]);
-        if (!$first instanceof DateTimeImmutable || !$last instanceof DateTimeImmutable) {
-            return null;
-        }
+        $self  = $first instanceof DateTimeImmutable && $last instanceof DateTimeImmutable
+            ? new self((int) $match[1], $first, (int) $match[3], $last, (int) $match[5])
+            : null;
 
-        return new self((int) $match[1], $first, (int) $match[3], $last, (int) $match[5]);
+        return $self?->idsInRange() === true ? $self : null;
+    }
+
+    /** Both ids fit the INTEGER `id` column (LU-L1: an out-of-range bound is a database error on PostgreSQL). */
+    public function idsInRange(): bool
+    {
+        return $this->firstId >= 1 && $this->firstId <= self::MAX_ID && $this->lastId >= 1 && $this->lastId <= self::MAX_ID;
     }
 
     public function toString(): string

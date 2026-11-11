@@ -168,6 +168,44 @@ final class ListRowsTest extends TestCase
         self::assertSame(array_slice($this->expectedOrder($db), 2, 2), $this->ids($back['items']));
     }
 
+    /** LU-L1: an id beyond the INTEGER column (SQLSTATE 22003 on PostgreSQL) never reaches the database. */
+    #[Test]
+    #[DataProvider('platforms')]
+    public function aCursorWithAnOutOfRangeIdIsIgnored(string $source): void
+    {
+        $db = RollupTestPlatforms::open($source);
+        $this->seed($db, 13);
+        $expected = $this->expectedOrder($db);
+        $at       = new DateTimeImmutable('2026-08-01 10:00:02');
+        $huge     = HttpLogListCursor::MAX_ID + 1;
+
+        self::assertNull(HttpLogListCursor::fromString(sprintf('1.20260801100002.%d.20260801100002.%d', $huge, $huge)));
+        foreach ([new HttpLogListCursor(1, $at, $huge, $at, $huge), new HttpLogListCursor(3, $at, $huge, $at, 1)] as $cursor) {
+            $result = $db->repository()->findListRows([], 2, 5, $cursor);
+            self::assertSame(array_slice($expected, 5, 5), $this->ids($result['items']), 'read by offset');
+        }
+    }
+
+    /** LU-L2: a cursor past the last page is ignored, so no seek skips more rows than the list cap. */
+    #[Test]
+    #[DataProvider('platforms')]
+    public function aCursorPastTheLastPageIsIgnored(string $source): void
+    {
+        $db = RollupTestPlatforms::open($source);
+        $this->seed($db, 13);
+        $expected = $this->expectedOrder($db);
+        $oldest   = $db->repository()->findListRows([], 3, 5)['items'][2];
+
+        // honoured, page 4 (of 3) seeking newer rows from the oldest row would skip 5 rows and return the rows of page 1
+        $forged = new HttpLogListCursor(4, $oldest->createdAt, $oldest->id, $oldest->createdAt, $oldest->id);
+        self::assertSame(array_slice($expected, 5, 5), $this->ids($db->repository()->findListRows([], 2, 5, $forged)['items']));
+        $far = new HttpLogListCursor(999999, $oldest->createdAt, $oldest->id, $oldest->createdAt, $oldest->id);
+        self::assertSame(array_slice($expected, 5, 5), $this->ids($db->repository()->findListRows([], 2, 5, $far)['items']));
+        // the last page itself is still a valid cursor page
+        $last = $db->repository()->findListRows([], 3, 5);
+        self::assertSame(array_slice($expected, 5, 5), $this->ids($db->repository()->findListRows([], 2, 5, $last['cursor'])['items']));
+    }
+
     #[Test]
     #[DataProvider('platforms')]
     public function theProjectionCarriesTheListedColumnsOnly(string $source): void

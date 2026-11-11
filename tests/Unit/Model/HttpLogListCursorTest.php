@@ -30,6 +30,18 @@ final class HttpLogListCursorTest extends TestCase
     }
 
     #[Test]
+    public function idsUpToTheIntegerColumnMaximumAreAccepted(): void
+    {
+        $cursor = HttpLogListCursor::fromString('1.20260803100159.2147483647.20260802230000.2147483647');
+
+        self::assertNotNull($cursor);
+        self::assertSame(HttpLogListCursor::MAX_ID, $cursor->firstId);
+        self::assertTrue($cursor->idsInRange());
+        self::assertFalse((new HttpLogListCursor(1, $cursor->firstCreatedAt, HttpLogListCursor::MAX_ID + 1, $cursor->lastCreatedAt, 1))->idsInRange());
+        self::assertFalse((new HttpLogListCursor(1, $cursor->firstCreatedAt, 1, $cursor->lastCreatedAt, 0))->idsInRange());
+    }
+
+    #[Test]
     public function anEmptyPageHasNoCursor(): void
     {
         self::assertNull(HttpLogListCursor::fromRows(1));

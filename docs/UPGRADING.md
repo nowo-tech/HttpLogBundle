@@ -81,7 +81,9 @@ the links the list renders now carry `?cursor=` as well. Nothing changes in capt
 Four existing indexes keep their names and gain a column, so a filtered page is read in `(created_at, id)` order from
 one index. Everything works before you migrate (only slower on large logs). Generate the migration as usual
 (`php bin/console doctrine:migrations:diff`), or apply the equivalent SQL (default names; add your
-`doctrine.table_prefix` / `table_name_prefix`):
+`doctrine.table_prefix` / `table_name_prefix`). On PostgreSQL and SQLite prefer the SQL below: `migrations:diff`
+generates neither `CONCURRENTLY` nor `varchar_pattern_ops` on PostgreSQL (prefix filters then scan under a non-C
+collation), and on SQLite it rebuilds the whole table to change an index:
 
 ```sql
 -- MySQL / MariaDB
