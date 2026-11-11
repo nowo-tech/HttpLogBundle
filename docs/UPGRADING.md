@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.18.0](#to-1180)
 - [To 1.17.0](#to-1170)
   - [Index migration](#index-migration)
   - [Prefix filters (opt-in)](#prefix-filters-opt-in)
@@ -65,6 +66,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.18.0
+
+From **1.17.0**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 Nothing to change. New optional APIs: the GDPR erasure and export ports
 (`HttpLogPersonalDataErasureInterface`, `HttpLogPersonalDataExporterInterface`, see

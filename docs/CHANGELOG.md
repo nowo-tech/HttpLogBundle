@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.18.0] - 2026-11-11](#1180---2026-11-11)
 - [[1.17.0] - 2026-11-11](#1170---2026-11-11)
 - [[1.16.3] - 2026-11-10](#1163---2026-11-10)
 - [[1.16.2] - 2026-11-10](#1162---2026-11-10)
@@ -47,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-11-11
+
 ### Added
 
 - GDPR erasure and export ports (Beacon re-audit extraction #4): `Privacy\HttpLogPersonalDataErasureInterface`
@@ -70,6 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   erasure), buffered outbound / mailer captures and, after a self-service UserKit erasure, the current request even
   with an anonymised identifier. The request-scoped skip list is cleared at every boundary and on `kernel.reset`
   (worker mode without kernel reset).
+
+[1.18.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.18.0
 
 ## [1.17.0] - 2026-11-11
 
