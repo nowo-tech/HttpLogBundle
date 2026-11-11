@@ -26,8 +26,12 @@ use Nowo\HttpLogBundle\Inbound\RouteTemplateMap;
 use Nowo\HttpLogBundle\Mailer\MailerCaptureListener;
 use Nowo\HttpLogBundle\MessageHandler\PersistHttpLogHandler;
 use Nowo\HttpLogBundle\Messenger\HttpLogContextMiddleware;
+use Nowo\HttpLogBundle\Privacy\HttpLogErasedSubjects;
+use Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataSubjectResolverInterface;
 use Nowo\HttpLogBundle\Privacy\HttpLogUsageEraser;
 use Nowo\HttpLogBundle\Privacy\HttpLogUsageEraserInterface;
+use Nowo\HttpLogBundle\Privacy\UserKit\HttpLogUserKitExportProvider;
+use Nowo\HttpLogBundle\Privacy\UserKit\HttpLogUserKitPersonalDataEraser;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Rollup\RollupSchemaListener;
 use Nowo\HttpLogBundle\Rollup\RollupTables;
@@ -44,6 +48,7 @@ use Nowo\HttpLogBundle\Usage\UsageBufferFlushSubscriber;
 use Nowo\HttpLogBundle\Usage\UsageCaptureSink;
 use Nowo\HttpLogBundle\Usage\UsageEntryWriter;
 use Nowo\HttpLogBundle\View\AdminChrome;
+use Nowo\UserKitBundle\PersonalData\PersonalDataEraserInterface as UserKitPersonalDataEraserInterface;
 use Psr\Clock\ClockInterface;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\FileLocator;
@@ -65,6 +70,7 @@ use function array_merge;
 use function array_unique;
 use function array_values;
 use function class_exists;
+use function interface_exists;
 use function is_array;
 use function is_bool;
 use function is_string;
@@ -91,6 +97,8 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
     public const REQUIRED_SYMBOLS = [
         'outbound' => [AsyncDecoratorTrait::class, 'symfony/http-client'],
         'mailer'   => [MessageEvent::class, 'symfony/mailer'],
+        // Optional UserKit bridge (GDPR ports, 1.18): registered only when this interface exists.
+        'user_kit' => [UserKitPersonalDataEraserInterface::class, 'nowo-tech/user-kit-bundle'],
     ];
 
     /**
@@ -333,6 +341,32 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         }
 
         $this->registerAccessChecker($container, $config['security']);
+        $this->registerPersonalData($container, $config['personal_data']);
+    }
+
+    /**
+     * GDPR ports (1.18): the export limit, the subject resolver and, with UserKit installed and
+     * `personal_data.enabled`, the `http_log` eraser and the `http_requests` export section.
+     *
+     * @param array{enabled: bool, export_limit: int, subject_resolver: string|null} $personalData
+     */
+    private function registerPersonalData(ContainerBuilder $container, array $personalData): void
+    {
+        $container->setParameter(Configuration::ALIAS . '.personal_data.export_limit', $personalData['export_limit']);
+        if ($personalData['subject_resolver'] !== null) {
+            $container->setAlias(HttpLogPersonalDataSubjectResolverInterface::class, $personalData['subject_resolver']);
+        }
+
+        $userKit = $this->requiredSymbols['user_kit'][0] ?? UserKitPersonalDataEraserInterface::class;
+        if (!$personalData['enabled'] || !interface_exists($userKit)) {
+            return;
+        }
+        $container->register(HttpLogUserKitPersonalDataEraser::class, HttpLogUserKitPersonalDataEraser::class)
+            ->setAutowired(true)
+            ->addTag('nowo_user_kit.personal_data.eraser', ['priority' => HttpLogUserKitPersonalDataEraser::PRIORITY]);
+        $container->register(HttpLogUserKitExportProvider::class, HttpLogUserKitExportProvider::class)
+            ->setAutowired(true)
+            ->addTag('nowo_user_kit.personal_data.export_provider', ['priority' => HttpLogUserKitExportProvider::PRIORITY]);
     }
 
     /**
@@ -462,7 +496,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                     new Reference('messenger.default_bus', ContainerInterface::NULL_ON_INVALID_REFERENCE),
                 ]));
             $container->setDefinition(HttpLogBuffer::class, (new Definition(HttpLogBuffer::class))
-                ->setArguments([new Reference(UsageCaptureSink::class), $logger])
+                ->setArguments([new Reference(UsageCaptureSink::class), $logger, new Reference(HttpLogErasedSubjects::class)])
                 ->addTag('kernel.reset', ['method' => 'reset'])
                 ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
             $container->setDefinition(UsageBufferFlushSubscriber::class, (new Definition(UsageBufferFlushSubscriber::class))
@@ -681,6 +715,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                 $logger,
                 $rollupEnabled,
                 $rollupEnabled && $config['rollup']['web'],
+                new Reference(HttpLogErasedSubjects::class),
             ])
             ->addTag('monolog.logger', ['channel' => self::LOGGER_CHANNEL]));
         $container->setDefinition(InboundRequestSubscriber::class, (new Definition(InboundRequestSubscriber::class))

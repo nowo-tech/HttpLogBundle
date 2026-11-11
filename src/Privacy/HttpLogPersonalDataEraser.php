@@ -22,10 +22,12 @@ final readonly class HttpLogPersonalDataEraser implements HttpLogPersonalDataEra
     /**
      * @param HttpLogEntryRepository $repository Entry repository
      * @param array<string, mixed> $retentionConfig `nowo_http_log.retention` (its `purge_batch_size` sizes each delete)
+     * @param HttpLogErasedSubjects|null $erased Skip list of the boundary: captures of an erased value written later in the same request are dropped (LY-L2)
      */
     public function __construct(
         private HttpLogEntryRepository $repository,
         private array $retentionConfig = [],
+        private ?HttpLogErasedSubjects $erased = null,
     ) {
     }
 
@@ -67,6 +69,7 @@ final readonly class HttpLogPersonalDataEraser implements HttpLogPersonalDataEra
      */
     private function delete(string $field, string $value): int
     {
+        $this->remember($field, $this->checked($field, $value));
         $total = 0;
         foreach ($this->exactIdBatches($field, $value) as $ids) {
             $total += $this->repository->deleteByIds($ids);
@@ -120,6 +123,26 @@ final readonly class HttpLogPersonalDataEraser implements HttpLogPersonalDataEra
                 yield $ids;
             }
         } while (count($rows) === $size);
+    }
+
+    /**
+     * Captures of this value still to be written in the current request / command / message (the erasing request
+     * itself at `kernel.terminate`, buffered outbound and mailer captures) are dropped. A value the columns cannot hold
+     * was never logged.
+     *
+     * @param 'clientIp'|'userIdentifier' $field
+     */
+    private function remember(string $field, string $value): void
+    {
+        if (!$this->erased instanceof HttpLogErasedSubjects) {
+            return;
+        }
+
+        try {
+            $this->erased->remember($field === 'clientIp' ? HttpLogPersonalDataSubject::fromClientIp($value) : HttpLogPersonalDataSubject::fromUserIdentifier($value));
+        } catch (InvalidArgumentException) {
+            // longer than the column: never stored
+        }
     }
 
     /**

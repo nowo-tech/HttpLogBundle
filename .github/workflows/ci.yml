@@ -244,7 +244,7 @@ jobs:
         run: composer igor --no-interaction
 
   real-databases:
-    name: Inbound capture in an open transaction on PostgreSQL and MySQL
+    name: Inbound capture in an open transaction and GDPR ports on PostgreSQL and MySQL
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -282,10 +282,20 @@ jobs:
           HTTPLOG_TEST_PGSQL_URL: postgresql://postgres:ci-placeholder@127.0.0.1:5432/http_log?serverVersion=17&charset=utf8
         run: vendor/bin/phpunit --no-coverage tests/Integration/OpenHostTransactionTest.php
 
+      - name: GDPR ports on PostgreSQL (exact matching, transactions)
+        env:
+          HTTPLOG_TEST_PGSQL_URL: postgresql://postgres:ci-placeholder@127.0.0.1:5432/http_log?serverVersion=17&charset=utf8
+        run: vendor/bin/phpunit --no-coverage tests/Integration/Privacy
+
       - name: MySQL
         env:
           HTTPLOG_TEST_MYSQL_URL: mysql://root:ci-placeholder@127.0.0.1:3306/http_log?serverVersion=8.4.0&charset=utf8mb4
         run: vendor/bin/phpunit --no-coverage tests/Integration/OpenHostTransactionTest.php
+
+      - name: GDPR ports on MySQL (case- and accent-insensitive collation only pre-filters)
+        env:
+          HTTPLOG_TEST_MYSQL_URL: mysql://root:ci-placeholder@127.0.0.1:3306/http_log?serverVersion=8.4.0&charset=utf8mb4
+        run: vendor/bin/phpunit --no-coverage tests/Integration/Privacy
 
   coverage:
     name: Code Coverage

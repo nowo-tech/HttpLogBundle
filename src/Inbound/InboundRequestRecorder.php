@@ -6,6 +6,7 @@ namespace Nowo\HttpLogBundle\Inbound;
 
 use DateTimeImmutable;
 use Nowo\HttpLogBundle\Enum\OutboundErrorKind;
+use Nowo\HttpLogBundle\Privacy\HttpLogErasedSubjects;
 use Nowo\HttpLogBundle\Usage\HttpLogBuffer;
 use Nowo\HttpLogBundle\Usage\HttpLogChannel;
 use Nowo\HttpLogBundle\Usage\UsageCapture;
@@ -51,6 +52,8 @@ final readonly class InboundRequestRecorder
         ?LoggerInterface $logger = null,
         private bool $rollupEnabled = false,
         private bool $rollupWeb = false,
+        // LY-L2: the named-channel capture of a request that erased the person (self-service) is not written
+        private ?HttpLogErasedSubjects $erased = null,
     ) {
         $this->logger = $logger ?? new NullLogger();
     }
@@ -78,6 +81,8 @@ final readonly class InboundRequestRecorder
         try {
             $error = $request->attributes->get(self::EXCEPTION_ATTRIBUTE) === true;
             $row   = $error || $response->getStatusCode() >= $channel->errorStatusMin || $this->sampled($channel->samplingRate);
+            // LY-L2: a request that erased its own user's data keeps at most its anonymous count
+            $row   = $row && $this->erased?->dropsCurrentRequest() !== true;
             $count = $this->rollupEnabled && $channel->rollup;
             if (!$row && !$count) {
                 return;

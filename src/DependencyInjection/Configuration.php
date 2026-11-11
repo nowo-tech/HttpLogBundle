@@ -49,6 +49,9 @@ final class Configuration implements ConfigurationInterface
 
     public const DEFAULT_PURGE_BATCH_SIZE = 1000;
 
+    /** Entries exported at most per subject by the personal-data export (newest first). */
+    public const DEFAULT_PERSONAL_DATA_EXPORT_LIMIT = 1000;
+
     /** Composer package name used in configuration deprecations. */
     public const PACKAGE = 'nowo-tech/http-log-bundle';
 
@@ -166,6 +169,30 @@ final class Configuration implements ConfigurationInterface
                             ->info('Rows deleted per statement by the purge (keyset batches by id), so a large log does not lock the table or flood the binlog.')
                             ->defaultValue(self::DEFAULT_PURGE_BATCH_SIZE)
                             ->min(1)
+                        ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('personal_data')
+                    ->info('GDPR erasure and export (HttpLogPersonalDataErasureInterface / HttpLogPersonalDataExporterInterface) and the UserKit bridge.')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->booleanNode('enabled')
+                            ->info('Opt-in (owner decision LY-L1): with nowo-tech/user-kit-bundle installed, register the "http_log" eraser and the "http_requests" export section. Keep false when you must retain access logs (GDPR art. 17(3)) or already erase this table.')
+                            ->defaultFalse()
+                        ->end()
+                        ->integerNode('export_limit')
+                            ->info('Entries exported at most per subject, newest first (the export also reports the total).')
+                            ->defaultValue(self::DEFAULT_PERSONAL_DATA_EXPORT_LIMIT)
+                            ->min(1)
+                            ->max(100000)
+                        ->end()
+                        ->scalarNode('subject_resolver')
+                            ->info('Service id implementing HttpLogPersonalDataSubjectResolverInterface (default: the user identifier).')
+                            ->defaultNull()
+                            ->validate()
+                                ->ifTrue(static fn (mixed $value): bool => $value !== null && (!is_string($value) || $value === ''))
+                                ->thenInvalid('Invalid "nowo_http_log.personal_data.subject_resolver" %s: use a service id or null.')
+                            ->end()
                         ->end()
                     ->end()
                 ->end()

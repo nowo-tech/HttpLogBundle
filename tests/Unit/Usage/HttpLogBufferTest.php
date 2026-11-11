@@ -6,6 +6,8 @@ namespace Nowo\HttpLogBundle\Tests\Unit\Usage;
 
 use DateTimeImmutable;
 use Nowo\HttpLogBundle\Message\PersistHttpLogMessage;
+use Nowo\HttpLogBundle\Privacy\HttpLogErasedSubjects;
+use Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataSubject;
 use Nowo\HttpLogBundle\Usage\HttpLogBuffer;
 use Nowo\HttpLogBundle\Usage\UsageCapture;
 use Nowo\HttpLogBundle\Usage\UsageCaptureSink;
@@ -161,7 +163,31 @@ final class HttpLogBufferTest extends TestCase
         self::assertSame(0, $buffer->count());
     }
 
-    private function buffer(): HttpLogBuffer
+    #[Test]
+    public function capturesOfAValueErasedInTheBoundaryAreDroppedAtTheFlush(): void
+    {
+        $erased = new HttpLogErasedSubjects();
+        $buffer = $this->buffer($erased);
+        $buffer->add(new UsageCapture('outbound', new DateTimeImmutable(), 'GET', userIdentifier: 'ana'));
+        $buffer->add(new UsageCapture('outbound', new DateTimeImmutable(), 'GET', clientIp: '10.0.0.1'));
+        $buffer->add(new UsageCapture('outbound', new DateTimeImmutable(), 'GET', userIdentifier: 'Ana', clientIp: '10.0.0.2'));
+        $buffer->add($this->capture());
+
+        // queued before the erasure, written after it (kernel.terminate): LY-L2
+        $erased->remember(HttpLogPersonalDataSubject::fromUserIdentifier('ana'));
+        $erased->remember(HttpLogPersonalDataSubject::fromClientIp('10.0.0.1'));
+        $buffer->flush();
+
+        self::assertCount(2, $this->dispatched, 'only the other person\'s capture and the anonymous one');
+        self::assertSame(0, $buffer->count());
+
+        $erased->reset();
+        $buffer->add(new UsageCapture('outbound', new DateTimeImmutable(), 'GET', userIdentifier: 'ana'));
+        $buffer->flush();
+        self::assertCount(3, $this->dispatched, 'the next boundary records the user again');
+    }
+
+    private function buffer(?HttpLogErasedSubjects $erased = null): HttpLogBuffer
     {
         $logs   = &$this->logs;
         $logger = new class($logs) extends AbstractLogger {
@@ -176,7 +202,7 @@ final class HttpLogBufferTest extends TestCase
             }
         };
 
-        return new HttpLogBuffer($this->sink(), $logger);
+        return new HttpLogBuffer($this->sink(), $logger, $erased);
     }
 
     private function sink(): UsageCaptureSink

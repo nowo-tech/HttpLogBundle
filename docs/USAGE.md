@@ -15,6 +15,8 @@ How to capture HTTP traffic, use the admin UI, export, purge, and exclude routes
 - [Export](#export)
 - [Purge and retention](#purge-and-retention)
 - [Personal-data erasure (GDPR)](#personal-data-erasure-gdpr)
+  - [GDPR erasure and export](#gdpr-erasure-and-export)
+  - [UserKit bridge](#userkit-bridge)
 - [Outbound and mailer usage](#outbound-and-mailer-usage)
   - [Outbound HttpClient calls](#outbound-httpclient-calls)
   - [Mails](#mails)
@@ -284,7 +286,7 @@ number of rows deleted.
 ## Personal-data erasure (GDPR)
 
 Do not run SQL on the bundle table: its name depends on `doctrine.table_name_prefix` / `doctrine.table_prefix`. Inject
-the public service `Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataEraserInterface` (since Unreleased):
+the public service `Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataEraserInterface` (since 1.14.0):
 
 | Method | Matches |
 |---|---|
@@ -316,6 +318,113 @@ final class RequestLogsEraser
 
 If a host still needs SQL (reports), take the physical name from the container parameter
 `%nowo_http_log.doctrine.entry_table%`.
+
+### GDPR erasure and export
+
+Since Unreleased the bundle ships one erasure port and one export port per subject, on top of the count / delete
+methods above (unchanged; the new erasure port delegates to them, so matching and batching are identical). All of them
+are public services, plain PHP (no Doctrine, Symfony or HTTP types in their signatures) and covered by SemVer.
+
+| Type | Role |
+|---|---|
+| `Privacy\HttpLogPersonalDataSubject` | Whose entries: `fromUserIdentifier(string)` (`user_identifier`, max 255) or `fromClientIp(string)` (`client_ip`, max 45). Value kept exactly as given: no trimming, no case folding, no IP normalisation. Empty, NUL byte or too long throws `InvalidArgumentException`. |
+| `Privacy\HttpLogPersonalDataErasureInterface` | `erase(HttpLogPersonalDataSubject): HttpLogErasureResult`. |
+| `Privacy\HttpLogErasureResult` | `entries` deleted; `toArray()` (`['entries' => n]`), `total()`. |
+| `Privacy\HttpLogPersonalDataErasedEvent` | `subjectType`, `subjectValue`, `counts` (no entities). |
+| `Privacy\HttpLogPersonalDataExporterInterface` | `export(HttpLogPersonalDataSubject): array` and `clientIpWindows(string $userIdentifier): list<HttpLogClientIpWindow>`. |
+| `Privacy\HttpLogPersonalDataSubjectResolverInterface` | SPI of the UserKit bridge (see below). |
+
+```php
+use Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataErasureInterface;
+use Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataExporterInterface;
+use Nowo\HttpLogBundle\Privacy\HttpLogPersonalDataSubject;
+
+$subject = HttpLogPersonalDataSubject::fromUserIdentifier($user->getUserIdentifier());
+$data    = $exporter->export($subject);         // GDPR art. 15 / 20
+$result  = $erasure->erase($subject);           // GDPR art. 17
+$result->entries;                               // rows deleted; 0 on a second run
+```
+
+**Erasure semantics.**
+
+- Idempotent: a second run deletes nothing and returns zero counts.
+- Exact matching: the SQL `=` only pre-filters; every candidate is re-checked with `===` and deleted by primary key in
+  keyset batches of `retention.purge_batch_size`. On a MySQL `*_ci` collation `UserA` and `josé` are never erased for
+  `usera` / `jose` (tested on MySQL 8.4 and PostgreSQL 17 in CI).
+- Transactions: with no transaction open on the connection of the bundle's entity manager, `erase()` opens one, commits
+  it and only then dispatches `HttpLogPersonalDataErasedEvent`; a failure rolls back and dispatches nothing. Inside
+  your own open transaction (UserKit runs every eraser in one) the deletes join it and **no event is dispatched**: the
+  returned result is the outcome. The event is never dispatched before a commit. The host's entity manager is never
+  flushed.
+- What is erased: every entry (inbound, named channels, outbound, mailer rows) whose `user_identifier` (or `client_ip`)
+  is the subject's. Daily rollup buckets hold neither value and keep their counters. Personal data a third party sent
+  in the body, headers or query string of their own entries is not searched.
+- A client IP may be shared (NAT, offices, carrier-grade NAT): erasing or exporting by IP reaches every person behind
+  it. The UserKit bridge never erases by IP.
+- Captures written later in the same request are dropped: the erasing request itself is recorded at `kernel.terminate`
+  and outbound / mailer captures wait in a buffer until then, i.e. after the erasure. Every erased user identifier and
+  client IP goes into a request-scoped skip list (`HttpLogErasedSubjects`, internal), and a capture of the same
+  request, command or message with one of those values is not written (a named-channel request keeps only its anonymous
+  rollup count). After a self-service erasure through the UserKit bridge (`ErasureRequest::isSelfService()`) the
+  current request is dropped as well, even when an earlier eraser already anonymised the identifier the recorder would
+  log. The list is cleared at the next main request and after each boundary (`kernel.terminate`, `console.terminate`, a
+  worker message), and on `kernel.reset`, so it never reaches the next request of a kept-alive worker. Captures already
+  dispatched to an async transport before the erasure are written by the consumer (rerun the erasure, or let retention
+  purge them).
+- Separate entity manager: with `entity_manager` pointing at an entity manager on another connection than UserKit's,
+  `erase()` commits its own transaction; if a later UserKit eraser fails and UserKit rolls back, the HTTP log part stays
+  erased. Re-running the erasure is safe (idempotent).
+
+**Export shape** (JSON-serialisable; ATOM dates):
+
+```php
+[
+    'subject'           => ['type' => 'user_identifier', 'value' => 'ana'],
+    'total'             => 1234,      // every matching entry
+    'limit'             => 1000,      // personal_data.export_limit
+    'truncated'         => true,      // entries were left out (newest first are kept)
+    'client_ip_windows' => [['client_ip' => '203.0.113.7', 'first_seen_at' => '…', 'last_seen_at' => '…']],
+    'entries'           => [[
+        'created_at' => '2026-03-01T12:00:00+00:00', 'method' => 'GET', 'scheme' => 'https', 'host' => 'app.example.com',
+        'path' => '/account', 'route_name' => 'account', 'status_code' => 200, 'duration_ms' => 12.5,
+        'client_ip' => '203.0.113.7', 'channel' => 'web',  // channel: null without the usage columns
+    ]],
+]
+```
+
+Only request metadata is exported: never query parameters, headers, bodies, credential ids, tenant keys or other
+users' entries. `client_ip_windows` covers every matching entry (not only the exported ones): other bundles
+(CookieConsent) use `clientIpWindows()` to find that person's IP-keyed rows without reading this table.
+
+### UserKit bridge
+
+The bridge is **opt-in**: with `nowo-tech/user-kit-bundle` installed and `personal_data.enabled: true` (default `false`:
+access logs are often kept on purpose, GDPR art. 17(3)), the bundle registers:
+
+| Service | UserKit tag | Key | Priority |
+|---|---|---|---|
+| `Privacy\UserKit\HttpLogUserKitPersonalDataEraser` | `nowo_user_kit.personal_data.eraser` | `http_log` | `100` |
+| `Privacy\UserKit\HttpLogUserKitExportProvider` | `nowo_user_kit.personal_data.export_provider` | section `http_requests` | `-50` |
+
+The eraser runs before the host's identity erasers (priority below 100, REQ-DATA-002) and after CookieConsent's (110),
+which reads this table's client IP windows first. It erases the user's **original identifier**
+(`ErasureRequest::$originalIdentifier`, UserKit >= 1.12; else the current `getUserIdentifier()`), plus
+`$request->context['previous_email']` when the host passes a non-empty string; each distinct subject once. The export
+section holds one export document per subject.
+
+When the identifier logged for a user differs from `getUserIdentifier()` (several historical identifiers, an id instead
+of the e-mail), implement `HttpLogPersonalDataSubjectResolverInterface::subjectsFor(object $user, ?string
+$originalIdentifier): list<HttpLogPersonalDataSubject>` (`$originalIdentifier` is null on export) and point
+`personal_data.subject_resolver` at the service. Without UserKit, or with `personal_data.enabled: false` (the default),
+nothing is registered; the ports stay available.
+
+The section key `http_requests` and the eraser key `http_log` must be unique: UserKit's exporter throws a
+`LogicException` ("Duplicate personal data export section") when two providers use the same section key, so remove
+your own provider of that key before enabling the bridge (two erasers with the same key both run; the second finds
+nothing).
+
+Worker mode: the ports and adapters are stateless readonly services (a kept-alive worker test runs two users 1,000 times
+in one instance with flat memory).
 
 ## Outbound and mailer usage
 

@@ -11,6 +11,7 @@ use Nowo\HttpLogBundle\Inbound\InboundChannel;
 use Nowo\HttpLogBundle\Inbound\InboundChannelMatcher;
 use Nowo\HttpLogBundle\Inbound\InboundRequestRecorder;
 use Nowo\HttpLogBundle\Inbound\RouteTemplateMap;
+use Nowo\HttpLogBundle\Privacy\HttpLogErasedSubjects;
 use Nowo\HttpLogBundle\Tests\Support\UsageTestRig;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -48,7 +49,7 @@ final class InboundRequestRecorderTest extends TestCase
         $this->rig = new UsageTestRig();
     }
 
-    private function recorder(bool $rollup = false, bool $web = false, ?InboundChannelMatcher $matcher = null): InboundRequestRecorder
+    private function recorder(bool $rollup = false, bool $web = false, ?InboundChannelMatcher $matcher = null, ?HttpLogErasedSubjects $erased = null): InboundRequestRecorder
     {
         $channels = [
             'api' => ['path_prefixes' => ['/api'], 'sampling_rate' => 0.0, 'error_status_min' => 500, 'client_ip' => 'full', 'user' => false],
@@ -67,7 +68,7 @@ final class InboundRequestRecorderTest extends TestCase
             }
         };
 
-        return new InboundRequestRecorder($matcher, $map, new HttpLogRequestContextResolution([$resolver]), $this->rig->buffer, $this->rig->clock, $this->rig->logger, $rollup, $web);
+        return new InboundRequestRecorder($matcher, $map, new HttpLogRequestContextResolution([$resolver]), $this->rig->buffer, $this->rig->clock, $this->rig->logger, $rollup, $web, $erased);
     }
 
     private function request(string $path = '/api/tasks/9', ?string $route = 'api_task'): Request
@@ -115,6 +116,24 @@ final class InboundRequestRecorderTest extends TestCase
         self::assertArrayNotHasKey('userIdentifier', $payloads[2], 'user: false');
         self::assertNotSame('SEED24placeholder', $first['eventId']);
         self::assertStringNotContainsString('SEED', json_encode($payloads, JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
+    public function aSelfServiceErasureKeepsOnlyTheAnonymousCountOfItsOwnRequest(): void
+    {
+        $erased   = new HttpLogErasedSubjects();
+        $recorder = $this->recorder(rollup: true, erased: $erased);
+        $channel  = new InboundChannel('api', ['/api'], samplingRate: 1.0, errorStatusMin: 500, clientIp: InboundChannel::CLIENT_IP_FULL, rollup: true);
+
+        $erased->dropCurrentRequest();
+        $recorder->record($channel, $this->request(), new Response('', 503), 1.0);
+        $erased->reset();
+        $recorder->record($channel, $this->request(), new Response('', 503), 1.0);
+
+        $payloads = $this->payloads();
+        self::assertSame([false, null], array_map(static fn (array $p): mixed => $p['row'] ?? null, $payloads), 'LY-L2: the erasing request is a count only; the next one a row');
+        self::assertArrayNotHasKey('clientIp', $payloads[0]);
+        self::assertSame('198.51.100.7', $payloads[1]['clientIp']);
     }
 
     #[Test]
