@@ -3,8 +3,8 @@
 | Field | Value |
 |-------|-------|
 | Package | `nowo-tech/http-log-bundle` (`symfony-bundle`) |
-| Audited revision | `v1.1.6` (post-remediation) |
-| Audit date | 2026-09-24 |
+| Audited revision | `v1.20.0` (first audit `v1.1.6`; sections below added per feature, see the kept-alive section at the end) |
+| Audit date | 2026-09-24, refreshed 2026-11-12 |
 | Method | Manual review of every file under `src/` (terminate subscriber, recorder, capture policy, redactor, classifier, export/purge services, Messenger handlers, admin controller, repository, forms, commands, DI extension, compiler pass, `Resources/config`) |
 | **Verdict** | ✅ **Viable under scenario B** — bundle services are stateless; log entries are written with DBAL inserts, so no entity enters the identity map and nothing of the application is flushed (1.16.2); the repository resolves the EntityManager through `ManagerRegistry` on every call (and resets it only when it is dedicated to the bundle); the user is only recorded when a secured firewall handled the current request; admin/export/purge do not leave hydrated rows behind. |
 | Remediation (2026-09-23 / 2026-09-24) | W-01, W-02, W-03, W-05, W-07 resolved in `HttpLogRecorder`, `HttpLogEntryRepository`, `ExportHttpLogService`, `PurgeHttpLogService`, `HttpLogAdminController`, `PersistHttpLogHandler`; W-04, W-06 accepted. Regression tests: `tests/Integration/HttpLogRecorderWorkerModeTest.php`, `tests/Unit/Service/HttpLogRecorderTest.php`, `tests/Integration/HttpLogEntryRepositoryTest.php` |
@@ -44,7 +44,7 @@ A bundle that is safe under **B** is safe under **A** and under classic mode / P
 |------|--------|-------|
 | Mutable state in shared services | ✅ | Every bundle service only has `private readonly` constructor properties |
 | Static properties / `static` locals | ✅ | None; only static closures and `HttpLogCapture::fromArray()` |
-| `ResetInterface` / `kernel.reset` coverage | ✅ N/A | Nothing in the bundle needs a reset; it relies on Doctrine's and Security's own resets |
+| `ResetInterface` / `kernel.reset` coverage | ✅ | The first-generation services need no reset. Later services that hold per-boundary state clear it themselves: `HttpLogContext` (frames popped in `finally`), `HttpLogBuffer` and `HttpLogErasedSubjects` (flushed / cleared at the terminate boundary), `MailerCaptureListener` (each `WeakMap` entry is unset when its send is recorded; there is no terminate hook, and an entry of a send that never completes vanishes with its message). `RouteTemplateMap` is different: a load-once cache of read-only route templates that is only dropped by `kernel.reset`; it holds no request data, so keeping it for the worker's lifetime is safe (see the HL-1 sections) |
 | Request / user / locale captured in services | ✅ | Start time and request id go in request attributes; the user identifier is only read from `TokenStorage` when a firewall with security enabled handled the current request (W-03) |
 | Superglobals, `$_ENV`, `putenv`, `ini_set`, `setlocale`, timezone | ✅ | None used |
 | Doctrine / EntityManager | ✅ | Manager resolved per call through `ManagerRegistry` (recorder + repository); entries written with DBAL inserts (never flushed, W-01, W-02); a closed manager is reset only when dedicated to the bundle (W-07); admin/export rows detached after use. Clearing application entities between requests stays the application's responsibility |
@@ -199,3 +199,19 @@ two tenants and an unauthenticated request, through a resolver that implements o
 listener of the entry-recorded event: every row and every event holds only its own request's tenant and credential,
 the context depth is 0 after each terminate, and memory stays within 4 MB after warm-up. Igor: no new finding (the one
 existing warning is unchanged).
+
+## Kept-alive kernel, reset false (1.20.0)
+
+**The bundle is safe with kernel reset false** (`FRANKENPHP_RESET_KERNEL=false`, `services_resetter` never called). Every
+per-request or per-boundary memo above that holds request data is released by the bundle itself (frames popped in
+`finally`, buffer flushed and erased-subject set cleared at `kernel.terminate`, mail starts unset when recorded, the
+request context kept on the request attributes), never by `kernel.reset` alone. The one exception is the load-once
+`RouteTemplateMap` (read-only route templates, no request data), which stays for the worker's life without harm.
+
+| Test | What it proves |
+| --- | --- |
+| `tests/Integration/WorkerModeKeptAliveKernelTest.php` (`aKeptAliveKernelRecordsManyRequestsWithFlatMemoryAndNoLeak`) | ONE booted kernel, 1,200 `http_kernel` handle() + terminate() cycles and 1,200 recordings alternating two users, no resetter: flat memory after warm-up, empty unit of work, every row carries its own request's client and user |
+| `tests/Integration/Privacy/PersonalDataKernelTest.php`, `tests/Integration/Usage/DddHostKernelTest.php`, `tests/Integration/Usage/ApiChannelKernelTest.php` | named channels, erasure and framework-free ports on one kernel without the resetter (sections above) |
+
+Rule 7: the bundle never clears the host's default EntityManager (log rows are DBAL inserts, a dedicated manager is only
+reset when it is the bundle's own); clearing the application's own identity map between requests stays the host's job.
