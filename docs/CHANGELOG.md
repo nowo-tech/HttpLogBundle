@@ -62,7 +62,8 @@ Target **1.20.0** (minor; opt-in, no behaviour change for existing hosts).
   so VarDumper, `var_export()`, `(array)`, `json_encode()` and `serialize()` never show them; a clone or an
   unserialized copy has none. The bundle never logs or persists them: they are only handed to the resolvers, and the
   context is built per resolution (REQ-RUNTIME-002). With the default empty list the context is exactly as in 1.19.0;
-  `HttpRequestContext::attribute()` and `$attributes` keep their scalar-only rule and signature.
+  `HttpRequestContext::attribute()` and `$attributes` keep their scalar-only rule and signature. Entries must be
+  strings: an int, float or bool entry fails the container build (audit MU-H-I1).
 
 ## [1.19.0] - 2026-11-11
 

@@ -156,4 +156,21 @@ final class ConfigurationTest extends TestCase
             'sampling_rate' => 1.5,
         ]]);
     }
+
+    /** @return iterable<string, array{0: mixed}> */
+    public static function invalidContextAttributes(): iterable
+    {
+        yield 'int' => [42];
+        yield 'bool' => [true];
+        yield 'float' => [1.5];
+    }
+
+    /** MU-H-I1: a non-string name is refused at build time instead of failing (and emptying the context) per request. */
+    #[DataProvider('invalidContextAttributes')]
+    public function testRejectsNonStringContextAttributes(mixed $name): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('context_attributes');
+        (new Processor())->processConfiguration(new Configuration(), [['redaction' => ['context_attributes' => ['_app_api_credential', $name]]]]);
+    }
 }
