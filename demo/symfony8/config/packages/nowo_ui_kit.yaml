@@ -1,6 +1,6 @@
 nowo_ui_kit:
-    css_framework: bootstrap5
-    icon_set: bootstrap-icons
-    # REQ-UI-003: every UiKit scaffold (the HttpLog admin pages) renders inside the demo layout bridge.
+    css_framework: custom
+    icon_set: none
+    # REQ-UI-003: every UiKit scaffold (the HttpLog admin pages) renders inside the demo base layout (UiKit admin layout, default theme, REQ-DEMO-014).
     layouts:
-        admin: 'layouts/admin.html.twig'
+        admin: 'base.html.twig'
