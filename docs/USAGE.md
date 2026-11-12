@@ -608,6 +608,31 @@ scalar `tokenAttributes` (`tokenAttribute()`).
   not match the same secret-name rule (`api_token`, `session_id` and `refresh_secret` are dropped).
 - **Values that reach the context must be ids, never secrets.** Have your authenticator store the credential's
   **database id** under a plain name (`credential_id`) and read that; the filters are a safety net.
+- **Allowlisted raw attributes (opt-in, 1.20):** name request attributes in `redaction.context_attributes`
+  (default: none; exact names) to receive their raw value, **objects included**, through
+  `allowlistedAttribute(string $name): mixed` (and `hasAllowlistedAttribute()`). Your explicit list wins over the
+  secret-name and `_` prefix rules above: name only what your resolvers need, and keep secrets out of those values
+  (your responsibility). They are kept outside the context's properties, so dumps, `var_export()`, `(array)`,
+  `json_encode()` and `serialize()` never show them (a clone or unserialized copy has none), and the bundle never logs
+  or persists them; they are only handed to the resolvers.
+
+  ```yaml
+  nowo_http_log:
+      redaction:
+          context_attributes: ['_app_api_credential']   # what your authenticator stamps on $request->attributes
+  ```
+
+  ```php
+  public function resolveContext(HttpRequestContext $request, string $channel): ?HttpLogRequestContext
+  {
+      $credential = $request->allowlistedAttribute('_app_api_credential');
+      if (!$credential instanceof ApiCredential) {
+          return null;
+      }
+
+      return new HttpLogRequestContext(credentialKind: $credential->kind, credentialId: $credential->id);
+  }
+  ```
 
 The 1.18 port, `HttpLogRequestContextResolverInterface::resolve(Request, ?TokenInterface, string)`, is **deprecated
 since 1.19 and removed in 2.0** ([UPGRADING](UPGRADING.md#unreleased)). Resolvers that implement only it keep working

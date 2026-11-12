@@ -12,8 +12,8 @@ use function strtolower;
  * (REQ-ARCH-001 rule 3: no Symfony `Request` or `TokenInterface` in a public port).
  *
  * Built by the bundle at the HTTP edge from the request and, only when a firewall with security enabled handled it, the
- * security token. It carries scalars only and is never stored: the row still holds only what the resolver returns
- * (an {@see HttpLogRequestContext}), guarded as before.
+ * security token. Its properties carry scalars only and it is never stored: the row still holds only what the
+ * resolver returns (an {@see HttpLogRequestContext}), guarded as before.
  *
  * Headers are an allowlist (`redaction.context_headers`, default `accept`, `accept-language`, `content-type`,
  * `user-agent`, `x-request-id`; add your tenant header). `Authorization`, `Proxy-Authorization`, `Cookie`, `Referer`,
@@ -22,6 +22,14 @@ use function strtolower;
  * in it, even when listed; nor is the query string. Resolve the credential from an **id** your authenticator stored as
  * a scalar token or request attribute (for example `credential_id`), or from the user identifier. Values that reach
  * the context must be ids, never secrets.
+ *
+ * Since 1.20, the host can name request attributes in `redaction.context_attributes` (default: none) to receive their
+ * **raw** value, objects included, through {@see allowlistedAttribute()} (for example the credential object its
+ * authenticator stamps on the request). The host's explicit allowlist wins over the secret-name and `_` prefix rules
+ * of {@see $attributes}: naming an attribute there is the host's decision and responsibility. These values are never
+ * stored in a property of this object (they live in an internal {@see \WeakMap} keyed by it), so no dump,
+ * `var_export()`, `(array)` cast, `json_encode()` or `serialize()` of the context shows them; a `clone` or an
+ * unserialized copy has none. The bundle never logs or persists them: they are only handed to the resolvers.
  */
 final readonly class HttpRequestContext
 {
@@ -36,6 +44,9 @@ final readonly class HttpRequestContext
      *                                    when it equals, contains or starts the request's credential
      * @param list<string> $roles the role names of the security token (empty without one)
      * @param array<string, scalar|null> $tokenAttributes the security token attributes with a scalar value whose name does not look like a secret
+     * @param array<string, mixed> $allowlistedAttributes the raw values of the request attributes named in
+     *                                                    `redaction.context_attributes` that the request has (kept
+     *                                                    outside the object's properties)
      */
     public function __construct(
         public string $method,
@@ -47,7 +58,11 @@ final readonly class HttpRequestContext
         public ?string $userIdentifier = null,
         public array $roles = [],
         public array $tokenAttributes = [],
+        array $allowlistedAttributes = [],
     ) {
+        if ($allowlistedAttributes !== []) {
+            HttpRequestContextAttributes::put($this, $allowlistedAttributes);
+        }
     }
 
     /** The first value of a header (case-insensitive name), or null when it is absent or not allowlisted. */
@@ -60,6 +75,21 @@ final readonly class HttpRequestContext
     public function attribute(string $name): bool|float|int|string|null
     {
         return $this->attributes[$name] ?? null;
+    }
+
+    /**
+     * The raw value (objects included) of a request attribute the host named in `redaction.context_attributes`, or
+     * null when the name is not allowlisted or the request has no such attribute. Since 1.20.
+     */
+    public function allowlistedAttribute(string $name): mixed
+    {
+        return HttpRequestContextAttributes::get($this, $name);
+    }
+
+    /** True when the host allowlisted this request attribute and the request has it (even with a null value). Since 1.20. */
+    public function hasAllowlistedAttribute(string $name): bool
+    {
+        return HttpRequestContextAttributes::has($this, $name);
     }
 
     /** A scalar route parameter, or null. */

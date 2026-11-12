@@ -49,6 +49,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Target **1.20.0** (minor; opt-in, no behaviour change for existing hosts).
+
+### Added
+
+- `redaction.context_attributes` (default `[]`): an explicit allowlist of request attribute names (exact,
+  case-sensitive) whose **raw** value, objects included, a framework-free request-context resolver reads through the
+  new `HttpRequestContext::allowlistedAttribute(string): mixed` / `hasAllowlistedAttribute(string): bool` (for example
+  the credential object an authenticator stamps on `$request->attributes`). The host's explicit allowlist wins over the
+  1.19 secret-name rule (MR-H-L2) and the `_` prefix rule; naming an attribute is the host's decision and
+  responsibility. The values are kept outside the context's properties (an internal `WeakMap` keyed by the context),
+  so VarDumper, `var_export()`, `(array)`, `json_encode()` and `serialize()` never show them; a clone or an
+  unserialized copy has none. The bundle never logs or persists them: they are only handed to the resolvers, and the
+  context is built per resolution (REQ-RUNTIME-002). With the default empty list the context is exactly as in 1.19.0;
+  `HttpRequestContext::attribute()` and `$attributes` keep their scalar-only rule and signature. Entries must be
+  strings: an int, float or bool entry fails the container build (audit MU-H-I1).
+
 ## [1.19.0] - 2026-11-11
 
 Target **1.19.0** (minor; no behaviour change for existing hosts).
