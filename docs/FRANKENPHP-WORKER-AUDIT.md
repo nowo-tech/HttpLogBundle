@@ -44,7 +44,7 @@ A bundle that is safe under **B** is safe under **A** and under classic mode / P
 |------|--------|-------|
 | Mutable state in shared services | ✅ | Every bundle service only has `private readonly` constructor properties |
 | Static properties / `static` locals | ✅ | None; only static closures and `HttpLogCapture::fromArray()` |
-| `ResetInterface` / `kernel.reset` coverage | ✅ | The first-generation services need no reset. Later services that hold per-boundary state (`HttpLogContext`, `HttpLogBuffer`, `MailerCaptureListener`, `HttpLogErasedSubjects`, `RouteTemplateMap`, see the HL-1 / GDPR sections) also clear it at the end of every request or message (`finally` / `kernel.terminate`), so they do not depend on `kernel.reset` |
+| `ResetInterface` / `kernel.reset` coverage | ✅ | The first-generation services need no reset. Later services that hold per-boundary state clear it themselves: `HttpLogContext` (frames popped in `finally`), `HttpLogBuffer` and `HttpLogErasedSubjects` (flushed / cleared at the terminate boundary), `MailerCaptureListener` (each `WeakMap` entry is unset when its send is recorded; there is no terminate hook, and an entry of a send that never completes vanishes with its message). `RouteTemplateMap` is different: a load-once cache of read-only route templates that is only dropped by `kernel.reset`; it holds no request data, so keeping it for the worker's lifetime is safe (see the HL-1 sections) |
 | Request / user / locale captured in services | ✅ | Start time and request id go in request attributes; the user identifier is only read from `TokenStorage` when a firewall with security enabled handled the current request (W-03) |
 | Superglobals, `$_ENV`, `putenv`, `ini_set`, `setlocale`, timezone | ✅ | None used |
 | Doctrine / EntityManager | ✅ | Manager resolved per call through `ManagerRegistry` (recorder + repository); entries written with DBAL inserts (never flushed, W-01, W-02); a closed manager is reset only when dedicated to the bundle (W-07); admin/export rows detached after use. Clearing application entities between requests stays the application's responsibility |
@@ -203,9 +203,10 @@ existing warning is unchanged).
 ## Kept-alive kernel, reset false (1.20.0)
 
 **The bundle is safe with kernel reset false** (`FRANKENPHP_RESET_KERNEL=false`, `services_resetter` never called). Every
-per-request or per-boundary memo above is released by the bundle itself (frames popped in `finally`, buffer flushed and
-erased-subject set cleared at `kernel.terminate`, the request context kept on the request attributes), never by
-`kernel.reset` alone.
+per-request or per-boundary memo above that holds request data is released by the bundle itself (frames popped in
+`finally`, buffer flushed and erased-subject set cleared at `kernel.terminate`, mail starts unset when recorded, the
+request context kept on the request attributes), never by `kernel.reset` alone. The one exception is the load-once
+`RouteTemplateMap` (read-only route templates, no request data), which stays for the worker's life without harm.
 
 | Test | What it proves |
 | --- | --- |
