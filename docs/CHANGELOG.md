@@ -50,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Demo uses the UiKit base style (REQ-DEMO-014)
+
 ## [1.20.0] - 2026-11-12
 
 Target **1.20.0** (minor; opt-in, no behaviour change for existing hosts).
