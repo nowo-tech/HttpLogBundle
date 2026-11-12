@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.20.0] - 2026-11-12](#1200---2026-11-12)
 - [[1.19.0] - 2026-11-11](#1190---2026-11-11)
 - [[1.18.0] - 2026-11-11](#1180---2026-11-11)
 - [[1.17.0] - 2026-11-11](#1170---2026-11-11)
@@ -49,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-11-12
+
 Target **1.20.0** (minor; opt-in, no behaviour change for existing hosts).
 
 ### Added
@@ -64,6 +67,8 @@ Target **1.20.0** (minor; opt-in, no behaviour change for existing hosts).
   context is built per resolution (REQ-RUNTIME-002). With the default empty list the context is exactly as in 1.19.0;
   `HttpRequestContext::attribute()` and `$attributes` keep their scalar-only rule and signature. Entries must be
   strings: an int, float or bool entry fails the container build (audit MU-H-I1).
+
+[1.20.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.20.0
 
 ## [1.19.0] - 2026-11-11
 

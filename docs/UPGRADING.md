@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.20.0](#to-1200)
   - [Raw request attributes for resolvers (opt-in)](#raw-request-attributes-for-resolvers-opt-in)
 - [To 1.19.0](#to-1190)
   - [Framework-free request-context resolver (deprecation)](#framework-free-request-context-resolver-deprecation)
@@ -69,6 +70,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.20.0
+
+From **1.19.0**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 Target **1.20.0**, from **1.19.0**:
 
