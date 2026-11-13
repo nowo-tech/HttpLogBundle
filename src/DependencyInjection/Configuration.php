@@ -167,7 +167,7 @@ final class Configuration implements ConfigurationInterface
                         ->end()
                         ->arrayNode('json_paths')
                             ->scalarPrototype()->end()
-                            ->defaultValue(['*.password', '*._password', '*.token', '*._token', '*._csrf_token'])
+                            ->defaultValue(['*.password', '*._password', '*.token', '*._token', '*._csrf_token', '*.value'])
                         ->end()
                     ->end()
                 ->end()
