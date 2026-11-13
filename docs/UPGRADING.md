@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.20.1](#to-1201)
   - [Exact collation of the identifier columns (MySQL / MariaDB)](#exact-collation-of-the-identifier-columns-mysql--mariadb)
 - [To 1.20.0](#to-1200)
   - [Raw request attributes for resolvers (opt-in)](#raw-request-attributes-for-resolvers-opt-in)
@@ -71,6 +72,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.20.1
+
+From **1.20.0**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 Target **1.20.1** (patch), from **1.20.0**:
 

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.20.1] - 2026-11-13](#1201---2026-11-13)
 - [[1.20.0] - 2026-11-12](#1200---2026-11-12)
 - [[1.19.0] - 2026-11-11](#1190---2026-11-11)
 - [[1.18.0] - 2026-11-11](#1180---2026-11-11)
@@ -50,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.20.1] - 2026-11-13
+
 ### Security
 
 - **Identifiers compare byte for byte on MySQL / MariaDB (REQ-SEC-006, patch 1.20.1):** the rollup key columns were
@@ -68,6 +71,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Demo uses the UiKit base style (REQ-DEMO-014)
+
+[1.20.1]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.20.1
 
 ## [1.20.0] - 2026-11-12
 
