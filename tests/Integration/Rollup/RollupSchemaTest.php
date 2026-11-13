@@ -13,6 +13,7 @@ use Doctrine\ORM\ORMSetup;
 use Doctrine\ORM\Tools\Event\GenerateSchemaEventArgs;
 use Doctrine\ORM\Tools\SchemaTool;
 use Doctrine\Persistence\Mapping\Driver\MappingDriverChain;
+use Nowo\HttpLogBundle\Doctrine\ExactCollation;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Rollup\RollupSchemaListener;
 use Nowo\HttpLogBundle\Rollup\RollupTables;
@@ -34,6 +35,7 @@ use function implode;
 use function is_string;
 use function preg_match;
 use function preg_quote;
+use function preg_replace;
 use function random_bytes;
 use function str_replace;
 use function sys_get_temp_dir;
@@ -131,10 +133,16 @@ final class RollupSchemaTest extends TestCase
             $this->dropTables($params);
         }
 
-        // the 1.15 schema (entry with the usage columns) first
-        $old = new UsageTestDatabase(true, $tablePrefix, $tableNamePrefix, $params);
+        // the 1.15 schema (entry with the usage columns) first, then the 1.16 rollup DDL and the 1.20.1 collation ALTERs
+        $old = new UsageTestDatabase(true, $tablePrefix, $tableNamePrefix, $params, exactCollation: false);
         foreach ($this->ddl($platform, $old->rollupTables, $tablePrefix) as $statement) {
             $old->connection()->executeStatement($statement);
+        }
+        if ($platform === 'mysql') {
+            $collation = ExactCollation::forPlatform($old->connection()->getDatabasePlatform(), $old->connection()->getServerVersion());
+            foreach ($this->ddl('mysql', $old->rollupTables, $tablePrefix, 'sec006-ddl', $old->table()) as $statement) {
+                $old->connection()->executeStatement(str_replace(ExactCollation::MYSQL_NOPAD, (string) $collation, $statement));
+            }
         }
         $old->connection()->close();
 
@@ -156,13 +164,14 @@ final class RollupSchemaTest extends TestCase
      *
      * @return list<string>
      */
-    private function ddl(string $platform, RollupTables $tables, string $tablePrefix): array
+    private function ddl(string $platform, RollupTables $tables, string $tablePrefix, string $block = 'hl1-rollup-ddl', string $entryTable = 'nowo_http_log_entry'): array
     {
         $doc = (string) file_get_contents(dirname(__DIR__, 3) . '/docs/UPGRADING.md');
-        if (preg_match('/<!-- hl1-rollup-ddl:' . preg_quote($platform, '/') . ' -->\s*```sql\n(.*?)```/s', $doc, $match) !== 1) {
-            throw new RuntimeException('No rollup DDL block for ' . $platform);
+        if (preg_match('/<!-- ' . $block . ':' . preg_quote($platform, '/') . ' -->\s*```sql\n(.*?)```/s', $doc, $match) !== 1) {
+            throw new RuntimeException('No ' . $block . ' block for ' . $platform);
         }
-        $sql = str_replace(['nowo_http_log_daily', 'nowo_http_log_event_seen'], [$tables->daily, $tables->eventSeen], $match[1]);
+        $sql = preg_replace('/^--.*$/m', '', $match[1]) ?? '';
+        $sql = str_replace(['nowo_http_log_daily', 'nowo_http_log_event_seen', 'nowo_http_log_entry'], [$tables->daily, $tables->eventSeen, $entryTable], $sql);
         $sql = str_replace(['INDEX idx_http_log_', 'INDEX uniq_http_log_'], ['INDEX ' . $tablePrefix . 'idx_http_log_', 'INDEX ' . $tablePrefix . 'uniq_http_log_'], $sql);
 
         return array_values(array_filter(array_map(trim(...), explode(';', $sql)), static fn (string $s): bool => $s !== ''));

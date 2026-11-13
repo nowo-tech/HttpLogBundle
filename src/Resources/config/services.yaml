@@ -22,6 +22,7 @@ services:
             - '../../Usage/'
             - '../../Doctrine/UsageColumnsListener.php'
             - '../../Doctrine/PathPrefixColumnListener.php'
+            - '../../Doctrine/ExactCollation.php'
             # HL-1 1.16: named channels, rollup, usage erasure and the backfill command (registered by the extension).
             - '../../Inbound/'
             - '../../Rollup/'
@@ -36,6 +37,14 @@ services:
 
     Nowo\HttpLogBundle\Repository\:
         resource: '../../Repository/'
+
+    # REQ-SEC-006 (1.20.1): binary NO PAD collation of the identifier columns of the entry table on MySQL / MariaDB.
+    Nowo\HttpLogBundle\Doctrine\ExactColumnsCollationListener:
+        arguments:
+            $logger: '@?logger'
+        tags:
+            - { name: doctrine.event_listener, event: postGenerateSchemaTable }
+            - { name: monolog.logger, channel: nowo_http_log }
 
     # REQ-ORM-002: removed by the extension when doctrine.table_prefix and doctrine.table_name_prefix keep their defaults.
     Nowo\HttpLogBundle\Doctrine\TablePrefixListener:

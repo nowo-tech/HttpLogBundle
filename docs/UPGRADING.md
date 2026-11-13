@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+  - [Exact collation of the identifier columns (MySQL / MariaDB)](#exact-collation-of-the-identifier-columns-mysql--mariadb)
 - [To 1.20.0](#to-1200)
   - [Raw request attributes for resolvers (opt-in)](#raw-request-attributes-for-resolvers-opt-in)
 - [To 1.19.0](#to-1190)
@@ -70,6 +71,99 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+Target **1.20.1** (patch), from **1.20.0**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
+
+Nothing changes on PostgreSQL or SQLite. On MySQL / MariaDB the schema now gives the identifier columns a binary NO PAD
+collation; run the detection queries, then the `ALTER TABLE` statements below (or your `doctrine:migrations:diff`).
+
+### Exact collation of the identifier columns (MySQL / MariaDB)
+
+With the default MySQL / MariaDB collations `Bob`, `bób` and `bob` are the same value, and with the PAD SPACE ones
+(`utf8mb4_bin` included, which 1.16.0–1.20.0 gave the rollup key columns) so are `bob` and `bob `. Since 1.20.1 these
+columns compare byte for byte:
+
+- entry table: `user_identifier`, `client_ip`; with a usage channel enabled also `provider`, `credential_kind`,
+  `credential_id`, `tenant_key`, `project_key`;
+- rollup table (`rollup.enabled`): `channel`, `provider`, `credential_kind`, `credential_id`, `tenant_key`.
+
+The collation is `utf8mb4_0900_bin` on MySQL 8.0.17+ and `utf8mb4_nopad_bin` on MariaDB. MySQL 5.7 (and a
+`doctrine.dbal.server_version` without its patch number, such as `8` or `8.0`) only has the PAD SPACE `utf8mb4_bin`:
+the bundle uses it and logs a warning. Configure the full version (for example `8.4.3`).
+
+The GDPR exporter / eraser and the usage reader already matched exactly in PHP or with `CAST(… AS BINARY)`; the ALTER
+is defence in depth, and it makes the admin list filters (client IP) exact. It is not required for safety. It rebuilds
+the indexes that contain those columns, so plan it for a large log table.
+
+**1. Detection (before the ALTER).** The new collation only splits values that compare equal today; it cannot create a
+duplicate under `uniq_http_log_daily_key`. Look first at the values that will stop matching each other, comparing the
+bytes (`TRIM`, `DISTINCT`, `LOWER` or a `*_ci` / `*_ai_*` collation fold them too):
+
+```sql
+-- groups of look-alike user identifiers / IPs that compare equal today (Bob / bob / bób / "bob ")
+SELECT user_identifier, COUNT(DISTINCT HEX(user_identifier)) AS variants, COUNT(*) AS entries
+FROM nowo_http_log_entry WHERE user_identifier IS NOT NULL
+GROUP BY user_identifier HAVING COUNT(DISTINCT HEX(user_identifier)) > 1;
+SELECT client_ip, COUNT(DISTINCT HEX(client_ip)) AS variants
+FROM nowo_http_log_entry WHERE client_ip IS NOT NULL
+GROUP BY client_ip HAVING COUNT(DISTINCT HEX(client_ip)) > 1;
+
+-- identifiers with edge spaces, control bytes, NBSP, ZWSP or BOM (each is its own value after the ALTER)
+SELECT id, HEX(user_identifier) FROM nowo_http_log_entry
+WHERE CAST(user_identifier AS BINARY) <> TRIM(CAST(user_identifier AS BINARY))
+   OR HEX(user_identifier) REGEXP '^(..)*([01][0-9A-F]|7F|C2A0|E2808B|EFBBBF)';
+
+-- rollup buckets whose keys differ only in case, accents or trailing spaces (rollup.enabled)
+SELECT day, channel, provider, credential_kind, credential_id, tenant_key, COUNT(*) AS buckets
+FROM nowo_http_log_daily
+GROUP BY day, channel, provider, credential_kind, credential_id, tenant_key
+HAVING COUNT(DISTINCT CONCAT_WS('|', HEX(provider), HEX(credential_kind), HEX(credential_id), HEX(tenant_key))) > 1;
+```
+
+The bundle stores provider, credential and tenant keys as `[A-Za-z0-9._:@+-]` tokens only, so the last query is
+expected to be empty. Rows found by the first queries belong to different identities: after the ALTER an export or an
+admin filter for one no longer returns the other (the exporter and eraser already kept them apart).
+
+**2. ALTER.** Use your table names (`doctrine.table_prefix` / `table_name_prefix`), and `utf8mb4_nopad_bin` instead of
+`utf8mb4_0900_bin` on MariaDB.
+
+MySQL 8.0.17+:
+
+<!-- sec006-ddl:mysql -->
+```sql
+ALTER TABLE nowo_http_log_entry
+  MODIFY user_identifier VARCHAR(255) CHARACTER SET utf8mb4 COLLATE `utf8mb4_0900_bin` DEFAULT NULL,
+  MODIFY client_ip VARCHAR(45) CHARACTER SET utf8mb4 COLLATE `utf8mb4_0900_bin` DEFAULT NULL;
+-- with a usage channel enabled (outbound, mailer or a named channel)
+ALTER TABLE nowo_http_log_entry
+  MODIFY provider VARCHAR(64) CHARACTER SET utf8mb4 COLLATE `utf8mb4_0900_bin` DEFAULT NULL,
+  MODIFY credential_kind VARCHAR(32) CHARACTER SET utf8mb4 COLLATE `utf8mb4_0900_bin` DEFAULT NULL,
+  MODIFY credential_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE `utf8mb4_0900_bin` DEFAULT NULL,
+  MODIFY tenant_key VARCHAR(64) CHARACTER SET utf8mb4 COLLATE `utf8mb4_0900_bin` DEFAULT NULL,
+  MODIFY project_key VARCHAR(64) CHARACTER SET utf8mb4 COLLATE `utf8mb4_0900_bin` DEFAULT NULL;
+-- with rollup.enabled
+ALTER TABLE nowo_http_log_daily
+  MODIFY channel VARCHAR(16) CHARACTER SET utf8mb4 COLLATE `utf8mb4_0900_bin` NOT NULL,
+  MODIFY provider VARCHAR(64) CHARACTER SET utf8mb4 COLLATE `utf8mb4_0900_bin` DEFAULT '' NOT NULL,
+  MODIFY credential_kind VARCHAR(32) CHARACTER SET utf8mb4 COLLATE `utf8mb4_0900_bin` DEFAULT '' NOT NULL,
+  MODIFY credential_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE `utf8mb4_0900_bin` DEFAULT '' NOT NULL,
+  MODIFY tenant_key VARCHAR(64) CHARACTER SET utf8mb4 COLLATE `utf8mb4_0900_bin` DEFAULT '' NOT NULL;
+```
+
+Check afterwards (`doctrine:schema:update --dump-sql` must show nothing for these columns):
+
+```sql
+SELECT TABLE_NAME, COLUMN_NAME, COLLATION_NAME FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('nowo_http_log_entry', 'nowo_http_log_daily')
+  AND COLLATION_NAME IS NOT NULL;
+```
+
+`RollupTables::MYSQL_KEY_COLLATION` (`utf8mb4_bin`) is deprecated; `RollupTables::addTo()` also takes the collation as a
+string.
 
 ## To 1.20.0
 
@@ -391,7 +485,8 @@ tenant. Two DBAL tables are added to the schema of the EntityManager that maps t
 6. Upgrade workers and web servers together: a count-only event (`row: false`) consumed by a 1.15 worker would be
    written as a row.
 
-MySQL 8 / MariaDB 10.6+ (the key columns are `utf8mb4_bin`, so keys that differ in case are different buckets):
+MySQL 8 / MariaDB 10.6+ (the key columns are `utf8mb4_bin`, so keys that differ in case are different buckets; since
+1.20.1 they are binary NO PAD, see [Unreleased](#unreleased)):
 
 <!-- hl1-rollup-ddl:mysql -->
 ```sql

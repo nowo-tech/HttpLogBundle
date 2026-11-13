@@ -108,6 +108,10 @@ final class HttpLogPersonalDataPortsTest extends TestCase
     public function caseAndAccentVariantsAreNeitherExportedNorErased(string $source): void
     {
         $db = RollupTestPlatforms::open($source);
+        if ($db->connection()->getDatabasePlatform() instanceof AbstractMySQLPlatform) {
+            // a host that kept a folding collation (the bundle maps utf8mb4_0900_bin / utf8mb4_nopad_bin since 1.20.1)
+            $db->connection()->executeStatement('ALTER TABLE ' . $db->table() . ' MODIFY user_identifier VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL');
+        }
         foreach (['usera', 'UserA', 'jose', 'josé'] as $user) {
             $this->entry($db, $user, '10.9.9.9', '2026-01-01 12:00:00');
         }
