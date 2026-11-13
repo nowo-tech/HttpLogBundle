@@ -495,7 +495,13 @@ tenant. Two DBAL tables are added to the schema of the EntityManager that maps t
    written as a row.
 
 MySQL 8 / MariaDB 10.6+ (the key columns are `utf8mb4_bin`, so keys that differ in case are different buckets; since
-1.20.1 they are binary NO PAD, see [Unreleased](#unreleased)):
+1.20.1 they are binary NO PAD, see [Exact collation of the identifier columns](#exact-collation-of-the-identifier-columns-mysql--mariadb)):
+
+> **Note added in 1.20.1 (the DDL below is kept as it was for 1.16.0):** `utf8mb4_bin` is PAD SPACE on MySQL 8 and
+> MariaDB, so `org-a ` still equals `org-a` in these key columns. Do not copy `COLLATE utf8mb4_bin` there: use
+> `utf8mb4_0900_bin` on MySQL 8.0.17+ or `utf8mb4_nopad_bin` on MariaDB (`utf8mb4_bin` stays only for MySQL 5.7). See
+> [Exact collation of the identifier columns](#exact-collation-of-the-identifier-columns-mysql--mariadb) for the
+> `ALTER TABLE` statements; if you already created the table from this block, run them.
 
 <!-- hl1-rollup-ddl:mysql -->
 ```sql
