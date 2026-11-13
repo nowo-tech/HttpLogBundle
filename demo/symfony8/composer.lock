@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "51af14cdba8c16f50ae77551eaa0c09a",
+    "content-hash": "eb18b2d6dbd97e3f7a58c5af68bfa29a",
     "packages": [
         {
             "name": "doctrine/collections",
@@ -1045,11 +1045,11 @@
         },
         {
             "name": "nowo-tech/http-log-bundle",
-            "version": "dev-main",
+            "version": "dev-chore/demo-screenshots",
             "dist": {
                 "type": "path",
                 "url": "/var/http-log-bundle",
-                "reference": "33904b4581e5ef12c3476535e43292eca325c89b"
+                "reference": "c4b3698d2e2934c4d91fd878b98e4d6a9536c858"
             },
             "require": {
                 "doctrine/doctrine-bundle": "^2.10 || ^3.0",
@@ -1193,16 +1193,16 @@
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v2.49.0",
+            "version": "v2.51.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "38f5a1e26f360bda0fe7e1f88a5182c47081b8ce"
+                "reference": "bd14774abdb7fb3bb755bf8fb2bf4aaee0258d15"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/38f5a1e26f360bda0fe7e1f88a5182c47081b8ce",
-                "reference": "38f5a1e26f360bda0fe7e1f88a5182c47081b8ce",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/bd14774abdb7fb3bb755bf8fb2bf4aaee0258d15",
+                "reference": "bd14774abdb7fb3bb755bf8fb2bf4aaee0258d15",
                 "shasum": ""
             },
             "require": {
@@ -1291,8 +1291,8 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-11-11T22:37:57+00:00",
-            "published-time": "2026-11-11T22:41:16+00:00"
+            "time": "2026-11-13T16:47:40+00:00",
+            "published-time": "2026-11-13T16:53:34+00:00"
         },
         {
             "name": "psr/cache",

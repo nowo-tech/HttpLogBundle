@@ -4,3 +4,4 @@ nowo_ui_kit:
     # REQ-UI-003: every UiKit scaffold (the HttpLog admin pages) renders inside the demo base layout (UiKit admin layout, default theme, REQ-DEMO-014).
     layouts:
         admin: 'base.html.twig'
+    base_stylesheet: true
