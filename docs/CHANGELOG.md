@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.20.2] - 2026-11-13](#1202---2026-11-13)
 - [[1.20.1] - 2026-11-13](#1201---2026-11-13)
 - [[1.20.0] - 2026-11-12](#1200---2026-11-12)
 - [[1.19.0] - 2026-11-11](#1190---2026-11-11)
@@ -51,9 +52,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.20.2] - 2026-11-13
+
 ### Fixed
 
 - Documentation: the historical `To 1.16.0` rollup DDL block in `docs/UPGRADING.md` carries a note that its `COLLATE utf8mb4_bin` is PAD SPACE on MySQL 8 / MariaDB and that hosts must use `utf8mb4_0900_bin` / `utf8mb4_nopad_bin` instead; the pointer to the current section was fixed.
+
+[1.20.2]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.20.2
 
 ## [1.20.1] - 2026-11-13
 
