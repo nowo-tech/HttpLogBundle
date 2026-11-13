@@ -47,7 +47,7 @@ Out of the box, these are redacted (see `Configuration` defaults):
 
 **Query parameters / form fields:** `password`, `_password`, `token`, `_token`, `_csrf_token`, `api_key`
 
-**JSON paths:** `*.password`, `*._password`, `*.token`, `*._token`, `*._csrf_token`, `*.value` (`value` is the key other Nowo bundles answer a revealed secret under)
+**JSON paths:** `*.password`, `*._password`, `*.token`, `*._token`, `*._csrf_token`, `*.value` (`value` is the generic key a secret-returning endpoint tends to answer under, e.g. a future secret-reveal endpoint)
 
 Extend lists for your application. Redaction runs **before** Doctrine persist and **before** `max_body_bytes` truncation, so a truncated body never contains a secret that full-body redaction would have removed. JSON, `application/x-www-form-urlencoded`, and multipart text fields are redacted; a JSON-looking body that cannot be parsed is stored as `[REDACTED-UNPARSEABLE]`.
 
@@ -58,7 +58,9 @@ Extend lists for your application. Redaction runs **before** Doctrine persist an
 Response-body capture means **any endpoint that legitimately returns a secret must be excluded or redacted**, otherwise the plaintext is stored in `http_log`, kept for `retention.days`, shown to every role that can read HTTP logs and included in exports. Two levers:
 
 - `ignore_path_prefixes` / `ignore_routes`: the request is not logged at all (use for reveal, token-issue and download endpoints).
-- `redaction.json_paths`: the response key is replaced with `[REDACTED]`. Matching is by key name only (case-sensitive, any depth, arrays included), so name the key your endpoint answers under. `value` is covered by default since the InstanceSettings secret-reveal response uses it; XML / SOAP bodies are **not** structurally redacted, exclude those endpoints instead. Setting your own `json_paths` replaces the defaults.
+- `redaction.json_paths`: the response key is replaced with `[REDACTED]`. Matching is by key name only (case-sensitive, any depth, arrays included), so name the key your endpoint answers under. `value` is covered by default as a generic secret-carrying key. Setting your own `json_paths` replaces the defaults.
+
+**XML and SOAP:** `capture.response_body_by_type.xml` and `.soap` default to `true`, and the redactor does not touch those bodies at all, because structural redaction does not apply to them. For XML and SOAP, `ignore_path_prefixes` / `ignore_routes` is the **only** protection: there is no redaction lever. A host with a SOAP or XML integration that returns or accepts secrets must exclude those endpoints, or set the `xml` / `soap` types to `false`.
 
 ## Body capture defaults
 

@@ -32,7 +32,7 @@ final class ConfigurationTest extends TestCase
         self::assertSame(
             ['*.password', '*._password', '*.token', '*._token', '*._csrf_token', '*.value'],
             $config['redaction']['json_paths'],
-            '"value" is the key a revealed secret is answered under (InstanceSettings secret reveal)',
+            '"value" is a generic secret-carrying key (e.g. a secret-reveal response)',
         );
         self::assertSame([], $config['redaction']['context_attributes'], 'opt-in: no raw request attribute by default');
         self::assertSame(['/admin/http-log'], $config['ignore_path_prefixes']);
