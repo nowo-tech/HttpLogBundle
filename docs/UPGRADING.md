@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.21.0](#to-1210)
   - [Default JSON redaction now includes `value` (security)](#default-json-redaction-now-includes-value-security)
 - [To 1.20.2](#to-1202)
 - [To 1.20.1](#to-1201)
@@ -74,6 +75,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.21.0
+
+From **1.20.2**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 ### Default JSON redaction now includes `value` (security)
 
