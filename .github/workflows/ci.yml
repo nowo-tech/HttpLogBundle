@@ -263,6 +263,14 @@ jobs:
         ports: ['3306:3306']
         options: >-
           --health-cmd "mysqladmin ping -h 127.0.0.1 -pci-placeholder" --health-interval 5s --health-timeout 5s --health-retries 30
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: ci-placeholder
+          MARIADB_DATABASE: http_log
+        ports: ['3307:3306']
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 5s --health-timeout 5s --health-retries 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -296,6 +304,23 @@ jobs:
         env:
           HTTPLOG_TEST_MYSQL_URL: mysql://root:ci-placeholder@127.0.0.1:3306/http_log?serverVersion=8.4.0&charset=utf8mb4
         run: vendor/bin/phpunit --no-coverage tests/Integration/Privacy
+
+      - name: Exact identifier collation and look-alikes on MySQL 8.4 (REQ-SEC-006)
+        env:
+          HTTPLOG_TEST_MYSQL_URL: mysql://root:ci-placeholder@127.0.0.1:3306/http_log?serverVersion=8.4.0&charset=utf8mb4
+        run: |
+          vendor/bin/phpunit --no-coverage tests/Integration/Doctrine/ExactCollationTest.php
+          vendor/bin/phpunit --no-coverage tests/Integration/Rollup/RollupSchemaTest.php
+          vendor/bin/phpunit --no-coverage tests/Integration/Rollup/UsageReaderTest.php
+
+      - name: Exact identifier collation, look-alikes and GDPR ports on MariaDB 11.4 (REQ-SEC-006)
+        env:
+          HTTPLOG_TEST_MYSQL_URL: mysql://root:ci-placeholder@127.0.0.1:3307/http_log?serverVersion=11.4.0-MariaDB&charset=utf8mb4
+        run: |
+          vendor/bin/phpunit --no-coverage tests/Integration/Doctrine/ExactCollationTest.php
+          vendor/bin/phpunit --no-coverage tests/Integration/Rollup/RollupSchemaTest.php
+          vendor/bin/phpunit --no-coverage tests/Integration/Rollup/UsageReaderTest.php
+          vendor/bin/phpunit --no-coverage tests/Integration/Privacy
 
   coverage:
     name: Code Coverage

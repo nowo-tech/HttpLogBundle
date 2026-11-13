@@ -50,6 +50,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Identifiers compare byte for byte on MySQL / MariaDB (REQ-SEC-006, patch 1.20.1):** the rollup key columns were
+  `utf8mb4_bin`, which is PAD SPACE (`org-a ` = `org-a`); they now get `utf8mb4_0900_bin` (MySQL 8.0.17+) or
+  `utf8mb4_nopad_bin` (MariaDB), and so do the identifier columns of the entry table (`user_identifier`, `client_ip`,
+  and the usage `provider`, `credential_kind`, `credential_id`, `tenant_key`, `project_key`). MySQL 5.7, or a
+  `server_version` without its patch number, keeps `utf8mb4_bin` and logs a warning. The usage reader's credential id
+  and provider lists are now byte-exact too (`CAST(… AS BINARY)` per value): `TOK-1` no longer selected the calls of
+  `tok-1` within the same tenant. Existing tables: detection queries and `ALTER TABLE` in UPGRADING (recommended, not
+  required for safety).
+
+### Deprecated
+
+- `RollupTables::MYSQL_KEY_COLLATION` (`utf8mb4_bin`): `RollupTables::addTo()` takes the collation as a string.
+
 ### Changed
 
 - Demo uses the UiKit base style (REQ-DEMO-014)

@@ -6,7 +6,10 @@ namespace Nowo\HttpLogBundle\Rollup;
 
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Types\Types;
+use Nowo\HttpLogBundle\Doctrine\ExactCollation;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
+
+use function is_string;
 
 /**
  * Names and DBAL schema of the two rollup tables (HL-1 §8.3): `<table_prefix><table_name_prefix>daily` (one bucket
@@ -79,18 +82,27 @@ final readonly class RollupTables
         return $this->indexPrefix . $name;
     }
 
-    /** MySQL / MariaDB collation of the key columns: case-sensitive, so `ORG-A` and `org-a` are two buckets. */
-    public const MYSQL_KEY_COLLATION = 'utf8mb4_bin';
+    /**
+     * MySQL < 8.0.17 collation of the key columns: case-sensitive, so `ORG-A` and `org-a` are two buckets, but PAD SPACE.
+     *
+     * @deprecated since 1.20.1, the key columns get the binary NO PAD collation of the platform
+     *             ({@see ExactCollation::forPlatform()}): `utf8mb4_0900_bin` on MySQL 8.0.17+, `utf8mb4_nopad_bin` on
+     *             MariaDB, this one on older MySQL servers only
+     */
+    public const MYSQL_KEY_COLLATION = ExactCollation::MYSQL_PAD_FALLBACK;
 
     /**
      * Adds both tables to `$schema` (no-op for a table already there).
      *
-     * @param bool $mysql the platform is MySQL / MariaDB: the key columns get {@see MYSQL_KEY_COLLATION} (their
-     *                    case-insensitive default collations would merge keys that differ in case)
+     * @param bool|string $mysql the collation of the key columns on MySQL / MariaDB (since 1.20.1, from
+     *                           {@see ExactCollation::forConnection()}: binary NO PAD, so neither case, accents nor
+     *                           trailing spaces merge two buckets), or `true` for {@see MYSQL_KEY_COLLATION} (before
+     *                           1.20.1), or `false` / `''` for none (PostgreSQL, SQLite)
      */
-    public function addTo(Schema $schema, bool $mysql = false): void
+    public function addTo(Schema $schema, bool|string $mysql = false): void
     {
-        $key = $mysql ? ['platformOptions' => ['collation' => self::MYSQL_KEY_COLLATION]] : [];
+        $collation = $mysql === true ? self::MYSQL_KEY_COLLATION : $mysql;
+        $key       = is_string($collation) && $collation !== '' ? ['platformOptions' => ['charset' => 'utf8mb4', 'collation' => $collation]] : [];
         if (!$schema->hasTable($this->daily)) {
             $daily = $schema->createTable($this->daily);
             $daily->addColumn('id', Types::BIGINT, ['autoincrement' => true]);

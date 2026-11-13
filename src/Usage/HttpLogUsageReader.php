@@ -105,7 +105,7 @@ final readonly class HttpLogUsageReader implements HttpLogUsageReaderInterface
             ->setMaxResults($limit + 1);
         $this->scope($qb, $platform, $query->scope, $column('tenantKey'));
         $this->in($qb, $column('channel'), $query->channels, 'channels');
-        $this->in($qb, $column('provider'), $query->providers, 'providers');
+        $this->in($qb, $column('provider'), $query->providers, 'providers', $platform);
         $this->credential($qb, $platform, $column('credentialKind'), $column('credentialId'), $query->credentialKind, $query->credentialIds);
         if ($query->from instanceof DateTimeImmutable) {
             $qb->andWhere($column('createdAt') . ' >= :from')->setParameter('from', $query->from, Types::DATETIME_IMMUTABLE);
@@ -163,12 +163,12 @@ final readonly class HttpLogUsageReader implements HttpLogUsageReaderInterface
             ->setParameter('since', $since);
         $this->scope($qb, $platform, $scope->scope, 'tenant_key');
         $this->in($qb, 'channel', $scope->channels, 'channels');
-        $this->in($qb, 'provider', $scope->providers, 'providers');
+        $this->in($qb, 'provider', $scope->providers, 'providers', $platform);
         $this->credential($qb, $platform, 'credential_kind', 'credential_id', $kind, $ids);
 
         $result = [];
         foreach ($qb->executeQuery()->fetchAllAssociative() as $row) {
-            // exact ids: the key columns are case-sensitive on every platform (utf8mb4_bin on MySQL)
+            // exact ids: compared byte for byte in SQL (binary NO PAD key columns, CAST AS BINARY on MySQL / MariaDB)
             $id          = (string) $row['credential_id'];
             $result[$id] = new CredentialUsage($id, $this->time($row['last_seen_at']) ?? new DateTimeImmutable('@0'), $this->int($row['calls30d']), $this->int($row['errors30d']));
         }
@@ -199,7 +199,7 @@ final readonly class HttpLogUsageReader implements HttpLogUsageReaderInterface
         $qb       = $connection->createQueryBuilder()->select(...$select)->from($tables->daily);
         $this->scope($qb, $platform, $query->scope, 'tenant_key');
         $this->in($qb, 'channel', $query->channels, 'channels');
-        $this->in($qb, 'provider', $query->providers, 'providers');
+        $this->in($qb, 'provider', $query->providers, 'providers', $platform);
         $this->credential($qb, $platform, 'credential_kind', 'credential_id', $query->credentialKind, $query->credentialIds);
         if ($query->fromDay !== null) {
             $qb->andWhere('day >= :fromDay')->setParameter('fromDay', $query->fromDay);
@@ -224,12 +224,29 @@ final readonly class HttpLogUsageReader implements HttpLogUsageReaderInterface
         }
     }
 
-    /** @param list<string> $values */
-    private function in(QueryBuilder $qb, string $column, array $values, string $name): void
+    /**
+     * `column IN (…)`; byte-exact on MySQL / MariaDB when `$platform` is given (provider keys and credential ids are
+     * identifiers, since 1.20.1; the channels are bundle names).
+     *
+     * @param list<string> $values
+     */
+    private function in(QueryBuilder $qb, string $column, array $values, string $name, ?AbstractPlatform $platform = null): void
     {
-        if ($values !== []) {
-            $qb->andWhere(sprintf('%s IN (:%s)', $column, $name))->setParameter($name, $values, ArrayParameterType::STRING);
+        if ($values === []) {
+            return;
         }
+        if (!$platform instanceof AbstractPlatform) {
+            $qb->andWhere(sprintf('%s IN (:%s)', $column, $name))->setParameter($name, $values, ArrayParameterType::STRING);
+
+            return;
+        }
+
+        $placeholders = [];
+        foreach ($values as $index => $value) {
+            $placeholders[] = ':' . $name . $index;
+            $qb->setParameter($name . $index, $value);
+        }
+        $qb->andWhere(RollupSql::exactIn($platform, $column, $placeholders));
     }
 
     /** @param list<string> $ids */
@@ -239,9 +256,7 @@ final readonly class HttpLogUsageReader implements HttpLogUsageReaderInterface
             return;
         }
         $qb->andWhere(RollupSql::exact($platform, $kindColumn, ':credentialKind'))->setParameter('credentialKind', $kind);
-        if ($ids !== []) {
-            $qb->andWhere(sprintf('%s IN (:credentialIds)', $idColumn))->setParameter('credentialIds', $ids, ArrayParameterType::STRING);
-        }
+        $this->in($qb, $idColumn, $ids, 'credentialIds', $platform);
     }
 
     /**

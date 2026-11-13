@@ -103,4 +103,21 @@ final class RollupSql
 
         return sprintf('%s = %s', $column, $placeholder);
     }
+
+    /**
+     * Byte-exact `IN` list of a column (since 1.20.1, REQ-SEC-006): one bound parameter per value, each compared with
+     * `CAST(… AS BINARY)` on MySQL / MariaDB like {@see exact()}, so `TOK-1` or `tok-1 ` never select `tok-1`'s rows
+     * (before the `LIMIT` of a page). The plain `IN` keeps the index usable.
+     *
+     * @param list<string> $placeholders named placeholders, one per value (`:credentialIds0`, …)
+     */
+    public static function exactIn(AbstractPlatform $platform, string $column, array $placeholders): string
+    {
+        $in = sprintf('%s IN (%s)', $column, implode(', ', $placeholders));
+        if (!$platform instanceof AbstractMySQLPlatform) {
+            return $in;
+        }
+
+        return sprintf('(%s AND CAST(%s AS BINARY) IN (%s))', $in, $column, implode(', ', array_map(static fn (string $p): string => sprintf('CAST(%s AS BINARY)', $p), $placeholders)));
+    }
 }

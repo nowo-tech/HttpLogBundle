@@ -15,6 +15,7 @@ use Doctrine\ORM\Tools\ToolEvents;
 use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\Persistence\ObjectManager;
 use Doctrine\Persistence\ObjectRepository;
+use Nowo\HttpLogBundle\Doctrine\ExactColumnsCollationListener;
 use Nowo\HttpLogBundle\Doctrine\PathPrefixColumnListener;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
 use Nowo\HttpLogBundle\Doctrine\UsageColumnsListener;
@@ -22,6 +23,7 @@ use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Rollup\RollupSchemaListener;
 use Nowo\HttpLogBundle\Rollup\RollupTables;
+use Psr\Log\LoggerInterface;
 
 use function dirname;
 
@@ -49,11 +51,17 @@ final readonly class UsageTestDatabase implements ManagerRegistry
         bool $rollup = false,
         // web_ui.filter_match: prefix (maps path_prefix)
         bool $pathPrefix = false,
+        // REQ-SEC-006 (1.20.1): the binary NO PAD collation of the identifier columns (false: the 1.20.0 schema)
+        bool $exactCollation = true,
+        ?LoggerInterface $logger = null,
     ) {
         $events             = new EventManager();
         $this->rollupTables = RollupTables::fromPrefixes($tablePrefix, $tableNamePrefix);
         if ($rollup) {
             $events->addEventListener(ToolEvents::postGenerateSchema, new RollupSchemaListener($this->rollupTables));
+        }
+        if ($exactCollation) {
+            $events->addEventListener(ToolEvents::postGenerateSchemaTable, new ExactColumnsCollationListener($this, $logger));
         }
         if ($usageColumns) {
             $events->addEventListener(Events::loadClassMetadata, new UsageColumnsListener());
