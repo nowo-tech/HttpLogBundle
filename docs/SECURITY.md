@@ -6,6 +6,7 @@ Security considerations for HTTP log capture, storage, and the admin UI.
 
 - [Threat model](#threat-model)
 - [Redaction defaults](#redaction-defaults)
+- [Endpoints that return secrets](#endpoints-that-return-secrets)
 - [Body capture defaults](#body-capture-defaults)
 - [Admin UI guard (REQ-UI-002)](#admin-ui-guard-req-ui-002)
 - [Secrets and credentials](#secrets-and-credentials)
@@ -46,11 +47,18 @@ Out of the box, these are redacted (see `Configuration` defaults):
 
 **Query parameters / form fields:** `password`, `_password`, `token`, `_token`, `_csrf_token`, `api_key`
 
-**JSON paths:** `*.password`, `*._password`, `*.token`, `*._token`, `*._csrf_token`
+**JSON paths:** `*.password`, `*._password`, `*.token`, `*._token`, `*._csrf_token`, `*.value` (`value` is the key other Nowo bundles answer a revealed secret under)
 
 Extend lists for your application. Redaction runs **before** Doctrine persist and **before** `max_body_bytes` truncation, so a truncated body never contains a secret that full-body redaction would have removed. JSON, `application/x-www-form-urlencoded`, and multipart text fields are redacted; a JSON-looking body that cannot be parsed is stored as `[REDACTED-UNPARSEABLE]`.
 
 **Access roles:** an empty `security.access_roles` list denies everyone (fail closed). Use `allow_unauthenticated: true` (demos only) or a custom `access_checker` to grant access deliberately.
+
+## Endpoints that return secrets
+
+Response-body capture means **any endpoint that legitimately returns a secret must be excluded or redacted**, otherwise the plaintext is stored in `http_log`, kept for `retention.days`, shown to every role that can read HTTP logs and included in exports. Two levers:
+
+- `ignore_path_prefixes` / `ignore_routes`: the request is not logged at all (use for reveal, token-issue and download endpoints).
+- `redaction.json_paths`: the response key is replaced with `[REDACTED]`. Matching is by key name only (case-sensitive, any depth, arrays included), so name the key your endpoint answers under. `value` is covered by default since the InstanceSettings secret-reveal response uses it; XML / SOAP bodies are **not** structurally redacted, exclude those endpoints instead. Setting your own `json_paths` replaces the defaults.
 
 ## Body capture defaults
 

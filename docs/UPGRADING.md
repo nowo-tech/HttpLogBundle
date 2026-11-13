@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+  - [Default JSON redaction now includes `value` (security)](#default-json-redaction-now-includes-value-security)
 - [To 1.20.2](#to-1202)
 - [To 1.20.1](#to-1201)
   - [Exact collation of the identifier columns (MySQL / MariaDB)](#exact-collation-of-the-identifier-columns-mysql--mariadb)
@@ -73,6 +74,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+### Default JSON redaction now includes `value` (security)
+
+`redaction.json_paths` now defaults to `['*.password', '*._password', '*.token', '*._token', '*._csrf_token', '*.value']`. Before this change a JSON response such as the InstanceSettingsBundle secret reveal (`{"key": "...", "value": "<secret>"}`) was stored in clear in `http_log.response_body`.
+
+- **Upgrading is not enough.** Rows written earlier are not rewritten and may hold plaintext secrets (retention keeps them 30 days by default; exports may have copied them). Purge the affected rows, e.g. `UPDATE nowo_http_log_entry SET response_body = NULL, response_body_stored = 0 WHERE response_body LIKE '%"value"%' AND route_name = '<your reveal route>'` (adapt the route filter, back up first; the table name follows your `table_prefix`/mapping), or delete the rows, or run the retention purge with a shorter `retention.days`, and rotate every secret that was revealed while capture was on. The bundle ships no tool that rewrites old bodies.
+- If you set your own `redaction.json_paths`, your list replaces the default: add `'*.value'` (or exclude the endpoint) yourself.
+- If your API returns non-secret `value` keys you want to debug, remove the entry from your `json_paths` and exclude the secret-returning endpoints with `ignore_path_prefixes` / `ignore_routes` instead.
 
 ## To 1.20.2
 

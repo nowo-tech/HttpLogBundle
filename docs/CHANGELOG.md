@@ -52,6 +52,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Default JSON redaction now covers `value`** (`redaction.json_paths` gains `'*.value'`). The Nowo InstanceSettingsBundle secret-reveal endpoint answers `{"key": "<section>.<field>", "value": "<plaintext secret>"}` as `application/json`; with the defaults (`capture.response_body_by_type.json: true`, `ignore_path_prefixes: [/admin/http-log]`, no `value` in `json_paths`) HttpLogBundle stored that plaintext in `http_log.response_body`, kept it for `retention.days` (30), showed it to every role allowed to read HTTP logs (a broader set than the one allowed to reveal) and included it in CSV/JSON exports. **Rows captured before this change may already contain such secrets**: purge them (see `docs/UPGRADING.md`, Unreleased) and rotate any secret that was revealed while capture was on. Request bodies use the same list (opt-in capture); XML/SOAP bodies are not structurally redacted. Hosts that hold legitimate non-secret `value` keys can remove the entry from their own `json_paths` (documented trade-off).
+- Documentation: response-body capture means any endpoint that legitimately returns a secret must be excluded (`ignore_path_prefixes`, `ignore_routes`) or redacted (`redaction.json_paths`); see `docs/SECURITY.md`.
+
 ## [1.20.2] - 2026-11-13
 
 ### Fixed

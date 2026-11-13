@@ -29,6 +29,11 @@ final class ConfigurationTest extends TestCase
         self::assertFalse($config['capture']['response_body_by_type']['html']);
         self::assertSame(65536, $config['capture']['max_body_bytes']);
         self::assertContains('Authorization', $config['redaction']['headers']);
+        self::assertSame(
+            ['*.password', '*._password', '*.token', '*._token', '*._csrf_token', '*.value'],
+            $config['redaction']['json_paths'],
+            '"value" is the key a revealed secret is answered under (InstanceSettings secret reveal)',
+        );
         self::assertSame([], $config['redaction']['context_attributes'], 'opt-in: no raw request attribute by default');
         self::assertSame(['/admin/http-log'], $config['ignore_path_prefixes']);
         self::assertTrue($config['ignore_default_path_prefixes']);
