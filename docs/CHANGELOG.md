@@ -53,6 +53,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `HttpLogEntryRepository::findOneBy()` accepts a `SortDirection` as well as a string order direction (Doctrine ORM 3.8 widened the `$orderBy` type); no behaviour change.
+
 ## [1.21.0] - 2026-11-13
 
 ### Security
