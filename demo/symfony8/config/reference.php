@@ -1491,6 +1491,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             testid?: scalar|Param|null, // Default: null
  *         }>,
  *     },
+ *     base_stylesheet?: bool|Param, // 2.51: link UiKit's opt-in default theme (css/nowo-ui-base.css) before nowo-ui.css in the document / error layouts: body font stack, page gutters and masthead height for hosts that bring no CSS framework and no theme stylesheet. Its rules nest in `@layer theme.nowo-ui-base`, below `base`, so a framework, host utilities and unlayered host CSS still win. Leave it false when the host already has a framework or a theme file. // Default: false
  *     font_preload?: array{ // 2.21: <link rel="preload" as="font" crossorigin> tags printed in the <head> of the document and error layouts (Twig nowo_ui_font_preload()) for the fonts painted above the fold. Empty = no tags.
  *         fonts?: list<scalar|Param|null>,
  *         manifest?: array{ // Hashed builds: pick the fonts from a Vite manifest (.vite/manifest.json). A missing manifest (dev server) prints nothing.

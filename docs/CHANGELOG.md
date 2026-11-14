@@ -55,6 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- docs: demo screenshots regenerated on the UiKit base style
+- demo: opt into UiKit 2.51 `nowo_ui_kit.base_stylesheet`, use `nowo-ui-header__nav` for the masthead nav, screenshots regenerated with the themed shell
 - `HttpLogEntryRepository::findOneBy()` accepts a `SortDirection` as well as a string order direction (Doctrine ORM 3.8 widened the `$orderBy` type); no behaviour change.
 
 ## [1.21.0] - 2026-11-13

@@ -13,7 +13,7 @@ const outDir = process.env.SCREENSHOT_DIR
 
 const WIDTH = 1280;
 const PAD = 16;
-const CHROME = 'nav.navbar, main';
+const CHROME = '.nowo-ui-header, main';
 
 test.use({ viewport: { width: WIDTH, height: 900 } });
 

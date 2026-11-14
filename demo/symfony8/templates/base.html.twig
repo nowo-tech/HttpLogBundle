@@ -9,7 +9,7 @@
     {% set _route = app.request.attributes.get('_route') %}
     <header class="nowo-ui-header" data-testid="demo-masthead">
         <a class="nowo-ui-brand" href="{{ path('demo_home') }}">Http Log Bundle · Symfony 8</a>
-        <nav class="nowo-ui-menu" aria-label="Demo">
+        <nav class="nowo-ui-header__nav" aria-label="Demo">
             {% for item in [{route: 'demo_home', label: 'Overview'}, {route: 'demo_api_ping', label: 'API ping'}, {route: 'nowo_http_log_admin_index', label: 'Admin UI'}] %}
                 <a class="nowo-ui-link" href="{{ path(item.route) }}"{% if _route == item.route %} aria-current="page"{% endif %}>{{ item.label }}</a>
             {% endfor %}
