@@ -106,8 +106,10 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
 
         if ($orderBy !== null) {
             foreach ($orderBy as $field => $direction) {
-                $field         = $this->assertKnownField($metadata, $field);
-                $sortDirection = match (strtoupper($direction)) {
+                $field = $this->assertKnownField($metadata, $field);
+                // ORM 3.8 types the direction as SortDirection|string (3.7: string).
+                /** @var SortDirection|string $direction */
+                $sortDirection = $direction instanceof SortDirection ? $direction : match (strtoupper($direction)) {
                     'DESC'  => SortDirection::Descending,
                     default => SortDirection::Ascending,
                 };
