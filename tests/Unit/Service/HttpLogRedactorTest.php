@@ -144,6 +144,60 @@ final class HttpLogRedactorTest extends TestCase
         self::assertSame('password=%5BREDACTED%5D', $redactor->redactBody('password=x', 'application/x-www-form-urlencoded'));
     }
 
+    public function testDefaultValuePathRedactsTopLevelNestedAndArrayOccurrences(): void
+    {
+        $redactor = new HttpLogRedactor([], [], ['*.value']);
+
+        $revealed = '{"key":"mail.dsn","value":"placeholder-secret"}';
+        self::assertSame(
+            '{"key":"mail.dsn","value":"[REDACTED]"}',
+            $redactor->redactBody($revealed, 'application/json'),
+            'top-level value',
+        );
+        self::assertSame(
+            '{"data":{"deep":{"value":"[REDACTED]","name":"n"}}}',
+            $redactor->redactBody('{"data":{"deep":{"value":"x","name":"n"}}}', 'application/json'),
+            'nested value at any depth',
+        );
+        self::assertSame(
+            '{"items":[{"value":"[REDACTED]","id":1},{"value":"[REDACTED]","id":2}]}',
+            $redactor->redactBody('{"items":[{"value":"a","id":1},{"value":"b","id":2}]}', 'application/json'),
+            'arrays of objects',
+        );
+        self::assertSame(
+            '[{"value":"[REDACTED]"}]',
+            $redactor->redactBody('[{"value":"a"}]', 'application/json'),
+            'list at the root',
+        );
+        self::assertSame(
+            '{"value":"[REDACTED]"}',
+            $redactor->redactBody('{"value":{"a":1,"b":[2]}}', 'application/json'),
+            'a structured value is replaced as a whole',
+        );
+    }
+
+    public function testValuePathIsKeyNameOnlyAndCaseSensitiveInJson(): void
+    {
+        $redactor = new HttpLogRedactor([], [], ['*.value']);
+
+        self::assertSame(
+            '{"values":[1],"valueOf":2,"Value":3}',
+            $redactor->redactBody('{"values":[1],"valueOf":2,"Value":3}', 'application/json'),
+            'only the exact key "value" matches',
+        );
+    }
+
+    public function testValuePathAlsoRedactsFormFieldsNamedValue(): void
+    {
+        $redactor = new HttpLogRedactor([], [], ['*.value']);
+
+        self::assertSame(
+            'name=a&value=%5BREDACTED%5D',
+            $redactor->redactBody('name=a&value=x', 'application/x-www-form-urlencoded'),
+            'request bodies use the same list',
+        );
+    }
+
     public function testRedactBodyRedactsFormUrlEncodedFields(): void
     {
         $redactor = new HttpLogRedactor([], ['_password', '_csrf_token'], ['*.token']);

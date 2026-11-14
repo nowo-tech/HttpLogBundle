@@ -47,6 +47,7 @@ nowo_http_log:
             - '*.token'
             - '*._token'
             - '*._csrf_token'
+            - '*.value'
     retention:
         days: 30
         purge_batch_size: 1000

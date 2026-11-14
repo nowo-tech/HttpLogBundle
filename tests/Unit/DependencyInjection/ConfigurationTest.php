@@ -10,6 +10,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\Definition\Processor;
+use Symfony\Component\Yaml\Yaml;
+
+use function dirname;
 
 final class ConfigurationTest extends TestCase
 {
@@ -29,6 +32,11 @@ final class ConfigurationTest extends TestCase
         self::assertFalse($config['capture']['response_body_by_type']['html']);
         self::assertSame(65536, $config['capture']['max_body_bytes']);
         self::assertContains('Authorization', $config['redaction']['headers']);
+        self::assertSame(
+            ['*.password', '*._password', '*.token', '*._token', '*._csrf_token', '*.value'],
+            $config['redaction']['json_paths'],
+            '"value" is a generic secret-carrying key (e.g. a secret-reveal response)',
+        );
         self::assertSame([], $config['redaction']['context_attributes'], 'opt-in: no raw request attribute by default');
         self::assertSame(['/admin/http-log'], $config['ignore_path_prefixes']);
         self::assertTrue($config['ignore_default_path_prefixes']);
@@ -42,6 +50,31 @@ final class ConfigurationTest extends TestCase
         self::assertSame(CssFramework::Bootstrap5->value, $config['web_ui']['css_framework']);
         self::assertSame(['ROLE_ADMIN'], $config['security']['access_roles']);
         self::assertFalse($config['security']['allow_unauthenticated']);
+    }
+
+    /**
+     * An explicit list REPLACES the bundle default, so a shipped config file (Flex recipe, packaged sample) that restates
+     * a redaction list shorter than the default silently weakens redaction for every host that copies it.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function shippedConfigFiles(): iterable
+    {
+        $root = dirname(__DIR__, 3);
+
+        yield 'packaged sample' => [$root . '/src/Resources/config/packages/nowo_http_log.yaml'];
+        yield 'Flex recipe 1.0' => [$root . '/.symfony/recipe/nowo-tech/http-log-bundle/1.0/config/packages/nowo_http_log.yaml'];
+    }
+
+    #[DataProvider('shippedConfigFiles')]
+    public function testShippedConfigFilesRestateTheFullRedactionDefaults(string $file): void
+    {
+        $defaults = (new Processor())->processConfiguration(new Configuration(), [[]])['redaction'];
+        $shipped  = Yaml::parseFile($file)['nowo_http_log']['redaction'];
+
+        foreach (['headers', 'query_params', 'json_paths'] as $list) {
+            self::assertSame($defaults[$list], $shipped[$list], $file . ': redaction.' . $list . ' must equal the bundle default');
+        }
     }
 
     public function testProcessesCustomConfiguration(): void

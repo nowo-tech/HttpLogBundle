@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.21.0] - 2026-11-13](#1210---2026-11-13)
+- [[1.20.2] - 2026-11-13](#1202---2026-11-13)
 - [[1.20.1] - 2026-11-13](#1201---2026-11-13)
 - [[1.20.0] - 2026-11-12](#1200---2026-11-12)
 - [[1.19.0] - 2026-11-11](#1190---2026-11-11)
@@ -55,6 +57,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - docs: demo screenshots regenerated on the UiKit base style
 - demo: opt into UiKit 2.51 `nowo_ui_kit.base_stylesheet`, use `nowo-ui-header__nav` for the masthead nav, screenshots regenerated with the themed shell
+
+## [1.21.0] - 2026-11-13
+
+### Security
+
+- **Default JSON redaction now covers `value`** (`redaction.json_paths` gains `'*.value'`). Hardening of a default, not a vulnerability: with the defaults (`capture.response_body_by_type.json: true`, no `value` in `json_paths`) a response that carried a secret under a `value` key was stored in clear in `nowo_http_log_entry.response_body`, kept for `retention.days` (30), readable by every role that can read HTTP logs and included in CSV/JSON exports. The change also gets ahead of secret-reveal endpoints that answer `{"key": ..., "value": <secret>}`. **A host whose own endpoints returned a secret under `value` may hold earlier rows with it**: check and purge (see `docs/UPGRADING.md`, Unreleased); rotate only a secret actually found. Request bodies use the same list (opt-in capture). XML and SOAP bodies (captured by default) are not redacted at all: for them `ignore_path_prefixes` / `ignore_routes` is the only protection. Hosts that hold legitimate non-secret `value` keys can remove the entry from their own `json_paths` (documented trade-off).
+- **The Flex recipe shipped a reduced redaction list.** `.symfony/recipe/nowo-tech/http-log-bundle/1.0/config/packages/nowo_http_log.yaml` set `redaction.json_paths` to only `*.password` and `*.token`, and `redaction.query_params` to only `password`, `token` and `api_key`. An explicit list replaces the bundle default, so a host that installed through Flex was less protected than one that configured nothing: no `*._password`, `*._token`, `*._csrf_token` (and no `*.value`) in JSON bodies, and no `_password`, `_token`, `_csrf_token` in query parameters and form fields. The recipe now restates the full defaults, and a test pins that the recipe and the packaged sample equal the bundle defaults. **Flex does not update an existing file**: a host that installed earlier keeps the short lists in its own `config/packages/nowo_http_log.yaml` until it edits them; compare that file with the defaults in `docs/CONFIGURATION.md` (or delete the two lists to inherit the defaults) and see `docs/UPGRADING.md`, Unreleased. Request/response bodies and query strings captured earlier under the short lists may hold the unredacted values (CSRF tokens, `_password` / `_token` fields): apply the same check-and-purge guidance as for `value`.
+- Documentation: response-body capture means any endpoint that legitimately returns a secret must be excluded (`ignore_path_prefixes`, `ignore_routes`) or redacted (`redaction.json_paths`); see `docs/SECURITY.md`.
+
+[1.21.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.21.0
+
+## [1.20.2] - 2026-11-13
+
+### Fixed
+
+- Documentation: the historical `To 1.16.0` rollup DDL block in `docs/UPGRADING.md` carries a note that its `COLLATE utf8mb4_bin` is PAD SPACE on MySQL 8 / MariaDB and that hosts must use `utf8mb4_0900_bin` / `utf8mb4_nopad_bin` instead; the pointer to the current section was fixed.
+
+[1.20.2]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.20.2
 
 ## [1.20.1] - 2026-11-13
 

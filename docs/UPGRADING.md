@@ -5,6 +5,9 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.21.0](#to-1210)
+  - [Default JSON redaction now includes `value` (security)](#default-json-redaction-now-includes-value-security)
+- [To 1.20.2](#to-1202)
 - [To 1.20.1](#to-1201)
   - [Exact collation of the identifier columns (MySQL / MariaDB)](#exact-collation-of-the-identifier-columns-mysql--mariadb)
 - [To 1.20.0](#to-1200)
@@ -72,6 +75,33 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.21.0
+
+From **1.20.2**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
+
+### Default JSON redaction now includes `value` (security)
+
+`redaction.json_paths` now defaults to `['*.password', '*._password', '*.token', '*._token', '*._csrf_token', '*.value']`. Before this change a JSON response carrying a secret under a `value` key was stored in clear. This is a hardening of a default: it also gets ahead of secret-reveal endpoints that answer `{"key": "...", "value": "<secret>"}`.
+
+- **Check whether it applies to you.** Only you know your API. If any of your own endpoints returned a secret under a `value` key while response-body capture was on, those response bodies are in `nowo_http_log_entry.response_body` in clear, kept for `retention.days` (30 by default), readable by every role that can read HTTP logs and exportable (CSV/JSON). Upgrading does not rewrite old rows.
+- **If you find such rows**, purge them, e.g. `UPDATE nowo_http_log_entry SET response_body = NULL, response_body_stored = 0 WHERE response_body LIKE '%"value"%' AND route_name = '<your route>'` (adapt the route filter, back up first; the table name follows your `table_prefix`/mapping), or delete the rows, or run the retention purge with a shorter `retention.days`. Check whether exports already copied them. Rotate a secret only if you actually found it in the log. If you find nothing, nothing needs rotating. The bundle ships no tool that rewrites old bodies.
+- **Installed through Flex? Check your own file.** The recipe used to ship `redaction.json_paths: ['*.password', '*.token']` and `redaction.query_params: [password, token, api_key]`, which replace the bundle defaults (no `_password`, `_token`, `_csrf_token`, `value`). Flex never updates an existing file, so open `config/packages/nowo_http_log.yaml`: if those lists are short, restore the full defaults from [CONFIGURATION.md](CONFIGURATION.md) or delete the two lists to inherit them. Earlier rows may hold the unredacted fields; purge as above.
+- XML and SOAP bodies are never structurally redacted (`xml` / `soap` capture default to `true`): exclude such endpoints with `ignore_path_prefixes` / `ignore_routes`; see [SECURITY.md](SECURITY.md#endpoints-that-return-secrets).
+- If you set your own `redaction.json_paths`, your list replaces the default: add `'*.value'` (or exclude the endpoint) yourself.
+- If your API returns non-secret `value` keys you want to debug, remove the entry from your `json_paths` and exclude the secret-returning endpoints with `ignore_path_prefixes` / `ignore_routes` instead.
+
+## To 1.20.2
+
+From **1.20.1**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 ## To 1.20.1
 
@@ -495,7 +525,13 @@ tenant. Two DBAL tables are added to the schema of the EntityManager that maps t
    written as a row.
 
 MySQL 8 / MariaDB 10.6+ (the key columns are `utf8mb4_bin`, so keys that differ in case are different buckets; since
-1.20.1 they are binary NO PAD, see [Unreleased](#unreleased)):
+1.20.1 they are binary NO PAD, see [Exact collation of the identifier columns](#exact-collation-of-the-identifier-columns-mysql--mariadb)):
+
+> **Note added in 1.20.1 (the DDL below is kept as it was for 1.16.0):** `utf8mb4_bin` is PAD SPACE on MySQL 8 and
+> MariaDB, so `org-a ` still equals `org-a` in these key columns. Do not copy `COLLATE utf8mb4_bin` there: use
+> `utf8mb4_0900_bin` on MySQL 8.0.17+ or `utf8mb4_nopad_bin` on MariaDB (`utf8mb4_bin` stays only for MySQL 5.7). See
+> [Exact collation of the identifier columns](#exact-collation-of-the-identifier-columns-mysql--mariadb) for the
+> `ALTER TABLE` statements; if you already created the table from this block, run them.
 
 <!-- hl1-rollup-ddl:mysql -->
 ```sql
