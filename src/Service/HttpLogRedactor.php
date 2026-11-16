@@ -265,15 +265,15 @@ final readonly class HttpLogRedactor
         return $result;
     }
 
+    /**
+     * Case-insensitive like the header, query and form-field paths: "Password", "TOKEN" and "password" match the
+     * configured key "password".
+     */
     private function shouldRedactJsonKey(string $key): bool
     {
         foreach ($this->jsonPaths as $pattern) {
-            if (str_starts_with($pattern, '*.')) {
-                $suffix = substr($pattern, 2);
-                if ($key === $suffix) {
-                    return true;
-                }
-            } elseif ($key === $pattern) {
+            $leaf = str_starts_with($pattern, '*.') ? substr($pattern, 2) : $pattern;
+            if (strcasecmp($key, $leaf) === 0) {
                 return true;
             }
         }

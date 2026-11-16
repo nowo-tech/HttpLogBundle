@@ -53,6 +53,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Security hardening: `redaction.json_paths` keys now match JSON object keys case-insensitively, like headers, query
+  parameters and form fields already did, so `{"Password": …}` or `{"TOKEN": …}` are stored as `[REDACTED]` when
+  `password` / `token` are configured (RE2-I1). Captured bodies with differently cased keys that were stored before this
+  release are not rewritten.
+
 ### Changed
 
 - docs: Spec Kit baseline refreshed (REQ-SPECKIT-001 / REQ-SPECKIT-003 sweep 2026-11-16): `specs/001-baseline/code-inventory.md` maps all 132 production units under `src/` (79 added: outbound and mailer capture, named channels, usage, rollup, privacy ports, exact collation) and `spec.md` gains the matching `FR-*` groups; no code change

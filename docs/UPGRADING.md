@@ -76,6 +76,10 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+No configuration change. `redaction.json_paths` now matches JSON keys case-insensitively, so more keys may be stored as
+`[REDACTED]` (e.g. `Value`, `Password`). If you relied on a differently cased key staying in clear, rename it on your
+side or drop the matching entry from `json_paths`.
+
 ## To 1.21.0
 
 From **1.20.2**:

@@ -58,7 +58,7 @@ Extend lists for your application. Redaction runs **before** Doctrine persist an
 Response-body capture means **any endpoint that legitimately returns a secret must be excluded or redacted**, otherwise the plaintext is stored in `http_log`, kept for `retention.days`, shown to every role that can read HTTP logs and included in exports. Two levers:
 
 - `ignore_path_prefixes` / `ignore_routes`: the request is not logged at all (use for reveal, token-issue and download endpoints).
-- `redaction.json_paths`: the response key is replaced with `[REDACTED]`. Matching is by key name only (case-sensitive, any depth, arrays included), so name the key your endpoint answers under. `value` is covered by default as a generic secret-carrying key. Setting your own `json_paths` replaces the defaults.
+- `redaction.json_paths`: the response key is replaced with `[REDACTED]`. Matching is by key name only (case-insensitive since 1.21.1, any depth, arrays included), so name the key your endpoint answers under. `value` is covered by default as a generic secret-carrying key. Setting your own `json_paths` replaces the defaults.
 
 **XML and SOAP:** `capture.response_body_by_type.xml` and `.soap` default to `true`, and the redactor does not touch those bodies at all, because structural redaction does not apply to them. For XML and SOAP, `ignore_path_prefixes` / `ignore_routes` is the **only** protection: there is no redaction lever. A host with a SOAP or XML integration that returns or accepts secrets must exclude those endpoints, or set the `xml` / `soap` types to `false`.
 
