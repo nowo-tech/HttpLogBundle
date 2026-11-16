@@ -176,14 +176,41 @@ final class HttpLogRedactorTest extends TestCase
         );
     }
 
-    public function testValuePathIsKeyNameOnlyAndCaseSensitiveInJson(): void
+    public function testValuePathIsKeyNameOnlyAndCaseInsensitiveInJson(): void
     {
         $redactor = new HttpLogRedactor([], [], ['*.value']);
 
         self::assertSame(
-            '{"values":[1],"valueOf":2,"Value":3}',
-            $redactor->redactBody('{"values":[1],"valueOf":2,"Value":3}', 'application/json'),
-            'only the exact key "value" matches',
+            '{"values":[1],"valueOf":2,"Value":"[REDACTED]","VALUE":"[REDACTED]"}',
+            $redactor->redactBody('{"values":[1],"valueOf":2,"Value":3,"VALUE":4}', 'application/json'),
+            'only the key name "value" matches, in any case',
+        );
+    }
+
+    /**
+     * RE2-I1: JSON key matching is case-insensitive, like headers, query params and form fields.
+     */
+    public function testJsonKeysAreRedactedCaseInsensitively(): void
+    {
+        $body = '{"Password":"a","TOKEN":"b","Secret":"c","user":{"PassWord":"d","name":"n"},"items":[{"Token":"e"}],"tokens":"f"}';
+
+        self::assertSame(
+            '{"Password":"[REDACTED]","TOKEN":"[REDACTED]","Secret":"[REDACTED]","user":{"PassWord":"[REDACTED]","name":"n"},"items":[{"Token":"[REDACTED]"}],"tokens":"f"}',
+            $this->redactor->redactBody($body, 'application/json'),
+        );
+        self::assertSame(
+            '{"Password":"[REDACTED]","TOKEN":"[REDACTED]","Secret":"[REDACTED]","user":{"PassWord":"[REDACTED]","name":"n"},"items":[{"Token":"[REDACTED]"}],"tokens":"f"}',
+            $this->redactor->redactJsonBody($body),
+        );
+    }
+
+    public function testUppercaseConfiguredJsonPathMatchesLowercaseKey(): void
+    {
+        $redactor = new HttpLogRedactor([], [], ['*.ApiKey', 'ACCESS_TOKEN']);
+
+        self::assertSame(
+            '{"apikey":"[REDACTED]","access_token":"[REDACTED]","api_key":"k"}',
+            $redactor->redactBody('{"apikey":"x","access_token":"y","api_key":"k"}', 'application/json'),
         );
     }
 

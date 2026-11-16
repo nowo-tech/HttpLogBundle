@@ -53,6 +53,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Security hardening: `redaction.json_paths` keys now match JSON object keys case-insensitively, like headers, query
+  parameters and form fields already did, so `{"Password": …}` or `{"TOKEN": …}` are stored as `[REDACTED]` when
+  `password` / `token` are configured (RE2-I1). Captured bodies with differently cased keys that were stored before this
+  release are not rewritten.
+
 ### Changed
 
 - docs: demo screenshots regenerated on the UiKit base style
