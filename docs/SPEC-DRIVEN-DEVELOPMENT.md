@@ -35,9 +35,9 @@ There is no separate executable spec language (for example Gherkin); Spec Kit sp
 
 ## Functional scope
 
-**In scope:** kernel subscriber capture, Doctrine persistence, body policy by content type, redaction, admin UI with access checker, CLI export/purge, Messenger async handlers, Flex recipe, FrankenPHP demo.
+**In scope:** kernel subscriber capture, Doctrine persistence, body policy by content type, redaction, admin UI with access checker, CLI export/purge, Messenger async handlers, Flex recipe, FrankenPHP demo; outbound HttpClient and mailer capture, named inbound channels with tenant / project context, per-call usage rows with a daily rollup and read API, GDPR export / erasure ports (with a UserKit bridge), exact-match collation on MySQL / MariaDB (see `specs/001-baseline/spec.md`, `FR-OUT-*` to `FR-DB-*`).
 
-**Non-goals (later):** distributed tracing correlation beyond `X-Request-Id`, real-time streaming dashboard, multi-tenant isolation.
+**Non-goals (later):** distributed tracing correlation beyond `X-Request-Id`, real-time streaming dashboard, tenant isolation of the admin UI (tenant keys on usage rows are opaque attribution keys; the usage read API scopes by tenant, authorisation stays with the host).
 
 ## Validating the spec
 
