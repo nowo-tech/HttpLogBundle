@@ -55,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- docs: Spec Kit baseline refreshed (REQ-SPECKIT-001 / REQ-SPECKIT-003 sweep 2026-11-16): `specs/001-baseline/code-inventory.md` maps all 132 production units under `src/` (79 added: outbound and mailer capture, named channels, usage, rollup, privacy ports, exact collation) and `spec.md` gains the matching `FR-*` groups; no code change
 - docs: demo screenshots regenerated on the UiKit base style
 - demo: opt into UiKit 2.51 `nowo_ui_kit.base_stylesheet`, use `nowo-ui-header__nav` for the masthead nav, screenshots regenerated with the themed shell
 - `HttpLogEntryRepository::findOneBy()` accepts a `SortDirection` as well as a string order direction (Doctrine ORM 3.8 widened the `$orderBy` type); no behaviour change.

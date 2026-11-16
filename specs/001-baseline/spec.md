@@ -126,6 +126,63 @@ As a maintainer, I run the Symfony 8 FrankenPHP demo and CI smoke checks to veri
 | --- | --- |
 | FR-MSG-001 | Async handlers for persist, export, and purge with documented retry/failure transport expectations |
 
+### Outbound and mailer capture (`FR-OUT-*`, `FR-MAIL-*`)
+
+| ID | Requirement |
+| --- | --- |
+| FR-OUT-001 | With `outbound.enabled`, every `http_client.client` service selected by `outbound.clients` / `outbound.exclude_clients` is decorated (default priority -1024, outermost) and records one row per logical call; options, headers, chunks, exceptions and laziness are untouched and the body is never read |
+| FR-OUT-002 | Each call is attributed to a provider (per-request option, wrapped client, client service id, exact host, wildcard host, else `other`); the row stores scheme, host and a path template, never the query string, fragment or user info; errors are always kept, successes by `sampling_rate` |
+| FR-OUT-003 | A failed call gets an `error_kind` (`OutboundErrorKind`) classified from the exception class and transport text; the text itself is never stored |
+| FR-OUT-004 | `HttpLogHttpClientWrapper` wraps clients built in code that the compiler pass cannot see; with outbound capture disabled it returns the client unchanged |
+| FR-MAIL-001 | With `mailer` capture enabled, one `mailer` row per send attempt records transport scheme and host, outcome and Message-ID of a sent mail; envelope, recipients, subject, headers, body and credentials are never read |
+
+### Named inbound channels and tenant context (`FR-CHAN-*`, `FR-CTX-*`)
+
+| ID | Requirement |
+| --- | --- |
+| FR-CHAN-001 | `channels` entries match requests by path and route include / exclude lists, in config order; the first match records the request |
+| FR-CHAN-002 | A named-channel row is an allowlist (route path template, method, scheme, host, status, duration, response size and type, client IP and user per config, guarded context); never headers, query string or bodies; errors always, successes by `sampling_rate` |
+| FR-CHAN-003 | Route templates come from a map cached under `kernel.cache_dir` (optionally warmed at `cache:warmup`); an unknown route stores `{unrouted}` |
+| FR-CHAN-004 | The client IP of a channel row is kept, truncated to its network (IPv4 /24, IPv6 /48) or dropped, per channel |
+| FR-CHAN-005 | Hosts name the credential and tenant of a request with services tagged `nowo_http_log.request_context_resolver` (first non-null result wins); every returned value must be an opaque key within its length limit and must not equal or contain a credential the request carried, else it is dropped with one warning |
+| FR-CHAN-006 | Resolvers receive a framework-free `HttpRequestContext` (allowlisted headers and scalar attributes, secret-looking names dropped, raw attribute values held outside the object); the Symfony-typed resolver interface is deprecated and removed in 2.0 |
+| FR-CTX-001 | `HttpLogContext` keeps a stack of tenant / project / message-id frames that outbound calls and mails read; frames are always popped and `kernel.reset` empties the stack |
+| FR-CTX-002 | The Messenger middleware stamps a message once on dispatch (stable id, optional tenant / project) and pushes a frame while a worker handles it |
+
+### Usage capture, read API and rollup (`FR-USE-*`, `FR-ROLL-*`, `FR-EVT-*`)
+
+| ID | Requirement |
+| --- | --- |
+| FR-USE-001 | Usage captures carry only allowlisted columns, each validated by charset and length; an invalid value becomes NULL (or the documented placeholder), never truncated |
+| FR-USE-002 | Captures are buffered and written at the request, command or message boundary (or after a fixed number), directly by DBAL `INSERT` or through Messenger when `async`; outbound capture is suspended while the buffer writes and the shared EntityManager is never flushed |
+| FR-USE-003 | `HttpLogUsageReaderInterface` reads daily usage, per-call pages (keyset cursor), and last-used per credential; every query carries an explicit tenant or platform scope and days are UTC |
+| FR-ROLL-001 | With `rollup.enabled`, two rollup tables (`daily`, `event_seen`) are added to the entry EntityManager's schema; other hosts see no schema diff |
+| FR-ROLL-002 | Buckets are upserted per platform (MySQL / MariaDB, PostgreSQL, SQLite) exactly once together with their row or ledger entry; purge and erasure fold buckets |
+| FR-ROLL-003 | `RollupBackfillCommand` builds buckets from per-call rows only for days with none, never for today or before the cutoff |
+| FR-EVT-001 | `HttpLogEntryRecordedEvent` is dispatched after a committed web or usage row, with ids and scalars only |
+
+### Privacy (`FR-PRV-*`)
+
+| ID | Requirement |
+| --- | --- |
+| FR-PRV-001 | Export of one subject's entries (user identifier or client IP) matches exactly and is bounded by `export_limit`; client IP windows of a user are exposed for other bundles |
+| FR-PRV-002 | Erasure of one subject opens its own transaction (or joins the caller's) and dispatches `HttpLogPersonalDataErasedEvent` only after its own commit |
+| FR-PRV-003 | Subjects erased during a request are remembered so capture at `kernel.terminate` does not write them again |
+| FR-PRV-004 | Usage data can be erased by credential or by tenant, in batches of `retention.purge_batch_size` |
+| FR-PRV-005 | With UserKit installed and `personal_data.enabled`, an export section and an eraser map a user to subjects through `HttpLogPersonalDataSubjectResolverInterface` (default: original identifier, else current identifier) |
+
+### Database exactness, admin list and export storage (`FR-DB-*`, `FR-ADM-002`, `FR-EXP-002`, `FR-SEC-*`)
+
+| ID | Requirement |
+| --- | --- |
+| FR-DB-001 | On MySQL / MariaDB the identifier columns of the entry table use a binary NO PAD collation so filters and indexes do not fold case, accents or trailing spaces |
+| FR-DB-002 | With `web_ui.filter_match: prefix`, a `path_prefix` column and index are mapped; other hosts keep their schema |
+| FR-DB-003 | Usage columns and indexes are mapped only when `outbound`, `mailer` or a named channel is enabled |
+| FR-ADM-002 | The admin list reads scalar projections and pages by keyset cursor (`?cursor=`) instead of `OFFSET` |
+| FR-EXP-002 | Background exports are written to a private directory under random names, offered only to users allowed to export (and to the channels they may see), and deleted after `export.ttl_hours` |
+| FR-UI-004 | When the access checker implements `HttpLogChannelAccessCheckerInterface`, list, entry, export and purge leave out denied channels (a denied entry gives the same 404 as a missing one) |
+| FR-SEC-001 | The container build fails when the admin UI is enabled without form CSRF protection |
+
 ### Internationalization (`FR-I18N-*`)
 
 | ID | Requirement |
@@ -145,7 +202,7 @@ As a maintainer, I run the Symfony 8 FrankenPHP demo and CI smoke checks to veri
 | --- | --- |
 | SC-01 | Unit tests cover classifier, redactor, capture policy, subscriber, configuration, access checker, Twig compiler pass |
 | SC-02 | Demo returns HTTP 200 and admin UI is reachable with credentials |
-| SC-03 | `code-inventory.md` lists every file under `src/` (51 units) |
+| SC-03 | `code-inventory.md` lists every file under `src/` (132 units) |
 | SC-04 | Integrator docs describe full YAML tree and security defaults |
 | SC-05 | Bundle is viable under FrankenPHP worker mode without kernel reset (scenario B); see [docs/FRANKENPHP-WORKER-AUDIT.md](../../docs/FRANKENPHP-WORKER-AUDIT.md) |
 
