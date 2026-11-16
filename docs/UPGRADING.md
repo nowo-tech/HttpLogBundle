@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.21.1](#to-1211)
 - [To 1.21.0](#to-1210)
   - [Default JSON redaction now includes `value` (security)](#default-json-redaction-now-includes-value-security)
 - [To 1.20.2](#to-1202)
@@ -75,6 +76,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.21.1
+
+From **1.21.0**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 No configuration change. `redaction.json_paths` now matches JSON keys case-insensitively, so more keys may be stored as
 `[REDACTED]` (e.g. `Value`, `Password`). If you relied on a differently cased key staying in clear, rename it on your

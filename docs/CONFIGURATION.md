@@ -244,7 +244,7 @@ the `HttpLogPersonalDataEraserInterface` service instead of SQL ([USAGE](USAGE.m
 
 `Nowo\HttpLogBundle\Doctrine\TablePrefixListener` (Doctrine `loadClassMetadata`, registered only when an option differs
 from its default) rewrites the `HttpLogEntry` mapping only. Changing either option on an existing install renames the
-table: run the rename statements from [UPGRADING](UPGRADING.md#unreleased) (or generate a migration and turn the
+table: run the rename statements from [UPGRADING](UPGRADING.md#to-1211) (or generate a migration and turn the
 drop/create into a rename) instead of dropping the table.
 
 **PostgreSQL with a SEQUENCE id strategy** (only when you set DoctrineBundle's `identity_generation_preferences` to

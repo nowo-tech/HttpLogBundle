@@ -635,7 +635,7 @@ scalar `tokenAttributes` (`tokenAttribute()`).
   ```
 
 The 1.18 port, `HttpLogRequestContextResolverInterface::resolve(Request, ?TokenInterface, string)`, is **deprecated
-since 1.19 and removed in 2.0** ([UPGRADING](UPGRADING.md#unreleased)). Resolvers that implement only it keep working
+since 1.19 and removed in 2.0** ([UPGRADING](UPGRADING.md#to-1211)). Resolvers that implement only it keep working
 unchanged (same tag, same priority chain, same guard); the container build reports a deprecation for each. A class
 that implements both interfaces is called through the new one.
 

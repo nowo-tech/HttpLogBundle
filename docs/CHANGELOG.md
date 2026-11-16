@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.21.1] - 2026-11-16](#1211---2026-11-16)
 - [[1.21.0] - 2026-11-13](#1210---2026-11-13)
 - [[1.20.2] - 2026-11-13](#1202---2026-11-13)
 - [[1.20.1] - 2026-11-13](#1201---2026-11-13)
@@ -53,6 +54,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.21.1] - 2026-11-16
+
 ### Security
 
 - Security hardening: `redaction.json_paths` keys now match JSON object keys case-insensitively, like headers, query
@@ -66,6 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - docs: demo screenshots regenerated on the UiKit base style
 - demo: opt into UiKit 2.51 `nowo_ui_kit.base_stylesheet`, use `nowo-ui-header__nav` for the masthead nav, screenshots regenerated with the themed shell
 - `HttpLogEntryRepository::findOneBy()` accepts a `SortDirection` as well as a string order direction (Doctrine ORM 3.8 widened the `$orderBy` type); no behaviour change.
+
+[1.21.1]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.21.1
 
 ## [1.21.0] - 2026-11-13
 
