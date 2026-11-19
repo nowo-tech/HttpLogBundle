@@ -168,6 +168,13 @@ final readonly class UsageEntryWriter
             'createdAt'             => [$capture->createdAt, Types::DATETIME_IMMUTABLE],
         ];
 
+        // A pre-insert id generator (a SEQUENCE: PostgreSQL with DBAL 3, or the host's identity_generation_preferences)
+        // gives the id before the insert; the table then has no column default to fill it.
+        $idGenerator = $metadata->idGenerator;
+        if (!$idGenerator->isPostInsertGenerator()) {
+            $values[$metadata->getSingleIdentifierFieldName()] = [$idGenerator->generateId($manager, null), ParameterType::INTEGER];
+        }
+
         if ($metadata->hasField(PathPrefixColumnListener::FIELD)) {
             // web_ui.filter_match: prefix (PERF-1147-02)
             $values[PathPrefixColumnListener::FIELD] = [HttpLogEntry::pathPrefixOf($capture->path), ParameterType::STRING];
