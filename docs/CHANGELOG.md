@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.23.0] - 2026-11-19](#1230---2026-11-19)
 - [[1.22.0] - 2026-11-19](#1220---2026-11-19)
 - [[1.21.1] - 2026-11-16](#1211---2026-11-16)
 - [[1.21.0] - 2026-11-13](#1210---2026-11-13)
@@ -55,6 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-11-19
+
 ### Changed
 
 - **`conflict_response.commit_tracking` defaults to `off` (audit UV-2).** The admin purge now tells `CONFLICT_002` from `CONFLICT_001` by itself: a lock conflict after a batch of the same purge was deleted (the entry purge by criteria, by retention or per scope, and the rollup and ledger purge) is rethrown as transaction-doctrine's `ConcurrencyConflict` with `committed: true`, the storage error as previous. So by default no commit-tracking DBAL middleware wraps the host's connection any more (on DBAL 3 it made `Connection::commit()` return `null`). `bundle` and `all` stay available (see UPGRADING).
@@ -71,6 +74,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - CI: the "Real databases" DBAL 3 and DBAL 4 legs run the whole Integration suite on MySQL 8.4 + PostgreSQL 16 and on MariaDB 11.4 + PostgreSQL 16 (audit UV-4), besides the race tests. The blocked admin purge race test runs with and without commit tracking.
+
+[1.23.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.23.0
 
 ## [1.22.0] - 2026-11-19
 
