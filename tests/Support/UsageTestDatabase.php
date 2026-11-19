@@ -6,6 +6,7 @@ namespace Nowo\HttpLogBundle\Tests\Support;
 
 use Doctrine\Common\EventManager;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Driver\Middleware;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\Events;
@@ -41,6 +42,7 @@ final readonly class UsageTestDatabase implements ManagerRegistry
 
     /**
      * @param array<string, mixed> $connectionParams DBAL parameters (default: in-memory SQLite)
+     * @param list<Middleware> $middlewares
      */
     public function __construct(
         bool $usageColumns = true,
@@ -54,6 +56,8 @@ final readonly class UsageTestDatabase implements ManagerRegistry
         // REQ-SEC-006 (1.20.1): the binary NO PAD collation of the identifier columns (false: the 1.20.0 schema)
         bool $exactCollation = true,
         ?LoggerInterface $logger = null,
+        // DBAL middlewares of the connection (REQ-RUNTIME-003 tests: commit tracking)
+        array $middlewares = [],
     ) {
         $events             = new EventManager();
         $this->rollupTables = RollupTables::fromPrefixes($tablePrefix, $tableNamePrefix);
@@ -76,6 +80,9 @@ final readonly class UsageTestDatabase implements ManagerRegistry
         $configuration = ORMSetup::createAttributeMetadataConfiguration([dirname(__DIR__, 2) . '/src/Entity'], true);
         if (PHP_VERSION_ID >= 80400) {
             $configuration->enableNativeLazyObjects(true);
+        }
+        if ($middlewares !== []) {
+            $configuration->setMiddlewares($middlewares);
         }
         $connection          = DriverManager::getConnection($connectionParams, $configuration);
         $this->entityManager = new EntityManager($connection, $configuration, $events);

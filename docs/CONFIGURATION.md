@@ -21,6 +21,7 @@ All options live under the root key `nowo_http_log` (alias `nowo_http_log`).
 - [mailer](#mailer)
 - [rollup](#rollup)
 - [messenger](#messenger)
+- [conflict_response](#conflict_response)
 - [Messenger retry and failure transport](#messenger-retry-and-failure-transport)
 - [Environment-specific examples](#environment-specific-examples)
 
@@ -145,6 +146,10 @@ nowo_http_log:
     messenger:                            # Context propagation, see "messenger"
         middleware: true                  # Registers nowo_http_log.messenger.context_middleware
         propagate_tenant: true
+    conflict_response:                    # 1.22: lock conflicts on the admin routes, see "conflict_response"
+        status: null                      # 409 (default) or 503; null: transaction-doctrine's, else 409
+        retry_after: null                 # seconds for CONFLICT_001; null: transaction-doctrine's, else 1
+        commit_tracking: bundle           # bundle | all | off
 ```
 
 ## Top-level options
@@ -534,6 +539,22 @@ framework:
                 middleware:
                     - nowo_http_log.messenger.context_middleware
 ```
+
+## conflict_response
+
+Since 1.22 (REQ-RUNTIME-003). A deadlock, lock wait timeout or serialization failure on the bundle's admin routes
+(delete, purge, export) answers **409** with `X-Conflict-Code: CONFLICT_001` and `Retry-After` when nothing was
+committed, or `CONFLICT_002` without `Retry-After` when part of the request was (a purge batch already deleted). The
+capture of host requests never answers anything: a failed log write is logged, never thrown into the host. See
+[CONCURRENCY.md](CONCURRENCY.md).
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `status` | int or null | `null` | `409` or `503`. `null`: the `conflict_response` of nowo-tech/transaction-doctrine's bundle when it is registered, else 409. |
+| `retry_after` | int or null | `null` | `Retry-After` seconds of a `CONFLICT_001` answer. `null`: transaction-doctrine's, else 1. |
+| `commit_tracking` | `bundle`, `all` or `off` | `bundle` | How commits earlier in the request are seen (for `CONFLICT_002`) when transaction-doctrine's `commit_detection` is off. `bundle`: a DBAL middleware on the connection of the default entity manager only. `all`: every connection. `off`: no middleware. With `commit_detection` on, transaction-doctrine's ledger is reused and the bundle adds no middleware. |
+
+Nothing is registered when `web_ui.enabled` is false (the bundle then has no route).
 
 ## Messenger retry and failure transport
 

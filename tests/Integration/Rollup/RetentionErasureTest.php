@@ -195,7 +195,8 @@ final class RetentionErasureTest extends TestCase
             $this->write('api', '2026-11-08T08:00:00+00:00', rollup: false);
             // a day that already has buckets (live events) is never rewritten
             $this->write('api', '2026-11-07T11:00:00+00:00', row: false);
-            $this->db->connection()->insert($this->db->table(), ['method' => 'GET', 'path' => '/hello', 'status_code' => 200, 'duration_ms' => 5.0, 'request_body_truncated' => 0, 'response_body_truncated' => 0, 'response_body_stored' => 0, 'created_at' => '2026-11-06 12:00:00']);
+            // an explicit id: on PostgreSQL with DBAL 3 the id is a SEQUENCE, so the column has no default
+            $this->db->connection()->insert($this->db->table(), ['id' => 900001, 'method' => 'GET', 'path' => '/hello', 'status_code' => 200, 'duration_ms' => 5.0, 'request_body_truncated' => 0, 'response_body_truncated' => 0, 'response_body_stored' => 0, 'created_at' => '2026-11-06 12:00:00']);
 
             $command = new RollupBackfillCommand($this->store, $this->db, ['api' => true, 'outbound' => false, 'web' => false], ['quiet']);
             $tester  = new CommandTester($command);

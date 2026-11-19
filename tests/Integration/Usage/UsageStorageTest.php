@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\Tests\Integration\Usage;
 
 use DateTimeImmutable;
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Id\AbstractIdGenerator;
 use Doctrine\Persistence\ManagerRegistry;
 use InvalidArgumentException;
 use LogicException;
@@ -62,6 +64,25 @@ final class UsageStorageTest extends TestCase
             self::assertNull($rows[0][$column], $column);
         }
         self::assertTrue($this->db->entityManager->getUnitOfWork()->isScheduledForInsert($host));
+    }
+
+    /**
+     * 1.22: a pre-insert id generator (PostgreSQL with DBAL 3 maps the id to a SEQUENCE, so the column has no default)
+     * gives the usage row its id before the insert.
+     */
+    #[Test]
+    public function writerAsksAPreInsertIdGeneratorForTheId(): void
+    {
+        $this->db->entityManager->getClassMetadata(HttpLogEntry::class)->setIdGenerator(new class extends AbstractIdGenerator {
+            public function generateId(EntityManagerInterface $em, ?object $entity): int
+            {
+                return 4242;
+            }
+        });
+
+        self::assertTrue((new UsageEntryWriter($this->db))->write($this->capture('outbound', eventId: 'cccccccccccccccccccccccccccccccc')));
+
+        self::assertSame(4242, (int) $this->db->rows()[0]['id']);
     }
 
     #[Test]

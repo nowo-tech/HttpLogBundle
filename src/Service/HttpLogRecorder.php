@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\Service;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
+use Nowo\HttpLogBundle\Doctrine\LogWriteUnit;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Event\HttpLogEntryRecordedEvent;
 use Nowo\HttpLogBundle\Message\PersistHttpLogMessage;
@@ -26,9 +28,7 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Throwable;
 
-use function bin2hex;
 use function is_string;
-use function random_bytes;
 
 /**
  * Builds and persists HTTP log entries from request/response pairs.
@@ -177,34 +177,20 @@ final readonly class HttpLogRecorder
         }
 
         $connection = $entityManager->getConnection();
-        if (!$connection->isTransactionActive()) {
-            $connection->insert($metadata->getTableName(), $data, $types);
+        // Read before the write: the event is dispatched only for a row written in auto-commit (committed).
+        $autoCommit = !$connection->isTransactionActive();
+
+        // Inside a transaction the host left open, the insert runs in a savepoint ({@see LogWriteUnit}), so a failed
+        // insert (request id race, value too long, a lock wait) rolls back only itself and the host's transaction stays
+        // usable; a savepoint the server already dropped marks the host's transaction rollback-only.
+        $table = $metadata->getTableName();
+        LogWriteUnit::run($connection, static function (Connection $connection) use ($table, $data, $types): void {
+            $connection->insert($table, $data, $types);
+        });
+
+        if ($autoCommit) {
             $this->notifyRecorded($capture);
-
-            return;
         }
-
-        // Inside a transaction the host left open, the insert runs in a savepoint, so a failed insert (request id race,
-        // value too long) rolls back only itself: a plain failed statement would abort the host's whole transaction on
-        // PostgreSQL (SQLSTATE 25P02), which the ORM flush (a nested transaction) never did. Explicit savepoint calls,
-        // because DBAL 3 nests transactional() without a savepoint unless the host enabled them.
-        // A name unique per call: on MySQL / MariaDB a second SAVEPOINT of the same name replaces the first, so a fixed
-        // name could replace a host savepoint that happens to share it.
-        $savepoint = 'nowo_http_log_insert_' . bin2hex(random_bytes(6));
-        $connection->createSavepoint($savepoint);
-        try {
-            $connection->insert($metadata->getTableName(), $data, $types);
-        } catch (Throwable $exception) {
-            try {
-                $connection->rollbackSavepoint($savepoint);
-            } catch (Throwable) {
-                // A deadlock or lock wait timeout may already have rolled back the whole transaction (and the savepoint
-                // with it): the original error is the one to report.
-            }
-
-            throw $exception;
-        }
-        $connection->releaseSavepoint($savepoint);
     }
 
     /**

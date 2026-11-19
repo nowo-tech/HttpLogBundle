@@ -2,9 +2,9 @@
 
 **Baseline spec**: [`spec.md`](spec.md)  
 **Package**: `nowo-tech/http-log-bundle`  
-**Last audited**: 2026-11-16 (usage channels, rollup, privacy ports, exact collation; REQ sweep)
+**Last audited**: 2026-11-19 (concurrency, REQ-RUNTIME-003)
 
-Maps **100%** of production files under `src/` (132 units; audit: `git ls-files src | wc -l` → 132). Test and demo trees are out of Packagist scope unless promoted in the spec.
+Maps **100%** of production files under `src/` (135 units; audit: `git ls-files src | wc -l` → 135). Test and demo trees are out of Packagist scope unless promoted in the spec.
 
 ## Bundle entry
 
@@ -252,6 +252,14 @@ Maps **100%** of production files under `src/` (132 units; audit: `git ls-files 
 | `Security/HttpLogChannelAccessCheckerInterface.php` | Optional capability: channels a user may see in list, entry, export and purge | FR-UI-004 |
 | `DependencyInjection/Compiler/CsrfProtectionPass.php` | Fails the container build when the admin UI is on without form CSRF protection | FR-SEC-001 |
 
+## Concurrency
+
+| Source file | Purpose | Requirement IDs |
+| --- | --- | --- |
+| `Doctrine/LogWriteUnit.php` | Auto-commit, own transaction (runner, replays) or savepoint inside the host's transaction for every bundle write | FR-CONC-001 |
+| `EventSubscriber/HttpLogConflictListener.php` | 409 / 503 + `CONFLICT_001` / `CONFLICT_002` for lock conflicts on the admin routes | FR-CONC-002 |
+| `DependencyInjection/Compiler/HttpLogCommitTrackingPass.php` | Scopes the commit-tracking middleware to the bundle's connection, or reuses transaction-doctrine's ledger | FR-CONC-003 |
+
 ## Coverage summary
 
 | Category | Mapped |
@@ -279,4 +287,5 @@ Maps **100%** of production files under `src/` (132 units; audit: `git ls-files 
 | Privacy (GDPR) | 15 |
 | Database exactness & optional mappings | 4 |
 | Admin list, export storage & access | 5 |
-| **Total** | **132** |
+| Concurrency | 3 |
+| **Total** | **135** |

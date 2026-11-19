@@ -54,6 +54,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Conflict answer on the admin routes (REQ-RUNTIME-003 rule 6).** A deadlock, lock wait timeout or serialization failure on the delete, purge or export route answers **409** with `X-Conflict-Code: CONFLICT_001` and `Retry-After` when nothing was committed, or `CONFLICT_002` without `Retry-After` when part of the request was (a purge batch already deleted). It is rendered by the application's error page. Unique violations, lost connections and other errors are not mapped. New options `conflict_response.status` (409 or 503), `conflict_response.retry_after` and `conflict_response.commit_tracking` (`bundle`, `all`, `off`). The commit tracking wraps only the connection of the default entity manager, and is not registered at all when nowo-tech/transaction-doctrine's `commit_detection` is on (its ledger is reused). Nothing is registered without the web UI.
+- `docs/CONCURRENCY.md`: write paths, controls, conflict codes, host options and residual risks.
+- CI: job "Real databases (MySQL 8.4, MariaDB 11.4, PostgreSQL 16)" on DBAL 3 and 4, with two-connection race tests (request-id race and replay, rollup ledger, two events of one bucket, a capture blocked inside the host's transaction, a blocked admin purge). The open-transaction capture tests now also run on MariaDB. Job "Dependency floor (nowo-tech/transaction-* lowest, demo lock)". `make test-with-db` runs the race tests locally.
+
+### Changed
+
+- Requires `nowo-tech/transaction-contract` ^1.0 and `nowo-tech/transaction-doctrine` ^1.6.
+- A rollup count, outside a host transaction, runs through transaction-doctrine's connection runner: the nesting level is repaired after a failure, a deadlock or serialization failure of its own transaction is replayed at most twice (nothing of it was committed, and the ledger keeps it exactly once), and a lock conflict reaches the Messenger handler as `TransientStorageFailure`. A lock wait timeout is never replayed.
+- `HttpLogUsageEraserInterface::eraseCredential()` (the rollup fold) now reports a deadlock or lock wait timeout as `Nowo\TransactionContract\TransientStorageFailure` instead of DBAL's `RetryableException` subclasses (see UPGRADING).
+
+### Fixed
+
+- **A lost savepoint no longer lets the host commit a broken transaction as saved.** When the server ended the host's open transaction during a log write (a MySQL / MariaDB deadlock, or a lock wait timeout with `innodb_rollback_on_timeout`), the failure was logged and the host's later `commit()` succeeded, although the server had already rolled back the host's earlier statements. The bundle now marks that transaction rollback-only, so the host's `commit()` fails.
+- **Usage rows and rollup counts inside the host's open transaction run in a savepoint.** A failed usage insert (for example a redelivered event id) no longer aborts the host's whole transaction on PostgreSQL (SQLSTATE 25P02), and a rollup count that finds its event already counted no longer marks the host's transaction rollback-only on DBAL 3 without nested savepoints.
+- **Usage rows on PostgreSQL with DBAL 3.** Outbound, mailer and named-channel rows were inserted without an id. With DBAL 3 the ORM maps the id to a SEQUENCE on PostgreSQL, so the column has no default and every such row failed with a NOT NULL violation (the capture was dropped with a warning, or retried by Messenger until it failed). The writer now takes the id from a pre-insert generator, as the web capture already did.
+- **The credential erasure fold no longer loses a concurrent count.** `foldCredential()` read the buckets outside its transaction, so a call counted between the read and the delete was deleted with the bucket. The buckets are now read `FOR UPDATE` inside the fold's transaction.
+
 ## [1.21.1] - 2026-11-16
 
 ### Security

@@ -18,6 +18,13 @@
         </testsuite>
     </testsuites>
 
+    <groups>
+        <!-- REQ-RUNTIME-003: two-connection tests on real servers, run by `make test-with-db` and the CI "Real databases" job. -->
+        <exclude>
+            <group>database</group>
+        </exclude>
+    </groups>
+
     <source restrictDeprecations="true" restrictNotices="true" restrictWarnings="true">
         <include>
             <directory>src</directory>

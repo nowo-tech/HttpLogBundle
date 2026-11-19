@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+  - [Concurrency (REQ-RUNTIME-003)](#concurrency-req-runtime-003)
 - [To 1.21.1](#to-1211)
 - [To 1.21.0](#to-1210)
   - [Default JSON redaction now includes `value` (security)](#default-json-redaction-now-includes-value-security)
@@ -76,6 +77,21 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+From **1.21.1**:
+
+```bash
+composer update nowo-tech/http-log-bundle -w
+```
+
+`-w` also installs the new requirements `nowo-tech/transaction-contract` ^1.0 and `nowo-tech/transaction-doctrine` ^1.6.
+
+### Concurrency (REQ-RUNTIME-003)
+
+- **Admin routes answer 409 on a lock conflict.** A deadlock, lock wait timeout or serialization failure on the delete, purge or export route used to end in a 500. It now answers 409 with `X-Conflict-Code: CONFLICT_001` and `Retry-After`, or `CONFLICT_002` without `Retry-After` when a purge batch was already deleted. A host that wants 503 sets `nowo_http_log.conflict_response.status: 503`. See [CONCURRENCY.md](CONCURRENCY.md).
+- **Commit tracking.** To tell `CONFLICT_002` from `CONFLICT_001`, the bundle registers transaction-doctrine's commit-tracking DBAL middleware on the connection of the default entity manager only. On DBAL 3, a connection wrapped by that middleware returns `null` instead of `true` from `Connection::commit()`. If your own code tests that return value (`=== true`, `!$connection->commit()`), set `conflict_response.commit_tracking: off`, or register nowo-tech/transaction-doctrine's bundle with `commit_detection: true` (its ledger is then reused and the bundle adds no middleware). The ORM is not affected.
+- **A lost savepoint makes the host's commit fail.** When a log write runs inside a transaction you left open and the server ends that transaction (a MySQL / MariaDB deadlock), your later `commit()` now throws instead of succeeding. Your statements before the deadlock were already rolled back by the server, so the commit would have reported them as saved. Handle it like any deadlock: roll back and retry the unit.
+- **Messenger.** With `async: true` a lock conflict while writing a rollup count now reaches the handler as `Nowo\TransactionContract\TransientStorageFailure` (it was the DBAL exception). Messenger retries it as before. A failure transport is still recommended. The same applies outside Messenger to `HttpLogUsageEraserInterface::eraseCredential()` (through the rollup fold): a deadlock or lock wait timeout now reaches the caller as `Nowo\TransactionContract\TransientStorageFailure` (a `RuntimeException`) instead of DBAL's `DeadlockException` / `LockWaitTimeoutException`. A caller that catches `Doctrine\DBAL\Exception\RetryableException` must also catch `TransientStorageFailure`.
 
 ## To 1.21.1
 

@@ -106,6 +106,7 @@ make -C demo/symfony8 demo-screenshots  # refresh docs/images/demo/*.webp
 - [GitHub Actions CI requirements](docs/GITHUB_CI.md)
 - [Demo with FrankenPHP](docs/DEMO-FRANKENPHP.md)
 - [FrankenPHP worker audit](docs/FRANKENPHP-WORKER-AUDIT.md)
+- [Concurrency (REQ-RUNTIME-003)](docs/CONCURRENCY.md)
 
 ## Tests and coverage
 

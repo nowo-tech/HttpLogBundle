@@ -298,7 +298,7 @@ final readonly class HttpLogRequestContextResolution
                 $secrets[] = trim((string) $value);
             }
         }
-        $credential = self::distinct($secrets);
+        $credential = $this->distinct($secrets);
         $secrets    = [];
 
         $headers = array_map(strtolower(...), $this->redactedHeaders);
@@ -325,7 +325,7 @@ final readonly class HttpLogRequestContextResolution
             });
         }
 
-        return ['credential' => $credential, 'redacted' => array_values(array_diff(self::distinct($secrets), $credential))];
+        return ['credential' => $credential, 'redacted' => array_values(array_diff($this->distinct($secrets), $credential))];
     }
 
     /**
@@ -333,7 +333,7 @@ final readonly class HttpLogRequestContextResolution
      *
      * @return list<string>
      */
-    private static function distinct(array $values): array
+    private function distinct(array $values): array
     {
         return array_values(array_unique(array_filter($values, static fn (string $s): bool => $s !== '')));
     }

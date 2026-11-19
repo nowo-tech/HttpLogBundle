@@ -10,9 +10,11 @@ use Nowo\HttpLogBundle\Command\RollupBackfillCommand;
 use Nowo\HttpLogBundle\Context\HttpLogContext;
 use Nowo\HttpLogBundle\Context\HttpLogContextInterface;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
+use Nowo\HttpLogBundle\DependencyInjection\Compiler\HttpLogCommitTrackingPass;
 use Nowo\HttpLogBundle\Doctrine\PathPrefixColumnListener;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
 use Nowo\HttpLogBundle\Doctrine\UsageColumnsListener;
+use Nowo\HttpLogBundle\EventSubscriber\HttpLogConflictListener;
 use Nowo\HttpLogBundle\EventSubscriber\HttpLogSubscriber;
 use Nowo\HttpLogBundle\HttpClient\HttpLogHttpClientWrapper;
 use Nowo\HttpLogBundle\HttpClient\OutboundCapturePolicy;
@@ -50,6 +52,9 @@ use Nowo\HttpLogBundle\Usage\UsageBufferFlushSubscriber;
 use Nowo\HttpLogBundle\Usage\UsageCaptureSink;
 use Nowo\HttpLogBundle\Usage\UsageEntryWriter;
 use Nowo\HttpLogBundle\View\AdminChrome;
+use Nowo\TransactionDoctrine\Symfony\Conflict\ConflictResponsePolicy;
+use Nowo\TransactionDoctrine\WriteUnit\CommitLedger;
+use Nowo\TransactionDoctrine\WriteUnit\Dbal\CommitTrackingMiddleware;
 use Nowo\UserKitBundle\PersonalData\PersonalDataEraserInterface as UserKitPersonalDataEraserInterface;
 use Psr\Clock\ClockInterface;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
@@ -63,6 +68,7 @@ use Symfony\Component\DependencyInjection\Extension\PrependExtensionInterface;
 use Symfony\Component\DependencyInjection\Loader\YamlFileLoader;
 use Symfony\Component\DependencyInjection\Reference;
 use Symfony\Component\HttpClient\AsyncDecoratorTrait;
+use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\Mailer\Event\MessageEvent;
 
 use function array_key_exists;
@@ -90,6 +96,15 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
 
     /** Logger channel of the usage capture warnings. */
     public const LOGGER_CHANNEL = 'nowo_http_log';
+
+    /** 1.22: real commits counted by {@see self::COMMIT_TRACKING_MIDDLEWARE}, read by the conflict answer. */
+    public const COMMIT_LEDGER_SERVICE = 'nowo_http_log.commit_ledger';
+
+    /** 1.22: transaction-doctrine's commit-tracking DBAL middleware (scoped by {@see HttpLogCommitTrackingPass}). */
+    public const COMMIT_TRACKING_MIDDLEWARE = 'nowo_http_log.commit_tracking_middleware';
+
+    /** 1.22: container parameter holding `conflict_response.commit_tracking` (bundle, all or off). */
+    public const COMMIT_TRACKING_PARAMETER = 'nowo_http_log.conflict_response.commit_tracking';
 
     /**
      * Feature block => [class or trait that must exist, Composer package that provides it].
@@ -344,6 +359,49 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
 
         $this->registerAccessChecker($container, $config['security']);
         $this->registerPersonalData($container, $config['personal_data']);
+        $this->registerConflictAnswer($container, $config['conflict_response'], $config['web_ui']['enabled']);
+    }
+
+    /**
+     * 1.22 (REQ-RUNTIME-003 rule 6): 409 (or 503) + CONFLICT_001 / CONFLICT_002 instead of a 500 for lock conflicts on
+     * the bundle's admin routes. Unset options follow transaction-doctrine's policy service when its bundle is
+     * registered. Nothing is registered without the web UI (the bundle then has no route).
+     *
+     * Commit tracking (`conflict_response.commit_tracking`): `bundle` (default) and `all` register transaction-doctrine's
+     * commit-tracking middleware; {@see HttpLogCommitTrackingPass} scopes it to the bundle's connection (`bundle`), or
+     * drops it and reuses transaction-doctrine's own ledger when that bundle's `commit_detection` is on. `off` registers
+     * neither the ledger nor the middleware.
+     *
+     * @param array{status: int|null, retry_after: int|null, commit_tracking: string} $conflictResponse
+     */
+    private function registerConflictAnswer(ContainerBuilder $container, array $conflictResponse, bool $webUi): void
+    {
+        if (!$webUi) {
+            return;
+        }
+
+        $container->setParameter(self::COMMIT_TRACKING_PARAMETER, $conflictResponse['commit_tracking']);
+        $tracking = $conflictResponse['commit_tracking'] !== 'off';
+        if ($tracking) {
+            $container->setDefinition(self::COMMIT_LEDGER_SERVICE, new Definition(CommitLedger::class));
+            $container->setDefinition(self::COMMIT_TRACKING_MIDDLEWARE, (new Definition(CommitTrackingMiddleware::class, [new Reference(self::COMMIT_LEDGER_SERVICE)]))
+                ->addTag('doctrine.middleware'));
+        }
+
+        $policy = $conflictResponse['status'] === null && $conflictResponse['retry_after'] === null
+            ? new Reference(ConflictResponsePolicy::class, ContainerInterface::NULL_ON_INVALID_REFERENCE)
+            : new Definition(ConflictResponsePolicy::class, [
+                $conflictResponse['status'] ?? ConflictResponsePolicy::STATUS_CONFLICT,
+                $conflictResponse['retry_after'] ?? ConflictResponsePolicy::DEFAULT_RETRY_AFTER,
+            ]);
+
+        $container->setDefinition(HttpLogConflictListener::class, (new Definition(HttpLogConflictListener::class, [
+            $policy,
+            $tracking ? new Reference(self::COMMIT_LEDGER_SERVICE) : null,
+            new Reference('request_stack', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+        ]))
+            ->addTag('kernel.event_listener', ['event' => KernelEvents::REQUEST, 'method' => 'onRequest', 'priority' => HttpLogConflictListener::REQUEST_PRIORITY])
+            ->addTag('kernel.event_listener', ['event' => KernelEvents::EXCEPTION, 'method' => 'onException', 'priority' => HttpLogConflictListener::PRIORITY]));
     }
 
     /**

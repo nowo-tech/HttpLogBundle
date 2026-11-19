@@ -170,7 +170,7 @@ final class HttpLogBufferTest extends TestCase
         $buffer = $this->buffer($erased);
         $buffer->add(new UsageCapture('outbound', new DateTimeImmutable(), 'GET', userIdentifier: 'ana'));
         $buffer->add(new UsageCapture('outbound', new DateTimeImmutable(), 'GET', clientIp: '10.0.0.1'));
-        $buffer->add(new UsageCapture('outbound', new DateTimeImmutable(), 'GET', userIdentifier: 'Ana', clientIp: '10.0.0.2'));
+        $buffer->add(new UsageCapture('outbound', new DateTimeImmutable(), 'GET', clientIp: '10.0.0.2', userIdentifier: 'Ana'));
         $buffer->add($this->capture());
 
         // queued before the erasure, written after it (kernel.terminate): LY-L2

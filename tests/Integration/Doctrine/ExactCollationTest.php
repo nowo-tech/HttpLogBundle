@@ -97,7 +97,7 @@ final class ExactCollationTest extends TestCase
     #[DataProvider('connections')]
     public function theConnectionChoosesTheCollationAndWarnsAboutTheFallback(array $params, ?string $expected, bool $warns): void
     {
-        $logger     = self::logger();
+        $logger     = $this->logger();
         $connection = DriverManager::getConnection($params);
         self::assertSame($expected, ExactCollation::forConnection($connection, $logger));
         self::assertSame($warns ? 1 : 0, count($logger->records));
@@ -113,7 +113,7 @@ final class ExactCollationTest extends TestCase
         $connection->method('getDatabasePlatform')->willReturn(new MySQL80Platform());
         $connection->method('getParams')->willReturn([]);
         $connection->method('getServerVersion')->willReturn('8.0.16');
-        $logger = self::logger();
+        $logger = $this->logger();
 
         self::assertSame('utf8mb4_bin', ExactCollation::forConnection($connection, $logger));
         self::assertStringContainsString('"8.0.16"', $logger->records[0]);
@@ -160,7 +160,7 @@ final class ExactCollationTest extends TestCase
     #[DataProvider('schemas')]
     public function theGeneratedSchemaGivesEveryIdentifierColumnTheCollation(string $serverVersion, string $collation): void
     {
-        $logger = self::logger();
+        $logger = $this->logger();
         $db     = new UsageTestDatabase(true, connectionParams: ['driver' => 'pdo_mysql', 'serverVersion' => $serverVersion], createSchema: false, rollup: true, logger: $logger);
         $sql    = implode("\n", (new SchemaTool($db->entityManager))->getCreateSchemaSql([$db->entityManager->getClassMetadata(HttpLogEntry::class)]));
 
@@ -241,7 +241,7 @@ final class ExactCollationTest extends TestCase
     }
 
     /** @return AbstractLogger&object{records: list<string>} */
-    private static function logger(): AbstractLogger
+    private function logger(): AbstractLogger
     {
         return new class extends AbstractLogger {
             /** @var list<string> */
