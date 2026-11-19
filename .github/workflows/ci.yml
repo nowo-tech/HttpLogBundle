@@ -386,23 +386,21 @@ jobs:
           HTTPLOG_TEST_PGSQL_URL: postgresql://postgres:ci-placeholder@127.0.0.1:5432/http_log?serverVersion=16&charset=utf8
         run: vendor/bin/phpunit --no-coverage --group database --fail-on-skipped
 
-      - name: Capture inside an open host transaction and rollup erasure on MySQL 8.4 and PostgreSQL 16
-        timeout-minutes: 10
+      # Audit UV-4: the whole Integration suite on both DBAL majors (schema DDL, collation, sequences, open host
+      # transaction, rollup, GDPR ports), once against MySQL 8.4 and once against MariaDB 11.4, both with PostgreSQL 16.
+      - name: Integration suite on MySQL 8.4 and PostgreSQL 16 (DBAL ${{ matrix.dbal }})
+        timeout-minutes: 15
         env:
           HTTPLOG_TEST_MYSQL_URL: mysql://root:ci-placeholder@127.0.0.1:3306/http_log?serverVersion=8.4.0&charset=utf8mb4
           HTTPLOG_TEST_PGSQL_URL: postgresql://postgres:ci-placeholder@127.0.0.1:5432/http_log?serverVersion=16&charset=utf8
-        run: |
-          vendor/bin/phpunit --no-coverage --fail-on-skipped tests/Integration/OpenHostTransactionTest.php
-          vendor/bin/phpunit --no-coverage --fail-on-skipped tests/Integration/Rollup/RetentionErasureTest.php
+        run: php -d memory_limit=-1 vendor/bin/phpunit --no-coverage --testsuite Integration
 
-      - name: Capture inside an open host transaction and rollup erasure on MariaDB 11.4 and PostgreSQL 16
-        timeout-minutes: 10
+      - name: Integration suite on MariaDB 11.4 and PostgreSQL 16 (DBAL ${{ matrix.dbal }})
+        timeout-minutes: 15
         env:
           HTTPLOG_TEST_MYSQL_URL: mysql://root:ci-placeholder@127.0.0.1:3307/http_log?serverVersion=11.4.0-MariaDB&charset=utf8mb4
           HTTPLOG_TEST_PGSQL_URL: postgresql://postgres:ci-placeholder@127.0.0.1:5432/http_log?serverVersion=16&charset=utf8
-        run: |
-          vendor/bin/phpunit --no-coverage --fail-on-skipped tests/Integration/OpenHostTransactionTest.php
-          vendor/bin/phpunit --no-coverage --fail-on-skipped tests/Integration/Rollup/RetentionErasureTest.php
+        run: php -d memory_limit=-1 vendor/bin/phpunit --no-coverage --testsuite Integration
 
   # The bundle must work with the lowest nowo-tech/transaction-* versions its composer.json allows (hosts and demos
   # can run `composer update nowo-tech/http-log-bundle` without updating them), and the demo lock must install what the

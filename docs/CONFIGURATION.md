@@ -149,7 +149,7 @@ nowo_http_log:
     conflict_response:                    # 1.22: lock conflicts on the admin routes, see "conflict_response"
         status: null                      # 409 (default) or 503; null: transaction-doctrine's, else 409
         retry_after: null                 # seconds for CONFLICT_001; null: transaction-doctrine's, else 1
-        commit_tracking: bundle           # bundle | all | off
+        commit_tracking: off              # off (default since 1.23) | bundle | all
 ```
 
 ## Top-level options
@@ -552,7 +552,7 @@ capture of host requests never answers anything: a failed log write is logged, n
 | --- | --- | --- | --- |
 | `status` | int or null | `null` | `409` or `503`. `null`: the `conflict_response` of nowo-tech/transaction-doctrine's bundle when it is registered, else 409. |
 | `retry_after` | int or null | `null` | `Retry-After` seconds of a `CONFLICT_001` answer. `null`: transaction-doctrine's, else 1. |
-| `commit_tracking` | `bundle`, `all` or `off` | `bundle` | How commits earlier in the request are seen (for `CONFLICT_002`) when transaction-doctrine's `commit_detection` is off. `bundle`: a DBAL middleware on the connection of the default entity manager only. `all`: every connection. `off`: no middleware. With `commit_detection` on, transaction-doctrine's ledger is reused and the bundle adds no middleware. |
+| `commit_tracking` | `off`, `bundle` or `all` | `off` (1.23; `bundle` in 1.22) | How commits of other code earlier in the request are seen (for `CONFLICT_002`) when transaction-doctrine's `commit_detection` is off. `off`: no middleware; a purge that already deleted a batch still answers `CONFLICT_002` by itself. `bundle`: a DBAL middleware on the connections of the default entity manager and of every manager that maps the entries. `all`: every connection. With `commit_detection` on (its tagged `nowo_transaction_doctrine.commit_tracking_middleware` registered), transaction-doctrine's ledger is reused and the bundle adds no middleware. On DBAL 3 a wrapped connection's `commit()` returns `null`. |
 
 Nothing is registered when `web_ui.enabled` is false (the bundle then has no route).
 

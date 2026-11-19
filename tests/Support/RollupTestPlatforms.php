@@ -40,20 +40,31 @@ final class RollupTestPlatforms
             return new UsageTestDatabase(true, $tablePrefix, $tableNamePrefix, rollup: true, pathPrefix: $pathPrefix);
         }
 
-        $params     = self::params($source);
+        $params = self::params($source);
+        self::dropTables($params);
+
+        return new UsageTestDatabase(true, $tablePrefix, $tableNamePrefix, $params, rollup: true, pathPrefix: $pathPrefix, middlewares: $middlewares);
+    }
+
+    /**
+     * Drops the HttpLog tables of every prefix variant the tests use, and their PostgreSQL id sequences: DBAL 3 + ORM
+     * map the id to a SEQUENCE on PostgreSQL, which dropping the table leaves behind (the next schema create would
+     * then fail with 42P07).
+     *
+     * @param array<string, mixed> $params
+     */
+    public static function dropTables(array $params): void
+    {
         $connection = DriverManager::getConnection($params);
         foreach (['entry', 'daily', 'event_seen'] as $suffix) {
             foreach (['nowo_http_log_', 'http_log_', 'app_nowo_http_log_'] as $prefix) {
                 $connection->executeStatement('DROP TABLE IF EXISTS ' . $prefix . $suffix);
                 if ($connection->getDatabasePlatform() instanceof PostgreSQLPlatform) {
-                    // DBAL 3 + ORM map the id to a SEQUENCE on PostgreSQL: dropping the table leaves it behind
                     $connection->executeStatement('DROP SEQUENCE IF EXISTS ' . $prefix . $suffix . '_id_seq');
                 }
             }
         }
         $connection->close();
-
-        return new UsageTestDatabase(true, $tablePrefix, $tableNamePrefix, $params, rollup: true, pathPrefix: $pathPrefix, middlewares: $middlewares);
     }
 
     /**

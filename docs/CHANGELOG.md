@@ -55,6 +55,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`conflict_response.commit_tracking` defaults to `off` (audit UV-2).** The admin purge now tells `CONFLICT_002` from `CONFLICT_001` by itself: a lock conflict after a batch of the same purge was deleted (the entry purge by criteria, by retention or per scope, and the rollup and ledger purge) is rethrown as transaction-doctrine's `ConcurrencyConflict` with `committed: true`, the storage error as previous. So by default no commit-tracking DBAL middleware wraps the host's connection any more (on DBAL 3 it made `Connection::commit()` return `null`). `bundle` and `all` stay available (see UPGRADING).
+- With `commit_tracking: bundle`, the middleware now wraps the connections of the default entity manager **and** of every manager whose mapping covers `Nowo\HttpLogBundle\Entity` (audit UE3-CF-1), and transaction-doctrine's `CommitLedger` is reused only when its tagged `nowo_transaction_doctrine.commit_tracking_middleware` is registered (audit UE3-CF-2); a ledger nothing feeds no longer silences `CONFLICT_002`.
+- `HttpLogEntryRepository::deleteOlderThan()`, `UsageRollupStore::purgeBuckets()` / `purgeLedger()` and `PurgeHttpLogService` throw that `ConcurrencyConflict` (a `TransientStorageFailure`) on a lock conflict after a deleted batch, instead of the DBAL exception. Before any deletion, and for any other error, the exception is unchanged.
+- `PurgeHttpLogService::purgeScopes()` rejects an unknown scope before it purges any scope (it used to purge the scopes listed before it first).
+
+### Fixed
+
+- **MySQL / MariaDB: the documented 1.15 DDL of the usage columns left a schema diff (audit UV-4).** The `hl1-ddl:mysql` block of UPGRADING added `provider`, `credential_kind`, `credential_id`, `tenant_key` and `project_key` with the table's default collation, so on DBAL 3 and DBAL 4 `doctrine:schema:update` kept proposing `ALTER … COLLATE utf8mb4_0900_bin` until the 1.20.1 ALTER was also run. The block now creates them with the exact collation. Tables that already have the columns keep using the 1.20.1 ALTER.
+- **PostgreSQL + doctrine/dbal 3: the documented 1.16 rollup DDL left a schema diff (audit UV-4).** DBAL 3 does not read the identity id of `nowo_http_log_daily` as auto-increment, so it kept proposing a sequence whose `SET DEFAULT` fails on an identity column. UPGRADING now gives the DBAL 3 form (`BIGSERIAL`) and the statements that convert an existing identity id.
+- Tests: the schema tests no longer call DBAL 4-only `Connection::getServerVersion()` and drop PostgreSQL's leftover `*_id_seq` sequences, so the whole Integration suite passes on DBAL 3.
+
+### Added
+
+- CI: the "Real databases" DBAL 3 and DBAL 4 legs run the whole Integration suite on MySQL 8.4 + PostgreSQL 16 and on MariaDB 11.4 + PostgreSQL 16 (audit UV-4), besides the race tests. The blocked admin purge race test runs with and without commit tracking.
+
 ## [1.22.0] - 2026-11-19
 
 ### Added

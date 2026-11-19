@@ -79,6 +79,15 @@ final class ConcurrentWritesDbTest extends TestCase
         yield 'postgresql 16' => ['HTTPLOG_TEST_PGSQL_URL'];
     }
 
+    /** @return iterable<string, array{0: string, 1: bool}> */
+    public static function serversWithAndWithoutCommitTracking(): iterable
+    {
+        foreach (self::servers() as $name => [$source]) {
+            yield $name . ', commit tracking off' => [$source, false];
+            yield $name . ', commit tracking bundle' => [$source, true];
+        }
+    }
+
     /**
      * The async capture of one request id, written by two workers (a redelivered message): the second waits for the
      * first, fails with a lock conflict (never a duplicate), and its replay after the first commit is a no-op.
@@ -198,12 +207,14 @@ final class ConcurrentWritesDbTest extends TestCase
     /**
      * Admin purge (batches of one row) blocked by another worker's row lock: CONFLICT_002 without Retry-After once a
      * batch is deleted, CONFLICT_001 with Retry-After when nothing was; the purge completes once the lock is gone.
+     * With the bundle's commit-tracking middleware (`commit_tracking: bundle`) and, since 1.23, without it (the
+     * default `off`: the purge itself reports the deleted batch, audit UV-2).
      */
     #[Test]
-    #[DataProvider('servers')]
-    public function aBlockedAdminPurgeAnswersTheConflictCodes(string $source): void
+    #[DataProvider('serversWithAndWithoutCommitTracking')]
+    public function aBlockedAdminPurgeAnswersTheConflictCodes(string $source, bool $tracking): void
     {
-        $ledger  = new CommitLedger();
+        $ledger  = $tracking ? new CommitLedger() : null;
         [$a, $b] = $this->pair($source, $ledger);
         foreach (['req-1', 'req-2', 'req-3'] as $requestId) {
             $this->recorder($a)->persistCapture($this->capture($requestId));

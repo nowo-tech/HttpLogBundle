@@ -76,9 +76,16 @@ outcome is unknown. On the bundle's admin routes it answers as follows:
 - The page is the application's error page (an `HttpException` with a fixed, client-safe message; the storage error
   stays as its previous exception, for the logs).
 - `X-Conflict-Code` carries only these two values.
-- "Committed earlier in the same request" uses transaction-doctrine's request watermark (`ConflictCode::forRequest()`)
-  when the host registers `NowoTransactionDoctrineBundle` with `commit_detection` on. Otherwise the bundle counts the
-  commits of the connection of the default entity manager itself (`conflict_response.commit_tracking: bundle`).
+- **A purge batch already deleted:** the purge deletes in batches, each committed on its own. When a batch meets a
+  lock conflict after an earlier batch of the same call was deleted, the purge rethrows it as transaction-doctrine's
+  `ConcurrencyConflict` with `committed: true`, so the answer is `CONFLICT_002` without any DBAL middleware (since
+  1.23).
+- **Other commits earlier in the same request** use transaction-doctrine's request watermark
+  (`ConflictCode::forRequest()`) when the host registers `NowoTransactionDoctrineBundle` with `commit_detection` on.
+  Without it, `conflict_response.commit_tracking: bundle` makes the bundle count the commits of the connections of the
+  entity managers that map the entries itself (opt-in since 1.23; the default `off` wraps no host connection). The
+  bundle's admin routes commit nothing else, so the default answers correctly unless your own listeners write during
+  them.
 - **Not conflicts:** unique-constraint violations and lost connections are never mapped. A unique violation on the
   bundle's keys is expected only for a replayed capture, and is handled there as "already stored". Anything else is a
   real error (500).
@@ -92,7 +99,7 @@ nowo_http_log:
     conflict_response:
         status: null            # 409 (default) or 503; null: transaction-doctrine's conflict_response, else 409
         retry_after: null       # seconds for CONFLICT_001; null: transaction-doctrine's, else 1
-        commit_tracking: bundle # bundle | all | off (see CONFIGURATION.md)
+        commit_tracking: off    # off (default) | bundle | all (see CONFIGURATION.md)
     retention:
         purge_batch_size: 1000  # rows per purge statement: smaller batches hold fewer locks
 ```
@@ -117,7 +124,11 @@ nowo_http_log:
   - a sync capture blocked inside the host's open transaction: the host commits its own rows, and the dropped log row
     is logged;
   - an admin purge blocked by a row lock: `CONFLICT_002` after a deleted batch, `CONFLICT_001` + `Retry-After`
-    otherwise, and the purge completes once the lock is released.
+    otherwise, and the purge completes once the lock is released; with `commit_tracking` off (the default) and `bundle`.
+- `tests/Integration/Concurrency/PurgeBatchConflictTest.php` (SQLite): the entry purge, the rollup purge and the admin
+  answer when a later purge batch meets a lock conflict.
+- The DBAL 3 and DBAL 4 legs of "Real databases" also run the whole Integration suite on MySQL 8.4 + PostgreSQL 16 and
+  on MariaDB 11.4 + PostgreSQL 16.
 - `tests/Integration/OpenHostTransactionTest.php` (SQLite always, plus PostgreSQL, MySQL and MariaDB in CI): a failed
   insert never aborts the host's transaction, a host savepoint with a similar name survives, and a lost savepoint marks
   the host's transaction rollback-only.

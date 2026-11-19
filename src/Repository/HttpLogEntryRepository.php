@@ -17,11 +17,13 @@ use InvalidArgumentException;
 use LogicException;
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
 use Nowo\HttpLogBundle\Doctrine\PathPrefixColumnListener;
+use Nowo\HttpLogBundle\Doctrine\PurgeConflict;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Model\HttpLogListCursor;
 use Nowo\HttpLogBundle\Model\HttpLogListRow;
 use Nowo\HttpLogBundle\Usage\HttpLogChannel;
 use SortDirection;
+use Throwable;
 
 use function array_diff;
 use function array_filter;
@@ -411,7 +413,12 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
                 break;
             }
 
-            $total += $this->deleteByIds($ids);
+            try {
+                $total += $this->deleteByIds($ids);
+            } catch (Throwable $failure) {
+                // 1.23 (audit UV-2): a lock conflict after a deleted batch is CONFLICT_002 (part of the purge committed)
+                throw PurgeConflict::after($failure, $total);
+            }
             $afterId = $ids[count($ids) - 1];
         } while (count($ids) === $batchSize);
 

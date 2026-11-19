@@ -25,10 +25,10 @@ final class ConflictResponseExtensionTest extends TestCase
     public function testConflictResponseDefaultsToNullAndAccepts409Or503(): void
     {
         $config = (new Processor())->processConfiguration(new Configuration(), []);
-        self::assertSame(['status' => null, 'retry_after' => null, 'commit_tracking' => 'bundle'], $config['conflict_response']);
+        self::assertSame(['status' => null, 'retry_after' => null, 'commit_tracking' => 'off'], $config['conflict_response'], '1.23 (audit UV-2): no middleware by default');
 
-        $config = (new Processor())->processConfiguration(new Configuration(), [['conflict_response' => ['status' => 503, 'retry_after' => 3, 'commit_tracking' => 'off']]]);
-        self::assertSame(['status' => 503, 'retry_after' => 3, 'commit_tracking' => 'off'], $config['conflict_response']);
+        $config = (new Processor())->processConfiguration(new Configuration(), [['conflict_response' => ['status' => 503, 'retry_after' => 3, 'commit_tracking' => 'bundle']]]);
+        self::assertSame(['status' => 503, 'retry_after' => 3, 'commit_tracking' => 'bundle'], $config['conflict_response']);
     }
 
     public function testConflictResponseRejectsOtherStatuses(): void
@@ -48,7 +48,8 @@ final class ConflictResponseExtensionTest extends TestCase
 
     /**
      * The answer follows transaction-doctrine's policy service by default (optional reference); the bundle's options
-     * win when set; the commit-tracking middleware is tagged without a connection (scoped by HttpLogCommitTrackingPass).
+     * win when set. By default (1.23, audit UV-2) no commit-tracking middleware wraps any host connection; with
+     * `bundle` or `all` it is tagged without a connection (scoped by HttpLogCommitTrackingPass).
      */
     public function testTheConflictAnswerIsRegistered(): void
     {
@@ -59,21 +60,21 @@ final class ConflictResponseExtensionTest extends TestCase
         self::assertInstanceOf(Reference::class, $policy);
         self::assertSame(ConflictResponsePolicy::class, (string) $policy);
         self::assertSame(ContainerInterface::NULL_ON_INVALID_REFERENCE, $policy->getInvalidBehavior());
-        self::assertSame(NowoHttpLogExtension::COMMIT_LEDGER_SERVICE, (string) $listener->getArgument(1));
         self::assertSame([
             ['event' => 'kernel.request', 'method' => 'onRequest', 'priority' => HttpLogConflictListener::REQUEST_PRIORITY],
             ['event' => 'kernel.exception', 'method' => 'onException', 'priority' => HttpLogConflictListener::PRIORITY],
         ], $listener->getTag('kernel.event_listener'));
+        self::assertFalse($container->hasDefinition(NowoHttpLogExtension::COMMIT_TRACKING_MIDDLEWARE), 'default off: no middleware');
+        self::assertFalse($container->hasDefinition(NowoHttpLogExtension::COMMIT_LEDGER_SERVICE));
+        self::assertNull($listener->getArgument(1));
+        self::assertSame('off', $container->getParameter(NowoHttpLogExtension::COMMIT_TRACKING_PARAMETER));
 
+        $container = $this->load(['commit_tracking' => 'bundle']);
+        self::assertSame(NowoHttpLogExtension::COMMIT_LEDGER_SERVICE, (string) $container->getDefinition(HttpLogConflictListener::class)->getArgument(1));
         $middleware = $container->getDefinition(NowoHttpLogExtension::COMMIT_TRACKING_MIDDLEWARE);
         self::assertSame(CommitTrackingMiddleware::class, $middleware->getClass());
         self::assertSame([[]], $middleware->getTag('doctrine.middleware'));
         self::assertSame('bundle', $container->getParameter(NowoHttpLogExtension::COMMIT_TRACKING_PARAMETER));
-
-        $container = $this->load(['commit_tracking' => 'off']);
-        self::assertFalse($container->hasDefinition(NowoHttpLogExtension::COMMIT_TRACKING_MIDDLEWARE), 'off: no middleware');
-        self::assertFalse($container->hasDefinition(NowoHttpLogExtension::COMMIT_LEDGER_SERVICE));
-        self::assertNull($container->getDefinition(HttpLogConflictListener::class)->getArgument(1));
 
         $policy = $this->load(['status' => 503])->getDefinition(HttpLogConflictListener::class)->getArgument(0);
         self::assertInstanceOf(Definition::class, $policy);
