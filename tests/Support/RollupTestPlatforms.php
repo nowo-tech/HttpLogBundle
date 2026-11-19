@@ -6,6 +6,7 @@ namespace Nowo\HttpLogBundle\Tests\Support;
 
 use Doctrine\DBAL\Driver\Middleware;
 use Doctrine\DBAL\DriverManager;
+use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use Doctrine\DBAL\Tools\DsnParser;
 use PHPUnit\Framework\SkippedWithMessageException;
 
@@ -44,6 +45,10 @@ final class RollupTestPlatforms
         foreach (['entry', 'daily', 'event_seen'] as $suffix) {
             foreach (['nowo_http_log_', 'http_log_', 'app_nowo_http_log_'] as $prefix) {
                 $connection->executeStatement('DROP TABLE IF EXISTS ' . $prefix . $suffix);
+                if ($connection->getDatabasePlatform() instanceof PostgreSQLPlatform) {
+                    // DBAL 3 + ORM map the id to a SEQUENCE on PostgreSQL: dropping the table leaves it behind
+                    $connection->executeStatement('DROP SEQUENCE IF EXISTS ' . $prefix . $suffix . '_id_seq');
+                }
             }
         }
         $connection->close();
