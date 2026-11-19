@@ -64,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Requires `nowo-tech/transaction-contract` ^1.0 and `nowo-tech/transaction-doctrine` ^1.6.
 - A rollup count, outside a host transaction, runs through transaction-doctrine's connection runner: the nesting level is repaired after a failure, a deadlock or serialization failure of its own transaction is replayed at most twice (nothing of it was committed, and the ledger keeps it exactly once), and a lock conflict reaches the Messenger handler as `TransientStorageFailure`. A lock wait timeout is never replayed.
+- `HttpLogUsageEraserInterface::eraseCredential()` (the rollup fold) now reports a deadlock or lock wait timeout as `Nowo\TransactionContract\TransientStorageFailure` instead of DBAL's `RetryableException` subclasses (see UPGRADING).
 
 ### Fixed
 
