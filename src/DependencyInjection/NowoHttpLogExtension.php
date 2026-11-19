@@ -367,10 +367,11 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
      * the bundle's admin routes. Unset options follow transaction-doctrine's policy service when its bundle is
      * registered. Nothing is registered without the web UI (the bundle then has no route).
      *
-     * Commit tracking (`conflict_response.commit_tracking`): `bundle` (default) and `all` register transaction-doctrine's
-     * commit-tracking middleware; {@see HttpLogCommitTrackingPass} scopes it to the bundle's connection (`bundle`), or
-     * drops it and reuses transaction-doctrine's own ledger when that bundle's `commit_detection` is on. `off` registers
-     * neither the ledger nor the middleware.
+     * Commit tracking (`conflict_response.commit_tracking`): `off` (the default since 1.23, audit UV-2: a purge reports a
+     * deleted batch itself) registers neither the ledger nor the middleware. `bundle` and `all` register
+     * transaction-doctrine's commit-tracking middleware; {@see HttpLogCommitTrackingPass} scopes it to the connections of
+     * the managers that map the entries (`bundle`), or drops it and reuses transaction-doctrine's own ledger when that
+     * bundle's tagged commit-tracking middleware is registered.
      *
      * @param array{status: int|null, retry_after: int|null, commit_tracking: string} $conflictResponse
      */

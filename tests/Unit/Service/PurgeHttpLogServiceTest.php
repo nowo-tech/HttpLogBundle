@@ -5,12 +5,16 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\Tests\Unit\Service;
 
 use DateTimeImmutable;
+use Doctrine\DBAL\Driver\AbstractException;
+use Doctrine\DBAL\Exception\DeadlockException;
 use InvalidArgumentException;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Service\PurgeHttpLogService;
+use Nowo\TransactionDoctrine\WriteUnit\ConcurrencyConflict;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
+use Throwable;
 
 final class PurgeHttpLogServiceTest extends TestCase
 {
@@ -196,6 +200,83 @@ final class PurgeHttpLogServiceTest extends TestCase
         $service = new PurgeHttpLogService($repository, $this->createClock(), ['purge_batch_size' => 0]);
 
         self::assertSame(0, $service->purgeOlderThan($before));
+    }
+
+    /**
+     * 1.23 (audit UV-2): a lock conflict after a deleted batch is a committed ConcurrencyConflict (CONFLICT_002); before
+     * any deletion, and any other error, it is rethrown unchanged.
+     */
+    #[Test]
+    public function purgeByCriteriaMarksALockConflictAfterADeletedBatchAsCommitted(): void
+    {
+        $deadlock   = $this->deadlock();
+        $repository = $this->createMock(HttpLogEntryRepository::class);
+        $repository->method('findIdsFiltered')->willReturnOnConsecutiveCalls([1], [2]);
+        $repository->method('deleteByIds')->willReturnCallback(static fn (array $ids): int => $ids === [1] ? 1 : throw $deadlock);
+
+        $service  = new PurgeHttpLogService($repository, $this->createClock(), ['days' => 30, 'purge_batch_size' => 1]);
+        $conflict = $this->failure(static fn (): int => $service->purgeByCriteria([]));
+
+        self::assertInstanceOf(ConcurrencyConflict::class, $conflict);
+        self::assertTrue($conflict->committed);
+        self::assertSame($deadlock, $conflict->getPrevious());
+
+        $repository = $this->createMock(HttpLogEntryRepository::class);
+        $repository->method('findIdsFiltered')->willReturn([1]);
+        $repository->method('deleteByIds')->willThrowException($deadlock);
+        $service = new PurgeHttpLogService($repository, $this->createClock(), ['days' => 30]);
+        self::assertSame($deadlock, $this->failure(static fn (): int => $service->purgeByCriteria([])), 'nothing deleted: unchanged (CONFLICT_001)');
+    }
+
+    #[Test]
+    public function purgeScopesMarksALockConflictAfterAnEarlierScopeAsCommitted(): void
+    {
+        $deadlock   = $this->deadlock();
+        $repository = $this->createMock(HttpLogEntryRepository::class);
+        $repository->method('deleteOlderThan')->willReturnCallback(static fn (DateTimeImmutable $before, int $size, ?string $channel): int => $channel === 'web' ? 2 : throw $deadlock);
+
+        $service  = new PurgeHttpLogService($repository, $this->createClock(), ['days' => 30], ['outbound' => 7]);
+        $conflict = $this->failure(static fn (): array => $service->purgeScopes(['web', 'outbound']));
+        self::assertInstanceOf(ConcurrencyConflict::class, $conflict);
+        self::assertTrue($conflict->committed);
+
+        self::assertSame($deadlock, $this->failure(static fn (): array => $service->purgeScopes(['outbound', 'web'])), 'the failing scope ran first');
+
+        $repository = $this->createMock(HttpLogEntryRepository::class);
+        $repository->method('countFiltered')->willReturnCallback(static fn (array $criteria): int => $criteria['channel'] === 'web' ? 2 : throw $deadlock);
+        $service = new PurgeHttpLogService($repository, $this->createClock(), ['days' => 30], ['outbound' => 7]);
+        self::assertSame($deadlock, $this->failure(static fn (): array => $service->purgeScopes(['web', 'outbound'], null, true)), 'a dry run deletes nothing');
+    }
+
+    #[Test]
+    public function anUnknownScopeIsRejectedBeforeAnyScopeIsPurged(): void
+    {
+        $repository = $this->createMock(HttpLogEntryRepository::class);
+        $repository->expects(self::never())->method('deleteOlderThan');
+        $service = new PurgeHttpLogService($repository, $this->createClock(), ['days' => 30]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $service->purgeScopes(['web', 'nope']);
+    }
+
+    private function deadlock(): DeadlockException
+    {
+        return new DeadlockException(new class('Deadlock found', '40001', 1213) extends AbstractException {
+        }, null);
+    }
+
+    /**
+     * @param callable(): mixed $operation
+     */
+    private function failure(callable $operation): Throwable
+    {
+        try {
+            $operation();
+        } catch (Throwable $failure) {
+            return $failure;
+        }
+
+        self::fail('expected a failure');
     }
 
     private function createClock(): ClockInterface

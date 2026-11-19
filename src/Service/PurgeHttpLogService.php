@@ -7,10 +7,12 @@ namespace Nowo\HttpLogBundle\Service;
 use DateTimeImmutable;
 use InvalidArgumentException;
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
+use Nowo\HttpLogBundle\Doctrine\PurgeConflict;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use Nowo\HttpLogBundle\Rollup\UsageRollupStore;
 use Nowo\HttpLogBundle\Usage\HttpLogChannel;
 use Psr\Clock\ClockInterface;
+use Throwable;
 
 use function array_key_exists;
 use function array_keys;
@@ -29,6 +31,10 @@ use function sprintf;
  * named channels, `outbound` and `mailer` rows by their own `retention_days`; with the rollup, `rollup` buckets by
  * `rollup.retention_months` (calendar months) and the `ledger` by `rollup.dedupe_days`. A days override without
  * scopes keeps its 1.14 meaning: every row of every channel (never the rollup).
+ *
+ * Every batch is deleted (and committed) on its own. A lock conflict after a batch of the same call was deleted is
+ * rethrown as transaction-doctrine's `ConcurrencyConflict` with `committed: true` (CONFLICT_002 on the admin routes,
+ * audit UV-2); before any deletion it is rethrown unchanged (CONFLICT_001). Stateless.
  */
 final readonly class PurgeHttpLogService
 {
@@ -116,34 +122,46 @@ final readonly class PurgeHttpLogService
 
         $known  = $this->scopes();
         $scopes = $scopes === [] ? $known : array_values(array_unique($scopes));
-        $result = [];
         foreach ($scopes as $scope) {
             if (!in_array($scope, $known, true)) {
                 throw new InvalidArgumentException(sprintf('Unknown purge scope "%s"; expected one of: %s.', $scope, implode(', ', $known)));
             }
+        }
 
-            if ($this->rollup instanceof UsageRollupStore && ($scope === self::SCOPE_ROLLUP || $scope === self::SCOPE_LEDGER)) {
-                $result[$scope] = $scope === self::SCOPE_ROLLUP
-                    ? $this->rollup->purgeBuckets($days, $this->batchSize(), $dryRun)
-                    : $this->rollup->purgeLedger($days, $this->batchSize(), $dryRun);
-
-                continue;
+        $result = [];
+        foreach ($scopes as $scope) {
+            try {
+                $result[$scope] = $this->purgeScope($scope, $days, $dryRun);
+            } catch (Throwable $failure) {
+                // 1.23 (audit UV-2): an earlier scope already deleted rows: CONFLICT_002
+                throw PurgeConflict::after($failure, $dryRun ? 0 : array_sum($result));
             }
-
-            $scopeDays = $days ?? $this->retentionDays($scope);
-            if ($scopeDays === null) {
-                $result[$scope] = 0;
-
-                continue;
-            }
-
-            $before         = $this->cutoff($scopeDays);
-            $result[$scope] = $dryRun
-                ? $this->repository->countFiltered(['createdTo' => $before->modify('-1 second'), 'channel' => $scope])
-                : $this->repository->deleteOlderThan($before, $this->batchSize(), $scope);
         }
 
         return $result;
+    }
+
+    /**
+     * @return int rows purged (or counted with `$dryRun`) of one known scope; 0 for a scope kept forever
+     */
+    private function purgeScope(string $scope, ?int $days, bool $dryRun): int
+    {
+        if ($this->rollup instanceof UsageRollupStore && ($scope === self::SCOPE_ROLLUP || $scope === self::SCOPE_LEDGER)) {
+            return $scope === self::SCOPE_ROLLUP
+                ? $this->rollup->purgeBuckets($days, $this->batchSize(), $dryRun)
+                : $this->rollup->purgeLedger($days, $this->batchSize(), $dryRun);
+        }
+
+        $scopeDays = $days ?? $this->retentionDays($scope);
+        if ($scopeDays === null) {
+            return 0;
+        }
+
+        $before = $this->cutoff($scopeDays);
+
+        return $dryRun
+            ? $this->repository->countFiltered(['createdTo' => $before->modify('-1 second'), 'channel' => $scope])
+            : $this->repository->deleteOlderThan($before, $this->batchSize(), $scope);
     }
 
     /** Cutoff of a retention in days: entries created before it are purged. */
@@ -173,10 +191,15 @@ final readonly class PurgeHttpLogService
 
         $total = 0;
 
-        do {
-            $ids = $this->repository->findIdsFiltered($criteria, $this->batchSize());
-            $total += $this->repository->deleteByIds($ids);
-        } while ($ids !== []);
+        try {
+            do {
+                $ids = $this->repository->findIdsFiltered($criteria, $this->batchSize());
+                $total += $this->repository->deleteByIds($ids);
+            } while ($ids !== []);
+        } catch (Throwable $failure) {
+            // 1.23 (audit UV-2): a lock conflict after a deleted batch is CONFLICT_002 (part of the purge committed)
+            throw PurgeConflict::after($failure, $total);
+        }
 
         return $total;
     }

@@ -39,6 +39,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
+use ReflectionMethod;
 use stdClass;
 use Stringable;
 use Symfony\Component\Clock\MockClock;
@@ -46,6 +47,7 @@ use Symfony\Component\Clock\MockClock;
 use function array_keys;
 use function count;
 use function implode;
+use function is_string;
 use function preg_match;
 use function preg_match_all;
 use function sprintf;
@@ -109,6 +111,16 @@ final class ExactCollationTest extends TestCase
     #[Test]
     public function withoutAConfiguredVersionTheServerReportsIt(): void
     {
+        if (!(new ReflectionMethod(Connection::class, 'getServerVersion'))->isPublic()) {
+            // doctrine/dbal 3 keeps getServerVersion() private: the version is unknown, MySQL 8 gets the NO PAD collation
+            $connection = $this->createStub(Connection::class);
+            $connection->method('getDatabasePlatform')->willReturn(new MySQL80Platform());
+            $connection->method('getParams')->willReturn([]);
+            self::assertSame(ExactCollation::MYSQL_NOPAD, ExactCollation::forConnection($connection, $this->logger()));
+
+            return;
+        }
+
         $connection = $this->createMock(Connection::class);
         $connection->method('getDatabasePlatform')->willReturn(new MySQL80Platform());
         $connection->method('getParams')->willReturn([]);
@@ -160,8 +172,17 @@ final class ExactCollationTest extends TestCase
     #[DataProvider('schemas')]
     public function theGeneratedSchemaGivesEveryIdentifierColumnTheCollation(string $serverVersion, string $collation): void
     {
+        $params = ['driver' => 'pdo_mysql', 'serverVersion' => $serverVersion];
+        if (!(new ReflectionMethod(Connection::class, 'getServerVersion'))->isPublic()) {
+            // doctrine/dbal 3 reads the default table options from the server while it generates the schema
+            $url = getenv('HTTPLOG_TEST_MYSQL_URL');
+            if (!is_string($url) || $url === '') {
+                self::markTestSkipped('doctrine/dbal 3 needs HTTPLOG_TEST_MYSQL_URL to generate a MySQL schema.');
+            }
+            $params = ['serverVersion' => $serverVersion] + RollupTestPlatforms::params('HTTPLOG_TEST_MYSQL_URL');
+        }
         $logger = $this->logger();
-        $db     = new UsageTestDatabase(true, connectionParams: ['driver' => 'pdo_mysql', 'serverVersion' => $serverVersion], createSchema: false, rollup: true, logger: $logger);
+        $db     = new UsageTestDatabase(true, connectionParams: $params, createSchema: false, rollup: true, logger: $logger);
         $sql    = implode("\n", (new SchemaTool($db->entityManager))->getCreateSchemaSql([$db->entityManager->getClassMetadata(HttpLogEntry::class)]));
 
         foreach ([...ExactColumnsCollationListener::COLUMNS, 'channel'] as $column) {

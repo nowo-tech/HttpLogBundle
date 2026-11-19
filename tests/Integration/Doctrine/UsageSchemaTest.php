@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\Tests\Integration\Doctrine;
 
-use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Tools\DsnParser;
 use Doctrine\ORM\Event\LoadClassMetadataEventArgs;
 use Doctrine\ORM\Tools\SchemaTool;
 use InvalidArgumentException;
+use Nowo\HttpLogBundle\Doctrine\ExactCollation;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
 use Nowo\HttpLogBundle\Doctrine\UsageColumnsListener;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
+use Nowo\HttpLogBundle\Tests\Support\RollupTestPlatforms;
 use Nowo\HttpLogBundle\Tests\Support\UsageTestDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -135,13 +136,16 @@ final class UsageSchemaTest extends TestCase
                 self::markTestSkipped($source . ' is not set.');
             }
             $params = (new DsnParser(['mysql' => 'pdo_mysql', 'postgresql' => 'pdo_pgsql', 'pgsql' => 'pdo_pgsql']))->parse($url);
-            $this->dropEntryTables($params);
+            // the rollup tests on the same database may have left their tables (JA-I8), and PostgreSQL its sequences
+            RollupTestPlatforms::dropTables($params);
         }
 
         // 1.14 table first
         $old = new UsageTestDatabase(false, $tablePrefix, $tableNamePrefix, $params);
+        // MySQL / MariaDB: the exact collation of the server (utf8mb4_0900_bin in the doc, utf8mb4_nopad_bin on MariaDB)
+        $collation = ExactCollation::forConnection($old->connection());
         foreach ($this->ddl($platform, $old->table(), $tablePrefix) as $statement) {
-            $old->connection()->executeStatement($statement);
+            $old->connection()->executeStatement($collation === null ? $statement : str_replace(ExactCollation::MYSQL_NOPAD, $collation, $statement));
         }
 
         $old->connection()->close();
@@ -153,7 +157,7 @@ final class UsageSchemaTest extends TestCase
         if ($platform === 'sqlite') {
             @unlink($file);
         } else {
-            $this->dropEntryTables($params);
+            RollupTestPlatforms::dropTables($params);
         }
 
         self::assertSame([], $diff);
@@ -174,16 +178,5 @@ final class UsageSchemaTest extends TestCase
         $sql = str_replace('INDEX idx_http_log_', 'INDEX ' . $tablePrefix . 'idx_http_log_', $sql);
 
         return array_values(array_filter(array_map(trim(...), explode(';', $sql)), static fn (string $s): bool => $s !== ''));
-    }
-
-    /** @param array<string, mixed> $params */
-    private function dropEntryTables(array $params): void
-    {
-        $connection = DriverManager::getConnection($params);
-        // the rollup tests on the same database may have left their tables (JA-I8)
-        foreach (['nowo_http_log_entry', 'http_log_entry', 'app_nowo_http_log_entry', 'nowo_http_log_daily', 'http_log_daily', 'app_nowo_http_log_daily', 'nowo_http_log_event_seen', 'http_log_event_seen', 'app_nowo_http_log_event_seen'] as $table) {
-            $connection->executeStatement('DROP TABLE IF EXISTS ' . $table);
-        }
-        $connection->close();
     }
 }

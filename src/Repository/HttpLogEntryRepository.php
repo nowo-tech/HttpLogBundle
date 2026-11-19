@@ -17,11 +17,13 @@ use InvalidArgumentException;
 use LogicException;
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
 use Nowo\HttpLogBundle\Doctrine\PathPrefixColumnListener;
+use Nowo\HttpLogBundle\Doctrine\PurgeConflict;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Model\HttpLogListCursor;
 use Nowo\HttpLogBundle\Model\HttpLogListRow;
 use Nowo\HttpLogBundle\Usage\HttpLogChannel;
 use SortDirection;
+use Throwable;
 
 use function array_diff;
 use function array_filter;
@@ -391,29 +393,35 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
         $total   = 0;
         $afterId = 0;
 
-        do {
-            $qb = $this->createQueryBuilder('e')
-                ->select('e.id')
-                ->where('e.createdAt < :before')
-                ->andWhere('e.id > :afterId')
-                ->setParameter('before', $before)
-                ->setParameter('afterId', $afterId)
-                ->orderBy('e.id', SortDirection::Ascending)
-                ->setMaxResults($batchSize);
-            if ($channel !== null) {
-                $this->applyCriteria($qb, ['channel' => $channel]);
-            }
-            /** @var list<int|string> $rows */
-            $rows = $qb->getQuery()->getSingleColumnResult();
+        // 1.23 (audits UV-2, VB-3): a lock conflict after a deleted batch, in the next SELECT or DELETE, is
+        // CONFLICT_002 (part of the purge committed)
+        try {
+            do {
+                $qb = $this->createQueryBuilder('e')
+                    ->select('e.id')
+                    ->where('e.createdAt < :before')
+                    ->andWhere('e.id > :afterId')
+                    ->setParameter('before', $before)
+                    ->setParameter('afterId', $afterId)
+                    ->orderBy('e.id', SortDirection::Ascending)
+                    ->setMaxResults($batchSize);
+                if ($channel !== null) {
+                    $this->applyCriteria($qb, ['channel' => $channel]);
+                }
+                /** @var list<int|string> $rows */
+                $rows = $qb->getQuery()->getSingleColumnResult();
 
-            $ids = array_map(intval(...), $rows);
-            if ($ids === []) {
-                break;
-            }
+                $ids = array_map(intval(...), $rows);
+                if ($ids === []) {
+                    break;
+                }
 
-            $total += $this->deleteByIds($ids);
-            $afterId = $ids[count($ids) - 1];
-        } while (count($ids) === $batchSize);
+                $total += $this->deleteByIds($ids);
+                $afterId = $ids[count($ids) - 1];
+            } while (count($ids) === $batchSize);
+        } catch (Throwable $failure) {
+            throw PurgeConflict::after($failure, $total);
+        }
 
         return $total;
     }
