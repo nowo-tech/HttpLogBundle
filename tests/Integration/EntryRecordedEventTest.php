@@ -171,7 +171,7 @@ final class EntryRecordedEventTest extends TestCase
         self::assertNull((new ReflectionClass(HttpLogEntryRecordedEvent::class))->getParentClass() ?: null, 'no Symfony component base class');
     }
 
-    /** The dispatcher changes nothing in what is stored. */
+    /** The dispatcher changes nothing in what is stored (a fixed Date header: the two runs may straddle a second). */
     #[Test]
     public function theRowsAreTheSameWithAndWithoutADispatcher(): void
     {
@@ -180,7 +180,7 @@ final class EntryRecordedEventTest extends TestCase
             $db      = new UsageTestDatabase();
             $events  = $withEvents ? $this->dispatcher($db) : null;
             $request = Request::create('/tasks/42?token=x', 'GET', server: ['REMOTE_ADDR' => '203.0.113.9', 'HTTP_X_TRACE' => 't']);
-            $this->recorder($db, new CollectingLogger(), $events)->record($request, new Response('{"a":1}', 200, ['Content-Type' => 'application/json']), 3.0, 'req-same');
+            $this->recorder($db, new CollectingLogger(), $events)->record($request, new Response('{"a":1}', 200, ['Content-Type' => 'application/json', 'Date' => 'Thu, 19 Nov 2026 09:00:00 GMT']), 3.0, 'req-same');
             (new UsageEntryWriter($db, null, $events))->write($this->usage('outbound', eventId: 'dddddddddddddddddddddddddddddddd'));
             $rows[] = $db->rows();
         }
