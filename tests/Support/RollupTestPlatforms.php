@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\Tests\Support;
 
+use Doctrine\DBAL\Driver\Middleware;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Tools\DsnParser;
 use PHPUnit\Framework\SkippedWithMessageException;
@@ -28,19 +29,17 @@ final class RollupTestPlatforms
     /**
      * A fresh database with the usage columns and the rollup tables.
      *
+     * @param list<Middleware> $middlewares DBAL middlewares of the connection
+     *
      * @throws SkippedWithMessageException when the platform's URL is not set
      */
-    public static function open(string $source, string $tablePrefix = '', string $tableNamePrefix = 'nowo_http_log_', bool $pathPrefix = false): UsageTestDatabase
+    public static function open(string $source, string $tablePrefix = '', string $tableNamePrefix = 'nowo_http_log_', bool $pathPrefix = false, array $middlewares = []): UsageTestDatabase
     {
         if ($source === 'sqlite') {
             return new UsageTestDatabase(true, $tablePrefix, $tableNamePrefix, rollup: true, pathPrefix: $pathPrefix);
         }
 
-        $url = getenv($source);
-        if (!is_string($url) || $url === '') {
-            throw new SkippedWithMessageException($source . ' is not set.');
-        }
-        $params     = (new DsnParser(['mysql' => 'pdo_mysql', 'postgresql' => 'pdo_pgsql', 'pgsql' => 'pdo_pgsql']))->parse($url);
+        $params     = self::params($source);
         $connection = DriverManager::getConnection($params);
         foreach (['entry', 'daily', 'event_seen'] as $suffix) {
             foreach (['nowo_http_log_', 'http_log_', 'app_nowo_http_log_'] as $prefix) {
@@ -49,6 +48,23 @@ final class RollupTestPlatforms
         }
         $connection->close();
 
-        return new UsageTestDatabase(true, $tablePrefix, $tableNamePrefix, $params, rollup: true, pathPrefix: $pathPrefix);
+        return new UsageTestDatabase(true, $tablePrefix, $tableNamePrefix, $params, rollup: true, pathPrefix: $pathPrefix, middlewares: $middlewares);
+    }
+
+    /**
+     * DBAL parameters of a server platform's URL.
+     *
+     * @throws SkippedWithMessageException when the platform's URL is not set
+     *
+     * @return array<string, mixed>
+     */
+    public static function params(string $source): array
+    {
+        $url = getenv($source);
+        if (!is_string($url) || $url === '') {
+            throw new SkippedWithMessageException($source . ' is not set.');
+        }
+
+        return (new DsnParser(['mysql' => 'pdo_mysql', 'postgresql' => 'pdo_pgsql', 'pgsql' => 'pdo_pgsql']))->parse($url);
     }
 }

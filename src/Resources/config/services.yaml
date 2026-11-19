@@ -23,6 +23,9 @@ services:
             - '../../Doctrine/UsageColumnsListener.php'
             - '../../Doctrine/PathPrefixColumnListener.php'
             - '../../Doctrine/ExactCollation.php'
+            # 1.22 (REQ-RUNTIME-003): a static helper, and the conflict answer registered by the extension with the web UI.
+            - '../../Doctrine/LogWriteUnit.php'
+            - '../../EventSubscriber/HttpLogConflictListener.php'
             # HL-1 1.16: named channels, rollup, usage erasure and the backfill command (registered by the extension).
             - '../../Inbound/'
             - '../../Rollup/'

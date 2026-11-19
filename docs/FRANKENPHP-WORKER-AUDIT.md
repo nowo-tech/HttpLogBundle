@@ -134,6 +134,8 @@ No other findings. Good patterns: request start time and request id are stored i
 
 ## Usage recommendations in worker mode
 
+Concurrent writes (two workers, a redelivered message, a lock conflict) are covered in [CONCURRENCY.md](CONCURRENCY.md) (REQ-RUNTIME-003, 1.22).
+
 - Scenario B is supported by the bundle itself since the 2026-09-24 remediation (W-01…W-03, W-05, W-07). Keeping `services_resetter` active (scenario A) is still recommended because Doctrine's and Security's own state (application entities in the identity map, tokens on stateless firewalls) is framework-owned.
 - Prefer `async: true` **with** a real Messenger transport for `PersistHttpLogMessage`; the consumer process then gets Messenger's own EntityManager clearing between messages.
 - If you run without reset, the application must clear its own EntityManager between requests; recycling workers (`max_requests` in the FrankenPHP `worker` block) is still a good safety net.

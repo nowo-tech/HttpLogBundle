@@ -101,7 +101,8 @@ final class OpenHostTransactionTest extends TestCase
 
     /**
      * KY-D-I2: when the savepoint is already gone (a MySQL deadlock or lock wait timeout rolls back the whole
-     * transaction), the original error is reported, not the failed ROLLBACK TO SAVEPOINT.
+     * transaction), the original error is reported, not the failed ROLLBACK TO SAVEPOINT. Since 1.22 the host's
+     * transaction is also marked rollback-only, so its commit() fails instead of reporting a half-done unit as saved.
      */
     #[Test]
     public function theOriginalErrorIsReportedWhenTheSavepointIsGone(): void
@@ -136,6 +137,8 @@ final class OpenHostTransactionTest extends TestCase
         $exception = $logger->records[0]['context']['exception'] ?? null;
         self::assertInstanceOf(RuntimeException::class, $exception);
         self::assertSame(TransactionLostOnInsertMiddleware::MESSAGE, $exception->getMessage());
+        // 1.22 (REQ-RUNTIME-003 rule 3): the host cannot commit what follows as if its transaction were intact
+        self::assertTrue($connection->isRollbackOnly());
 
         try {
             $connection->rollBack(); // the server already ended the transaction

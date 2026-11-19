@@ -11,6 +11,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use LogicException;
+use Nowo\HttpLogBundle\Doctrine\LogWriteUnit;
 use Nowo\HttpLogBundle\Doctrine\PathPrefixColumnListener;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Event\HttpLogEntryRecordedEvent;
@@ -64,7 +65,11 @@ final readonly class UsageEntryWriter
         }
 
         try {
-            $this->insert(null, $capture);
+            // one statement; in a savepoint inside a transaction the host left open (a redelivered id rolls back alone)
+            $manager = $this->manager();
+            LogWriteUnit::run($manager->getConnection(), function (Connection $connection) use ($capture, $manager): void {
+                $this->insert($connection, $capture, $manager);
+            });
         } catch (UniqueConstraintViolationException) {
             return false;
         }
@@ -115,15 +120,19 @@ final readonly class UsageEntryWriter
         }
     }
 
-    /**
-     * @param Connection|null $connection null = the connection of the entry's EntityManager
-     */
-    private function insert(?Connection $connection, UsageCapture $capture): void
+    private function manager(): EntityManagerInterface
     {
         $manager = $this->registry->getManagerForClass(HttpLogEntry::class);
         if (!$manager instanceof EntityManagerInterface) {
             throw new LogicException('No Doctrine EntityManager handles ' . HttpLogEntry::class . '.');
         }
+
+        return $manager;
+    }
+
+    private function insert(Connection $connection, UsageCapture $capture, ?EntityManagerInterface $manager = null): void
+    {
+        $manager ??= $this->manager();
 
         $metadata = $manager->getClassMetadata(HttpLogEntry::class);
         if (!$metadata->hasField('channel')) {
@@ -172,6 +181,6 @@ final readonly class UsageEntryWriter
             $types[$column] = $value === null ? ParameterType::NULL : $type;
         }
 
-        ($connection ?? $manager->getConnection())->insert($metadata->getTableName(), $data, $types);
+        $connection->insert($metadata->getTableName(), $data, $types);
     }
 }

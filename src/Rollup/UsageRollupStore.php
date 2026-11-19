@@ -11,15 +11,17 @@ use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\ParameterType;
+use Doctrine\DBAL\Platforms\SQLitePlatform;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use InvalidArgumentException;
 use LogicException;
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
+use Nowo\HttpLogBundle\Doctrine\LogWriteUnit;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Usage\UsageCapture;
+use Nowo\TransactionContract\TransientStorageFailure;
 use Psr\Clock\ClockInterface;
-use Throwable;
 
 use function array_column;
 use function array_keys;
@@ -102,6 +104,9 @@ final readonly class UsageRollupStore
      * before (Messenger redelivery, a crash between commit and ack): everything is rolled back and false returned.
      * An event older than the rollup cutoff is not counted; its row (if any) is still written.
      *
+     * A deadlock or serialization failure of the unit's own transaction is replayed ({@see LogWriteUnit}); any other
+     * failure is rethrown (a deadlock or lock wait timeout as {@see TransientStorageFailure}).
+     *
      * @param (Closure(Connection): void)|null $insertRow inserts the per-call row; null for a count-only event
      *
      * @return bool false when nothing was written (already counted, or a count-only event older than the cutoff)
@@ -117,14 +122,14 @@ final readonly class UsageRollupStore
                 if (!$insertRow instanceof Closure) {
                     return false;
                 }
-                $insertRow($connection);
+                LogWriteUnit::run($connection, $insertRow);
 
                 return true;
             }
 
-            $connection->beginTransaction();
-
-            try {
+            // one unit: its own transaction, or a savepoint inside a transaction the host left open (LogWriteUnit)
+            // @igor-ignore - closure run once by the unit, not kept
+            LogWriteUnit::run($connection, function (Connection $connection) use ($capture, $insertRow): void {
                 if ($insertRow instanceof Closure) {
                     $insertRow($connection);
                 } else {
@@ -133,14 +138,7 @@ final readonly class UsageRollupStore
                     $connection->insert($this->tables->eventSeen, ['event_id' => $capture->eventId, 'day' => $this->today()], [ParameterType::STRING, ParameterType::STRING]);
                 }
                 $this->upsert($connection, RollupBucket::fromCapture($capture, $this->errorStatusMin($capture->channel)));
-                $connection->commit();
-            } catch (Throwable $exception) {
-                if ($connection->isTransactionActive()) {
-                    $connection->rollBack();
-                }
-
-                throw $exception;
-            }
+            }, true);
         } catch (UniqueConstraintViolationException) {
             return false;
         }
@@ -211,23 +209,25 @@ final readonly class UsageRollupStore
      */
     public function foldCredential(string $kind, string $id): int
     {
-        $connection = $this->connection();
-        $platform   = $connection->getDatabasePlatform();
-        $buckets    = $connection->createQueryBuilder()
-            ->select('*')
-            ->from($this->tables->daily)
-            ->where(RollupSql::exact($platform, 'credential_kind', ':kind'))
-            ->andWhere(RollupSql::exact($platform, 'credential_id', ':id'))
-            ->setParameter('kind', $kind)
-            ->setParameter('id', $id)
-            ->executeQuery()
-            ->fetchAllAssociative();
-        if ($buckets === []) {
-            return 0;
-        }
+        // @igor-ignore - closure run once by the unit, not kept
+        return LogWriteUnit::run($this->connection(), function (Connection $connection) use ($kind, $id): int {
+            // read and locked inside the unit (REQ-RUNTIME-003 rule 4): a concurrent count waits for the fold, then
+            // starts a new bucket, instead of adding to a bucket the fold already read and then deletes
+            $platform = $connection->getDatabasePlatform();
+            $query    = $connection->createQueryBuilder()
+                ->select('*')
+                ->from($this->tables->daily)
+                ->where(RollupSql::exact($platform, 'credential_kind', ':kind'))
+                ->andWhere(RollupSql::exact($platform, 'credential_id', ':id'))
+                ->setParameter('kind', $kind)
+                ->setParameter('id', $id)
+                ->orderBy('id');
+            // SQLite has no row locks (FOR UPDATE is not supported): its writers are serialised on the whole database
+            $buckets = ($platform instanceof SQLitePlatform ? $query : $query->forUpdate())->executeQuery()->fetchAllAssociative();
+            if ($buckets === []) {
+                return 0;
+            }
 
-        // @igor-ignore - closure run once inside the transaction, not kept by the connection
-        $connection->transactional(function (Connection $connection) use ($buckets): void {
             foreach ($buckets as $row) {
                 /** @var array<string, int|string> $bucket */
                 $bucket = [];
@@ -245,9 +245,9 @@ final readonly class UsageRollupStore
                 $this->upsert($connection, $bucket);
             }
             $this->deleteIds($connection, $this->tables->daily, 'id', array_map(intval(...), array_column($buckets, 'id')));
-        });
 
-        return count($buckets);
+            return count($buckets);
+        }, true);
     }
 
     /**

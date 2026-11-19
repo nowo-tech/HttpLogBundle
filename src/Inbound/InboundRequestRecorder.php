@@ -99,7 +99,7 @@ final readonly class InboundRequestRecorder
                 method: $request->getMethod(),
                 path: $this->templates->template($route),
                 scheme: $request->getScheme(),
-                host: self::host($request),
+                host: $this->host($request),
                 statusCode: $response->getStatusCode(),
                 errorKind: $error ? OutboundErrorKind::Exception->value : null,
                 durationMs: $durationMs,
@@ -143,7 +143,7 @@ final readonly class InboundRequestRecorder
     }
 
     /** Lower-cased host and port; NULL when `trusted_hosts` rejects the Host header, so that 400 is still recorded (JA-I4). */
-    private static function host(Request $request): ?string
+    private function host(Request $request): ?string
     {
         try {
             return strtolower($request->getHttpHost());

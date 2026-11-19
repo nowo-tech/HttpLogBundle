@@ -14,7 +14,38 @@ services:
     environment:
       - COMPOSER_ALLOW_SUPERUSER=1
       - XDEBUG_MODE=coverage
+      # REQ-RUNTIME-003: real-database concurrency tests (make test-with-db starts the "databases" profile).
+      - HTTPLOG_TEST_MYSQL_URL=mysql://root:dev-placeholder@mysql:3306/http_log?serverVersion=8.4.0&charset=utf8mb4
+      - HTTPLOG_TEST_MARIADB_URL=mysql://root:dev-placeholder@mariadb:3306/http_log?serverVersion=11.4.0-MariaDB&charset=utf8mb4
+      - HTTPLOG_TEST_PGSQL_URL=postgresql://postgres:dev-placeholder@postgres:5432/http_log?serverVersion=16&charset=utf8
     command: ["tail", "-f", "/dev/null"]
+    networks:
+      - http-log-bundle-network
+
+  mysql:
+    image: mysql:8.4
+    profiles: [databases]
+    environment: { MYSQL_ROOT_PASSWORD: dev-placeholder, MYSQL_DATABASE: http_log }
+    tmpfs: [/var/lib/mysql]
+    healthcheck: { test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '-pdev-placeholder'], interval: 5s, retries: 30 }
+    networks:
+      - http-log-bundle-network
+
+  mariadb:
+    image: mariadb:11.4
+    profiles: [databases]
+    environment: { MARIADB_ROOT_PASSWORD: dev-placeholder, MARIADB_DATABASE: http_log }
+    tmpfs: [/var/lib/mysql]
+    healthcheck: { test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized'], interval: 5s, retries: 30 }
+    networks:
+      - http-log-bundle-network
+
+  postgres:
+    image: postgres:16-alpine
+    profiles: [databases]
+    environment: { POSTGRES_PASSWORD: dev-placeholder, POSTGRES_DB: http_log }
+    tmpfs: [/var/lib/postgresql/data]
+    healthcheck: { test: ['CMD', 'pg_isready', '-U', 'postgres'], interval: 5s, retries: 30 }
     networks:
       - http-log-bundle-network
 

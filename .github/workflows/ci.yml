@@ -322,6 +322,126 @@ jobs:
           vendor/bin/phpunit --no-coverage tests/Integration/Rollup/UsageReaderTest.php
           vendor/bin/phpunit --no-coverage tests/Integration/Privacy
 
+  # REQ-RUNTIME-003: two-connection concurrency tests (request-id race, rollup ledger and buckets, host transaction,
+  # admin purge conflict codes) and the open-transaction capture on real servers, DBAL 3 and 4. None may be skipped.
+  database:
+    name: Real databases (MySQL 8.4, MariaDB 11.4, PostgreSQL 16) - DBAL ${{ matrix.dbal }}
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci-placeholder
+          MYSQL_DATABASE: http_log
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -pci-placeholder" --health-interval 5s --health-timeout 5s --health-retries 30
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: ci-placeholder
+          MARIADB_DATABASE: http_log
+        ports: ['3307:3306']
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized" --health-interval 5s --health-timeout 5s --health-retries 30
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: ci-placeholder
+          POSTGRES_DB: http_log
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        dbal: ['3', '4']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql, pdo_mysql, pdo_sqlite
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies (DBAL ${{ matrix.dbal }})
+        run: |
+          composer config platform.php 8.4.1
+          composer require doctrine/dbal:^${{ matrix.dbal }} --no-interaction --no-update
+          composer update --with-all-dependencies --prefer-dist --no-progress --no-interaction
+          composer show doctrine/dbal
+
+      - name: Concurrency tests on MySQL 8.4, MariaDB 11.4 and PostgreSQL 16 (REQ-RUNTIME-003)
+        timeout-minutes: 10
+        env:
+          HTTPLOG_TEST_MYSQL_URL: mysql://root:ci-placeholder@127.0.0.1:3306/http_log?serverVersion=8.4.0&charset=utf8mb4
+          HTTPLOG_TEST_MARIADB_URL: mysql://root:ci-placeholder@127.0.0.1:3307/http_log?serverVersion=11.4.0-MariaDB&charset=utf8mb4
+          HTTPLOG_TEST_PGSQL_URL: postgresql://postgres:ci-placeholder@127.0.0.1:5432/http_log?serverVersion=16&charset=utf8
+        run: vendor/bin/phpunit --no-coverage --group database --fail-on-skipped
+
+      - name: Capture inside an open host transaction and rollup erasure on MySQL 8.4 and PostgreSQL 16
+        timeout-minutes: 10
+        env:
+          HTTPLOG_TEST_MYSQL_URL: mysql://root:ci-placeholder@127.0.0.1:3306/http_log?serverVersion=8.4.0&charset=utf8mb4
+          HTTPLOG_TEST_PGSQL_URL: postgresql://postgres:ci-placeholder@127.0.0.1:5432/http_log?serverVersion=16&charset=utf8
+        run: |
+          vendor/bin/phpunit --no-coverage --fail-on-skipped tests/Integration/OpenHostTransactionTest.php
+          vendor/bin/phpunit --no-coverage --fail-on-skipped tests/Integration/Rollup/RetentionErasureTest.php
+
+      - name: Capture inside an open host transaction and rollup erasure on MariaDB 11.4 and PostgreSQL 16
+        timeout-minutes: 10
+        env:
+          HTTPLOG_TEST_MYSQL_URL: mysql://root:ci-placeholder@127.0.0.1:3307/http_log?serverVersion=11.4.0-MariaDB&charset=utf8mb4
+          HTTPLOG_TEST_PGSQL_URL: postgresql://postgres:ci-placeholder@127.0.0.1:5432/http_log?serverVersion=16&charset=utf8
+        run: |
+          vendor/bin/phpunit --no-coverage --fail-on-skipped tests/Integration/OpenHostTransactionTest.php
+          vendor/bin/phpunit --no-coverage --fail-on-skipped tests/Integration/Rollup/RetentionErasureTest.php
+
+  # The bundle must work with the lowest nowo-tech/transaction-* versions its composer.json allows (hosts and demos
+  # can run `composer update nowo-tech/http-log-bundle` without updating them), and the demo lock must install what the
+  # bundle requires (the demo installs from its lock, so a requirement added later is never installed and the demo
+  # fails with "class not found").
+  deps-floor:
+    name: Dependency floor (nowo-tech/transaction-* lowest, demo lock)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Demo lock satisfies the bundle's nowo-tech requirements
+        run: python3 .scripts/check-demo-lock.py . --only 'nowo-tech/*'
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: |
+          composer config platform.php 8.4.1
+          composer update --prefer-dist --no-progress --no-interaction
+
+      - name: Downgrade nowo-tech/transaction-* to the lowest allowed versions
+        run: |
+          composer update 'nowo-tech/transaction-*' --prefer-lowest --prefer-dist --no-progress --no-interaction
+          composer show 'nowo-tech/transaction-*'
+
+      - name: PHPStan at the floor
+        run: composer phpstan
+
+      - name: Unit and integration suites at the floor
+        timeout-minutes: 10
+        run: vendor/bin/phpunit --no-coverage --testsuite Unit,Integration
+
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest

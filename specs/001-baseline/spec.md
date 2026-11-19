@@ -183,6 +183,14 @@ As a maintainer, I run the Symfony 8 FrankenPHP demo and CI smoke checks to veri
 | FR-UI-004 | When the access checker implements `HttpLogChannelAccessCheckerInterface`, list, entry, export and purge leave out denied channels (a denied entry gives the same 404 as a missing one) |
 | FR-SEC-001 | The container build fails when the admin UI is enabled without form CSRF protection |
 
+### Concurrency (`FR-CONC-*`, REQ-RUNTIME-003, 1.22)
+
+| ID | Requirement |
+| --- | --- |
+| FR-CONC-001 | Every bundle write runs in auto-commit, in one transaction of its own (multi-statement units, through transaction-doctrine's connection runner), or in a uniquely named savepoint inside the host's open transaction; a failed write never aborts the host's transaction, and a lost savepoint marks it rollback-only |
+| FR-CONC-002 | A lock conflict on the bundle's admin routes answers 409 (or the configured 503) with `X-Conflict-Code: CONFLICT_001` and `Retry-After` when nothing was committed, `CONFLICT_002` without `Retry-After` otherwise; unique violations and lost connections are not mapped |
+| FR-CONC-003 | Commit tracking for `CONFLICT_002` wraps only the connection of the default entity manager, or reuses transaction-doctrine's ledger when its `commit_detection` is on |
+
 ### Internationalization (`FR-I18N-*`)
 
 | ID | Requirement |
