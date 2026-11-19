@@ -77,6 +77,40 @@ final class PurgeBatchConflictTest extends TestCase
     }
 
     /**
+     * Audit VB-3: the next batch's SELECT, not only its DELETE, meeting a lock conflict after a deleted batch is
+     * CONFLICT_002 too, for the entry purge and the rollup purge.
+     */
+    #[Test]
+    public function aLockConflictInTheNextBatchSelectAfterADeletedBatchIsCommitted(): void
+    {
+        [$db, $locks]       = $this->database(allowed: 1);
+        $locks->lockSelects = true;
+        $this->entries($db, 3);
+
+        $conflict = $this->failure(static fn (): int => $db->repository()->deleteOlderThan(new DateTimeImmutable('2026-06-01'), 1));
+        self::assertInstanceOf(ConcurrencyConflict::class, $conflict);
+        self::assertTrue($conflict->committed);
+        self::assertSame(1, $locks->deletes, 'the second batch failed in its SELECT');
+        self::assertSame(2, $this->rowsIn($db, $db->table()));
+
+        $store              = new UsageRollupStore($db, $db->rollupTables, new MockClock(new DateTimeImmutable(self::NOW)));
+        $locks->lockSelects = false;
+        foreach (['2024-01-01', '2024-01-02'] as $day) {
+            $store->upsert($db->connection(), RollupBucket::fromCapture(new UsageCapture(channel: 'outbound', createdAt: new DateTimeImmutable($day . 'T10:00:00+00:00'), method: 'GET', provider: 'stripe', statusCode: 200, durationMs: 1.0, row: false, rollup: true)));
+        }
+        $locks->deletes     = 0;
+        $locks->lockSelects = true;
+        $conflict           = $this->failure(static fn (): int => $store->purgeBuckets(batchSize: 1));
+        self::assertInstanceOf(ConcurrencyConflict::class, $conflict);
+        self::assertTrue($conflict->committed);
+        self::assertSame(1, $this->rowsIn($db, $db->rollupTables->daily));
+
+        $locks->deletes = 0;
+        $locks->allowed = 0;
+        self::assertInstanceOf(LockWaitTimeoutException::class, $this->failure(static fn (): int => $store->purgeBuckets(batchSize: 1)), 'a SELECT before any deletion: unchanged');
+    }
+
+    /**
      * End to end through the conflict listener without a commit ledger (commit_tracking off): 409 + CONFLICT_002 once
      * a batch is deleted, 409 + CONFLICT_001 + Retry-After when none was.
      */

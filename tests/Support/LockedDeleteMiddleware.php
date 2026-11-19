@@ -17,7 +17,8 @@ use function str_starts_with;
 
 /**
  * Lets the first `$allowed` DELETE statements through, then fails every later one as SQLite's "database is locked",
- * which DBAL converts to a LockWaitTimeoutException (a lock conflict of a purge batch, audit UV-2).
+ * which DBAL converts to a LockWaitTimeoutException (a lock conflict of a purge batch, audit UV-2). With
+ * `$lockSelects`, the prepared SELECT that follows the allowed deletes fails instead (the next batch's read, audit VB-3).
  */
 final class LockedDeleteMiddleware implements Middleware
 {
@@ -25,6 +26,7 @@ final class LockedDeleteMiddleware implements Middleware
 
     public function __construct(
         public int $allowed,
+        public bool $lockSelects = false,
     ) {
     }
 
@@ -48,7 +50,10 @@ final class LockedDeleteMiddleware implements Middleware
 
                     public function prepare(string $sql): Statement
                     {
-                        if (str_starts_with($sql, 'DELETE') && ++$this->middleware->deletes > $this->middleware->allowed) {
+                        $locked = str_starts_with($sql, 'DELETE')
+                            ? ++$this->middleware->deletes > $this->middleware->allowed
+                            : $this->middleware->lockSelects && str_starts_with($sql, 'SELECT') && $this->middleware->deletes >= $this->middleware->allowed;
+                        if ($locked) {
                             throw new class('database is locked', 'HY000', 5) extends AbstractException {
                             };
                         }

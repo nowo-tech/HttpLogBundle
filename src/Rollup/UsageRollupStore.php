@@ -291,23 +291,24 @@ final readonly class UsageRollupStore
         }
 
         $total = 0;
-        do {
-            $ids = $connection->createQueryBuilder()
-                ->select($key)
-                ->from($table)
-                ->where('day < :day')
-                ->setParameter('day', $day)
-                ->orderBy($key)
-                ->setMaxResults($batchSize)
-                ->executeQuery()
-                ->fetchFirstColumn();
-            try {
+        // 1.23 (audits UV-2, VB-3): a lock conflict after a deleted batch, in the next SELECT or DELETE, is
+        // CONFLICT_002 (part of the purge committed)
+        try {
+            do {
+                $ids = $connection->createQueryBuilder()
+                    ->select($key)
+                    ->from($table)
+                    ->where('day < :day')
+                    ->setParameter('day', $day)
+                    ->orderBy($key)
+                    ->setMaxResults($batchSize)
+                    ->executeQuery()
+                    ->fetchFirstColumn();
                 $total += $this->deleteIds($connection, $table, $key, $ids);
-            } catch (Throwable $failure) {
-                // 1.23 (audit UV-2): a lock conflict after a deleted batch is CONFLICT_002 (part of the purge committed)
-                throw PurgeConflict::after($failure, $total);
-            }
-        } while (count($ids) === $batchSize);
+            } while (count($ids) === $batchSize);
+        } catch (Throwable $failure) {
+            throw PurgeConflict::after($failure, $total);
+        }
 
         return $total;
     }
