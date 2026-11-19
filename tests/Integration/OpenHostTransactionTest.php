@@ -6,6 +6,7 @@ namespace Nowo\HttpLogBundle\Tests\Integration;
 
 use DateTimeImmutable;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Driver\Exception as DriverException;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Exception as DbalException;
 use Doctrine\ORM\EntityManager;
@@ -142,7 +143,8 @@ final class OpenHostTransactionTest extends TestCase
 
         try {
             $connection->rollBack(); // the server already ended the transaction
-        } catch (DbalException) {
+        } catch (DbalException|DriverException) {
+            // DBAL 4 wraps the driver's "no active transaction"; DBAL 3 throws the driver exception itself
         }
     }
 
