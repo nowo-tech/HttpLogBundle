@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.22.0](#to-1220)
   - [Concurrency (REQ-RUNTIME-003)](#concurrency-req-runtime-003)
 - [To 1.21.1](#to-1211)
 - [To 1.21.0](#to-1210)
@@ -77,6 +78,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.22.0
+
+From **1.21.1**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 From **1.21.1**:
 
