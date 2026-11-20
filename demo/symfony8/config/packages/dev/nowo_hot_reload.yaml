@@ -1,15 +1,16 @@
 # FrankenPHP Hot Reload — development only (do not enable in production).
+# REQ-DEMO-014: no CDN in the demo. The browser client talks SSE (client_mode: visibility) and the page is reloaded
+# instead of morphed (idiomorph: false), so the bundle injects no script from jsDelivr.
 nowo_hot_reload:
     enabled: true
     auto_inject: true
     require_frankenphp_env: true
     allow_production: false
-    idiomorph: true
+    client_mode: visibility
+    idiomorph: false
     preserve_selectors:
         - '[id^="sfwdt"]'
         - '.sf-toolbar'
         - '.sf-minitoolbar'
     preserve_observe: true
-    csp_augment_script_src: true
-    csp_script_src_hosts:
-        - 'https://cdn.jsdelivr.net'
+    csp_augment_script_src: false

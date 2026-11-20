@@ -1,20 +1,16 @@
-{#- REQ-DEMO-014: the demo shell is UiKit's admin layout with UiKit's default theme (nowo-ui.css from the bundle's own
-    asset package, no CSS framework, no CDN). The masthead lists the demo pages with the active item; the HttpLog admin
-    pages (nowo_ui_kit.layouts.admin, REQ-UI-003) render inside the same layout. -#}
-{% extends '@NowoUiKit/layout/admin.html.twig' %}
+{#- REQ-DEMO-014: the demo runs inside UiKit's shared demo platform shell (@NowoUiKit/demo_platform/layout.html.twig):
+    the same top bar, aside, content width, theme and footer as every other nowo-tech bundle demo. This file only
+    declares the demo (nowo_ui_demo_platform). The HttpLog admin pages render in the same shell (nowo_ui_kit.layouts). -#}
+{% extends '@NowoUiKit/demo_platform/layout.html.twig' %}
+{% set nowo_ui_demo_platform = {
+    bundle: 'Http Log',
+    home_route: 'demo_home',
+    repository: 'https://github.com/nowo-tech/HttpLogBundle',
+    translation_domain: false,
+    nav: [
+        {label: 'Overview', route: 'demo_home', section: 'Demo'},
+        {label: 'Admin UI', route: 'nowo_http_log_admin_index', active: ['nowo_http_log_admin_*'], section: 'Http Log admin'},
+    ],
+} %}
 
-{% block nowo_ui_document_title %}{% block title %}Http Log Demo{% endblock %}{% endblock %}
-
-{% block nowo_ui_navigation %}
-    {% set _route = app.request.attributes.get('_route') %}
-    <header class="nowo-ui-header" data-testid="demo-masthead">
-        <a class="nowo-ui-brand" href="{{ path('demo_home') }}">Http Log Bundle · Symfony 8</a>
-        <nav class="nowo-ui-header__nav" aria-label="Demo">
-            {% for item in [{route: 'demo_home', label: 'Overview'}, {route: 'demo_api_ping', label: 'API ping'}, {route: 'nowo_http_log_admin_index', label: 'Admin UI'}] %}
-                <a class="nowo-ui-link" href="{{ path(item.route) }}"{% if _route == item.route %} aria-current="page"{% endif %}>{{ item.label }}</a>
-            {% endfor %}
-        </nav>
-    </header>
-{% endblock %}
-
-{% block nowo_ui_content %}{% block body %}{% endblock %}{% endblock %}
+{% block nowo_ui_document_title %}{% block title %}Http Log Demo{% endblock %} — Symfony 8{% endblock %}

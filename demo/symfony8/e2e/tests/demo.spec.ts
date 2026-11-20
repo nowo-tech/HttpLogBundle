@@ -88,6 +88,8 @@ test.describe('http log admin', () => {
       await page.goto('/admin/http-log?http_log_filter%5Bpath%5D=%2Fapi%2Fecho');
       await page.locator('tbody tr').first().locator('.nowo-ui-action--view').click();
       await expect(show.locator('#http-log-request-headers tbody tr', { hasText: 'cookie' })).toHaveCount(1, { timeout: 1_000 });
+      // the shell's flash region starts a session, so seeded entries carry a cookie too: wait for this exact entry
+      await expect(show.locator('#http-log-request-body code')).toContainText('"pretty": true', { timeout: 1_000 });
     }).toPass({ timeout: 10_000 });
     await expect(show.locator('.nowo-http-log-method')).toHaveText('POST');
     await expect(show.locator('.nowo-http-log-status')).toHaveText('200');
