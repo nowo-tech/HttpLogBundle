@@ -16,10 +16,13 @@ use Doctrine\DBAL\Platforms\SQLitePlatform;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\Table;
 use Doctrine\DBAL\Types\Types;
+use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\Mapping\ClassMetadata;
+use Doctrine\ORM\ORMSetup;
+use Doctrine\ORM\Tools\Event\GenerateSchemaEventArgs;
 use Doctrine\ORM\Tools\Event\GenerateSchemaTableEventArgs;
 use Doctrine\ORM\Tools\SchemaTool;
-use Doctrine\Persistence\ManagerRegistry;
+use Doctrine\Persistence\Mapping\Driver\MappingDriverChain;
 use Nowo\HttpLogBundle\Doctrine\ExactCollation;
 use Nowo\HttpLogBundle\Doctrine\ExactColumnsCollationListener;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
@@ -40,18 +43,29 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
 use ReflectionMethod;
-use stdClass;
 use Stringable;
 use Symfony\Component\Clock\MockClock;
 
+use function array_filter;
 use function array_keys;
+use function array_map;
+use function array_values;
 use function count;
+use function getenv;
 use function implode;
 use function is_string;
+use function ksort;
+use function method_exists;
 use function preg_match;
 use function preg_match_all;
+use function sort;
 use function sprintf;
+use function str_replace;
+use function str_starts_with;
+use function strtolower;
 use function strtr;
+
+use const PHP_VERSION_ID;
 
 /**
  * REQ-SEC-006 (1.20.1): the identifier columns of the entry and rollup tables get a binary NO PAD collation on MySQL /
@@ -201,19 +215,119 @@ final class ExactCollationTest extends TestCase
         $sqlite = new UsageTestDatabase(createSchema: false, rollup: true);
         self::assertStringNotContainsString('COLLATE', implode("\n", (new SchemaTool($sqlite->entityManager))->getCreateSchemaSql([$sqlite->entityManager->getClassMetadata(HttpLogEntry::class)])));
 
+        // A manager that does not map the entry (audit XI: the schema tool's own manager decides).
+        $configuration = ORMSetup::createAttributeMetadataConfiguration([], true);
+        $configuration->setMetadataDriverImpl(new MappingDriverChain());
+        if (PHP_VERSION_ID >= 80400) {
+            $configuration->enableNativeLazyObjects(true);
+        }
+        $other  = new EntityManager(DriverManager::getConnection(['driver' => 'pdo_mysql', 'serverVersion' => '8.4.0'], $configuration), $configuration);
+        $schema = $this->entrySchema();
+        $args   = new GenerateSchemaEventArgs($other, $schema);
+        (new ExactColumnsCollationListener())->postGenerateSchema($args);
+        self::assertSame($schema, $args->getSchema(), 'no mapping for the entry');
+        self::assertFalse($schema->getTable('nowo_http_log_entry')->getColumn('user_identifier')->hasPlatformOption('collation'));
+
+        // The entry is mapped, but the generated schema does not hold its table.
         $db    = new UsageTestDatabase(connectionParams: ['driver' => 'pdo_mysql', 'serverVersion' => '8.4.0'], createSchema: false);
+        $empty = new Schema();
+        $args  = new GenerateSchemaEventArgs($db->entityManager, $empty);
+        (new ExactColumnsCollationListener($db))->postGenerateSchema($args);
+        self::assertSame($empty, $args->getSchema(), 'no entry table');
+        self::assertFalse($db->connection()->isConnected());
+    }
+
+    /**
+     * Audit XI (1.23.1): a foreign key and an index starting on the entry table are kept (1.20.1–1.23.0 replaced the
+     * table on postGenerateSchemaTable, and ORM 3.7–3.8 then added its foreign keys to the replaced object).
+     */
+    #[Test]
+    public function aForeignKeyAndAnIndexOfTheEntryTableAreKept(): void
+    {
+        $db     = new UsageTestDatabase(connectionParams: ['driver' => 'pdo_mysql', 'serverVersion' => '8.4.0'], createSchema: false);
+        $schema = $this->entrySchema();
+        $parent = $schema->createTable('host_account');
+        $parent->addColumn('id', Types::INTEGER);
+        $parent->setPrimaryKey(['id']);
+        $entry = $schema->getTable('nowo_http_log_entry');
+        $entry->addColumn('account_id', Types::INTEGER, ['notnull' => false]);
+        $entry->addIndex(['account_id'], 'idx_account');
+        $entry->addForeignKeyConstraint('host_account', ['account_id'], ['id'], ['onDelete' => 'SET NULL'], 'fk_account');
+        $before = $this->shape($schema);
+
+        $args = new GenerateSchemaEventArgs($db->entityManager, $schema);
+        (new ExactColumnsCollationListener())->postGenerateSchema($args);
+
+        self::assertSame($before, $this->shape($args->getSchema()));
+        self::assertContains('account_id->host_account(id) SET NULL', $this->shape($args->getSchema())['nowo_http_log_entry']['fks']);
+        self::assertSame('utf8mb4_0900_bin', $args->getSchema()->getTable('nowo_http_log_entry')->getColumn('user_identifier')->getPlatformOption('collation'));
+        self::assertFalse($args->getSchema()->getTable('nowo_http_log_entry')->getColumn('account_id')->hasPlatformOption('collation'));
+    }
+
+    /**
+     * Audit XI (1.23.1): the schema generated with the listener has every foreign key and index of the one generated
+     * without it, on every platform.
+     *
+     * @param array<string, mixed> $params
+     */
+    #[Test]
+    #[DataProvider('connections')]
+    public function theGeneratedSchemaKeepsEveryForeignKeyAndIndex(array $params, ?string $expected, bool $warns): void
+    {
+        unset($expected, $warns);
+        if (($params['driver'] ?? null) === 'pdo_mysql' && !(new ReflectionMethod(Connection::class, 'getServerVersion'))->isPublic()) {
+            // doctrine/dbal 3 reads the default table options from the server while it generates the schema
+            $url = getenv('HTTPLOG_TEST_MYSQL_URL');
+            if (!is_string($url) || $url === '') {
+                self::markTestSkipped('doctrine/dbal 3 needs HTTPLOG_TEST_MYSQL_URL to generate a MySQL schema.');
+            }
+            $params += RollupTestPlatforms::params('HTTPLOG_TEST_MYSQL_URL');
+        }
+        $generate = static function (bool $listener) use ($params): Schema {
+            $db = new UsageTestDatabase(true, connectionParams: $params, createSchema: false, rollup: true, exactCollation: $listener);
+
+            return (new SchemaTool($db->entityManager))->getSchemaFromMetadata([$db->entityManager->getClassMetadata(HttpLogEntry::class)]);
+        };
+
+        self::assertSame($this->shape($generate(false)), $this->shape($generate(true)));
+    }
+
+    /**
+     * Audit XI on MySQL 8.4 / MariaDB 11.4 (HTTPLOG_TEST_MYSQL_URL): the entry table created with the listener has every
+     * foreign key and secondary index of the schema generated without it, and the identifier columns are exact.
+     */
+    #[Test]
+    public function theCreatedEntryTableKeepsEveryForeignKeyAndIndex(): void
+    {
+        $db         = RollupTestPlatforms::open('HTTPLOG_TEST_MYSQL_URL');
+        $connection = $db->connection();
+        $expected   = $this->shape((new SchemaTool(
+            (new UsageTestDatabase(true, connectionParams: RollupTestPlatforms::params('HTTPLOG_TEST_MYSQL_URL'), createSchema: false, rollup: true, exactCollation: false))->entityManager,
+        ))->getSchemaFromMetadata([$db->entityManager->getClassMetadata(HttpLogEntry::class)]));
+        $schemaManager = $connection->createSchemaManager();
+        foreach (['nowo_http_log_entry', 'nowo_http_log_daily', 'nowo_http_log_event_seen'] as $name) {
+            // @phpstan-ignore function.alreadyNarrowedType (introspectTableByUnquotedName() exists from DBAL 4.3; DBAL 3 has introspectTable())
+            $table  = method_exists($schemaManager, 'introspectTableByUnquotedName') ? $schemaManager->introspectTableByUnquotedName($name) : $schemaManager->introspectTable($name);
+            $actual = $this->shape(new Schema([$table]))[$name];
+            self::assertSame($expected[$name]['fks'], $actual['fks'], $name);
+            self::assertSame($this->secondary($expected[$name]['indexes']), $this->secondary($actual['indexes']), $name);
+        }
+        self::assertSame(
+            ExactCollation::forConnection($connection),
+            $connection->fetchOne("SELECT COLLATION_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nowo_http_log_entry' AND COLUMN_NAME = 'user_identifier'"),
+        );
+    }
+
+    #[Test]
+    public function theFormerTableEventDoesNothing(): void
+    {
         $table = new Table('nowo_http_log_entry');
         $table->addColumn('user_identifier', Types::STRING, ['length' => 255]);
+        $args = new GenerateSchemaTableEventArgs(new ClassMetadata(HttpLogEntry::class), new Schema(), $table);
 
-        $registry = $this->createMock(ManagerRegistry::class);
-        $registry->method('getManagerForClass')->willReturn(null);
-        $args = new GenerateSchemaTableEventArgs($db->entityManager->getClassMetadata(HttpLogEntry::class), new Schema(), $table);
-        (new ExactColumnsCollationListener($registry))->postGenerateSchemaTable($args);
-        self::assertSame($table, $args->getClassTable(), 'no manager for the entry');
+        (new ExactColumnsCollationListener())->postGenerateSchemaTable($args);
 
-        $other = new GenerateSchemaTableEventArgs(new ClassMetadata(stdClass::class), new Schema(), $table);
-        (new ExactColumnsCollationListener($db))->postGenerateSchemaTable($other);
-        self::assertSame($table, $other->getClassTable(), 'another entity');
+        self::assertSame($table, $args->getClassTable());
         self::assertFalse($table->getColumn('user_identifier')->hasPlatformOption('collation'));
     }
 
@@ -262,6 +376,53 @@ final class ExactCollationTest extends TestCase
     }
 
     /** @return AbstractLogger&object{records: list<string>} */
+    /** The generated schema of the entry table alone (SQLite: no server needed on doctrine/dbal 3). */
+    private function entrySchema(): Schema
+    {
+        $db = new UsageTestDatabase(true, createSchema: false, exactCollation: false);
+
+        return (new SchemaTool($db->entityManager))->getSchemaFromMetadata([$db->entityManager->getClassMetadata(HttpLogEntry::class)]);
+    }
+
+    /**
+     * Foreign keys (local columns, foreign table and columns, ON DELETE) and indexes (columns, uniqueness) per table.
+     *
+     * @return array<string, array{fks: list<string>, indexes: list<string>}>
+     */
+    private function shape(Schema $schema): array
+    {
+        $shape = [];
+        foreach ($schema->getTables() as $table) {
+            $fks = [];
+            foreach ($table->getForeignKeys() as $fk) {
+                $fks[] = implode(',', $fk->getLocalColumns()) . '->' . $fk->getForeignTableName() . '(' . implode(',', $fk->getForeignColumns()) . ') ' . ($fk->getOption('onDelete') ?? '-');
+            }
+            $indexes = [];
+            foreach ($table->getIndexes() as $index) {
+                $indexes[] = ($index->isPrimary() ? 'primary ' : ($index->isUnique() ? 'unique ' : '')) . implode(',', array_map(strtolower(...), $index->getColumns()));
+            }
+            // Introspected names come quoted ("user_id", `user_id`); generated ones do not.
+            $fks     = str_replace(['"', '`'], '', $fks);
+            $indexes = str_replace(['"', '`'], '', $indexes);
+            sort($fks);
+            sort($indexes);
+            $shape[strtolower(str_replace(['"', '`'], '', $table->getName()))] = ['fks' => $fks, 'indexes' => $indexes];
+        }
+        ksort($shape);
+
+        return $shape;
+    }
+
+    /**
+     * @param list<string> $indexes
+     *
+     * @return list<string>
+     */
+    private function secondary(array $indexes): array
+    {
+        return array_values(array_filter($indexes, static fn (string $index): bool => !str_starts_with($index, 'primary ')));
+    }
+
     private function logger(): AbstractLogger
     {
         return new class extends AbstractLogger {

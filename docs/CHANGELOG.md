@@ -60,6 +60,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Requires `nowo-tech/transaction-doctrine` ^1.8.1 (fixes GHSA-9wh3-m3m5-jffx and GHSA-65w2-9r4h-848g).
 
+### Fixed
+
+- **Foreign keys kept when collating the identifier columns (audit XI, latent).** `ExactColumnsCollationListener`
+  (1.20.1) replaced the entry table on `postGenerateSchemaTable` (`setClassTable()`, DBAL 4.5+); ORM 3.7–3.8 then added
+  the table's foreign keys to the object it had replaced, so any foreign key starting on the entry table, and its index,
+  would have been missing from the generated schema on MySQL / MariaDB. The entry table has none today, so no schema was
+  affected. The listener now runs on `postGenerateSchema`, once every foreign key exists: on DBAL 4.5+ the table is
+  rebuilt with its editor (foreign keys and indexes included) and swapped in with `GenerateSchemaEventArgs::setSchema()`;
+  on older DBAL the column options are set in place. The platform is the one of the schema tool's entity manager, and a
+  manager that does not map the entry is left alone. Same collations and fallback warning as before.
+  `postGenerateSchemaTable()` stays as a deprecated no-op, and the `ManagerRegistry` constructor argument is unused
+  (optional). Tests: a foreign key and an index on the entry table are kept, foreign keys and indexes with and without
+  the listener on MySQL 8.4, MySQL 8.0, MySQL 5.7, MariaDB and SQLite platforms, and the created tables on MySQL 8.4 /
+  MariaDB 11.4.
+- The rollup tables (`nowo_http_log_daily`, `nowo_http_log_event_seen`) get their primary key through
+  `Table::addPrimaryKeyConstraint()` where doctrine/dbal has it (4.3+), with `setPrimaryKey()` kept for older DBAL, so
+  building the schema no longer raises the `Table::setPrimaryKey()` deprecation (doctrine/dbal#6867). Same key. Test:
+  no doctrine/dbal#6867 deprecation while the tables are added.
+
 ## [1.23.0] - 2026-11-19
 
 ### Changed
