@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.23.1] - 2026-11-21](#1231---2026-11-21)
 - [[1.23.0] - 2026-11-19](#1230---2026-11-19)
 - [[1.22.0] - 2026-11-19](#1220---2026-11-19)
 - [[1.21.1] - 2026-11-16](#1211---2026-11-16)
@@ -56,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.23.1] - 2026-11-21
+
 ### Changed
 
 - Requires `nowo-tech/transaction-doctrine` ^1.8.1 (fixes GHSA-9wh3-m3m5-jffx and GHSA-65w2-9r4h-848g).
@@ -78,6 +81,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Table::addPrimaryKeyConstraint()` where doctrine/dbal has it (4.3+), with `setPrimaryKey()` kept for older DBAL, so
   building the schema no longer raises the `Table::setPrimaryKey()` deprecation (doctrine/dbal#6867). Same key. Test:
   no doctrine/dbal#6867 deprecation while the tables are added.
+
+[1.23.1]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.23.1
 
 ## [1.23.0] - 2026-11-19
 
