@@ -46,7 +46,7 @@ services:
         arguments:
             $logger: '@?logger'
         tags:
-            - { name: doctrine.event_listener, event: postGenerateSchemaTable }
+            - { name: doctrine.event_listener, event: postGenerateSchema }
             - { name: monolog.logger, channel: nowo_http_log }
 
     # REQ-ORM-002: removed by the extension when doctrine.table_prefix and doctrine.table_name_prefix keep their defaults.

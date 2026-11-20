@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\Rollup;
 
+use Doctrine\DBAL\Schema\PrimaryKeyConstraint;
 use Doctrine\DBAL\Schema\Schema;
+use Doctrine\DBAL\Schema\Table;
 use Doctrine\DBAL\Types\Types;
 use Nowo\HttpLogBundle\Doctrine\ExactCollation;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
 
 use function is_string;
+use function method_exists;
 
 /**
  * Names and DBAL schema of the two rollup tables (HL-1 §8.3): `<table_prefix><table_name_prefix>daily` (one bucket
@@ -117,7 +120,7 @@ final readonly class RollupTables
             $daily->addColumn('duration_ms_max', Types::INTEGER, ['default' => 0]);
             $daily->addColumn('first_seen_at', Types::DATETIME_MUTABLE);
             $daily->addColumn('last_seen_at', Types::DATETIME_MUTABLE);
-            $daily->setPrimaryKey(['id']);
+            $this->primaryKey($daily, 'id');
             $daily->addUniqueIndex(self::KEY_COLUMNS, $this->index(self::UNIQUE_KEY));
             foreach (self::DAILY_INDEXES as $name => $columns) {
                 $daily->addIndex($columns, $this->index($name));
@@ -128,8 +131,30 @@ final readonly class RollupTables
             $seen = $schema->createTable($this->eventSeen);
             $seen->addColumn('event_id', Types::STRING, ['length' => 32, 'fixed' => true]);
             $seen->addColumn('day', Types::DATE_MUTABLE);
-            $seen->setPrimaryKey(['event_id']);
+            $this->primaryKey($seen, 'event_id');
             $seen->addIndex(['day'], $this->index(self::SEEN_INDEX));
         }
+    }
+
+    /**
+     * Sets the primary key of `$table` on `$column`: through a primary key constraint where DBAL has one (4.3+;
+     * `Table::setPrimaryKey()` is deprecated there, doctrine/dbal#6867), else with `setPrimaryKey()` (older DBAL). Same
+     * key either way (`primary`, clustered).
+     *
+     * @param non-empty-string $column
+     */
+    private function primaryKey(Table $table, string $column): void
+    {
+        // @phpstan-ignore function.alreadyNarrowedType (Table::addPrimaryKeyConstraint() exists only from doctrine/dbal 4.3)
+        if (method_exists($table, 'addPrimaryKeyConstraint')) {
+            $table->addPrimaryKeyConstraint(PrimaryKeyConstraint::editor()->setUnquotedColumnNames($column)->create());
+
+            return;
+        }
+
+        // doctrine/dbal < 4.3
+        // @codeCoverageIgnoreStart
+        $table->setPrimaryKey([$column]);
+        // @codeCoverageIgnoreEnd
     }
 }

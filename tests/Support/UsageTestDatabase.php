@@ -65,7 +65,7 @@ final readonly class UsageTestDatabase implements ManagerRegistry
             $events->addEventListener(ToolEvents::postGenerateSchema, new RollupSchemaListener($this->rollupTables));
         }
         if ($exactCollation) {
-            $events->addEventListener(ToolEvents::postGenerateSchemaTable, new ExactColumnsCollationListener($this, $logger));
+            $events->addEventListener(ToolEvents::postGenerateSchema, new ExactColumnsCollationListener($this, $logger));
         }
         if ($usageColumns) {
             $events->addEventListener(Events::loadClassMetadata, new UsageColumnsListener());
