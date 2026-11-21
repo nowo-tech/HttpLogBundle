@@ -3,21 +3,22 @@
 {% block title %}Http Log Demo{% endblock %}
 
 {% block nowo_ui_page_header %}
+    {% set _toolbar %}<a class="nowo-ui-btn nowo-ui-btn--primary" href="{{ path('demo_home') }}">Reload (capture another log)</a>{% endset %}
     {{ include(nowo_ui_partial('page_header'), {
         title: 'HTTP request / response logging',
         intro: 'Each page load and API call is captured by HttpLogBundle. Open the admin UI to browse, filter, export, or purge entries.',
+        toolbar: _toolbar,
     }) }}
 {% endblock %}
 
 {% block body %}
-    <section class="nowo-ui-card">
-        <div class="nowo-ui-card__body">
-            <p class="nowo-ui-muted">Page generated at {{ generatedAt }}.</p>
-            <p>
-                <a class="nowo-ui-btn nowo-ui-btn--primary" href="{{ path('demo_home') }}">Reload (capture another log)</a>
-                <a class="nowo-ui-btn nowo-ui-btn--outline" href="{{ path('demo_api_ping') }}">GET /api/ping (JSON)</a>
-                <a class="nowo-ui-btn nowo-ui-btn--outline" href="{{ path('nowo_http_log_admin_index') }}">Admin UI (HTTP Basic: admin / admin)</a>
-            </p>
-        </div>
-    </section>
+    {% embed '@NowoUiKit/demo_platform/_section.html.twig' with {title: 'Capture traffic', intro: 'Page generated at ' ~ generatedAt ~ '.', kind: 'content'} %}
+        {% block section_body %}
+            <p>Reloading this page logs a page request. The JSON endpoint logs an API request and its response body.</p>
+        {% endblock %}
+        {% block section_footer %}
+            <a class="nowo-ui-btn nowo-ui-btn--outline" href="{{ path('demo_api_ping') }}">GET /api/ping (JSON)</a>
+            <a class="nowo-ui-btn nowo-ui-btn--outline" href="{{ path('nowo_http_log_admin_index') }}">Admin UI (HTTP Basic: admin / admin)</a>
+        {% endblock %}
+    {% endembed %}
 {% endblock %}

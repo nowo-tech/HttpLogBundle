@@ -4,16 +4,15 @@ import { resolve } from 'node:path';
 import { seedTraffic } from './helpers';
 
 /**
- * REQ-DEMO-013 — the Http Log admin pages in full demo context: demo navbar → UiKit page → Symfony WebProfiler
- * toolbar, captured as a padded union clip on a viewport tall enough for the whole page.
+ * REQ-DEMO-013 — the Http Log admin pages in the demo platform shell (top bar, aside, page), captured without the
+ * Symfony WebProfiler toolbar on a viewport tall enough for the whole page.
  */
 const outDir = process.env.SCREENSHOT_DIR
   ? resolve(process.env.SCREENSHOT_DIR)
   : resolve(__dirname, '../../../../docs/images/demo');
 
 const WIDTH = 1280;
-const PAD = 16;
-const CHROME = '.nowo-ui-header, main';
+const HIDE_TOOLBAR = '.sf-toolbar, .sf-minitoolbar, [id^="sfwdt"] { display: none !important; }';
 
 test.use({ viewport: { width: WIDTH, height: 900 } });
 
@@ -22,39 +21,17 @@ test.beforeAll(async ({ request }) => {
   await seedTraffic(request);
 });
 
-/** Wait for the loaded profiler toolbar and grow the viewport so the whole page fits above it. */
+/** Grow the viewport so the whole shell fits, without the profiler toolbar. */
 async function fitViewport(page: Page): Promise<void> {
-  const toolbar = page.locator('.sf-toolbar .sf-toolbarreset');
-  await expect(toolbar).toBeVisible({ timeout: 15_000 });
-  // the toolbar first renders a "Loading…" stub: wait for the real panels
-  await expect(page.locator('.sf-toolbar').first()).not.toContainText('Loading', { timeout: 15_000 });
-  const toolbarHeight = Math.ceil((await toolbar.boundingBox())?.height ?? 36);
-  const contentBottom = await page.evaluate((sel) => Math.max(...[...document.querySelectorAll(sel)]
-    .map((el) => el.getBoundingClientRect().bottom + window.scrollY)), CHROME);
-  await page.setViewportSize({ width: WIDTH, height: Math.max(720, Math.ceil(contentBottom) + 24 + toolbarHeight) });
+  await page.addStyleTag({ content: HIDE_TOOLBAR });
+  const height = await page.evaluate(() => Math.ceil(document.documentElement.scrollHeight));
+  await page.setViewportSize({ width: WIDTH, height: Math.max(720, height) });
   await page.evaluate(() => window.scrollTo(0, 0));
 }
 
 async function shoot(page: Page, file: string): Promise<void> {
-  await expect(page.locator('.sf-toolbar').first()).not.toContainText('Loading');
-  const box = await page.evaluate((sel) => {
-    const rects = [...document.querySelectorAll(`${sel}, .sf-toolbar .sf-toolbarreset`)]
-      .map((el) => el.getBoundingClientRect())
-      .filter((r) => r.width > 0 && r.height > 0);
-    return {
-      x: Math.min(...rects.map((r) => r.left)),
-      y: Math.min(...rects.map((r) => r.top)),
-      r: Math.max(...rects.map((r) => r.right)),
-      b: Math.max(...rects.map((r) => r.bottom)),
-    };
-  }, CHROME);
-  const vp = page.viewportSize()!;
-  const x = Math.max(0, box.x - PAD);
-  const y = Math.max(0, box.y - PAD);
-  await page.screenshot({
-    path: resolve(outDir, `${file}.png`),
-    clip: { x, y, width: Math.min(vp.width, box.r + PAD) - x, height: Math.min(vp.height, box.b + PAD) - y },
-  });
+  await page.addStyleTag({ content: HIDE_TOOLBAR });
+  await page.locator('[data-testid="demo-platform"]').screenshot({ path: resolve(outDir, `${file}.png`) });
 }
 
 /** The newest logged JSON POST to /api/echo. */
@@ -81,7 +58,6 @@ test.describe('http log screenshots', () => {
   test('entry — delete confirm dialog', async ({ page }) => {
     await openEchoEntry(page);
     await page.setViewportSize({ width: WIDTH, height: 900 });
-    await expect(page.locator('.sf-toolbar').first()).not.toContainText('Loading', { timeout: 15_000 });
     await page.locator('.nowo-ui-action--delete').first().click();
     await expect(page.locator('dialog[open]')).toBeVisible();
     await page.waitForTimeout(300); // dialog open transition
