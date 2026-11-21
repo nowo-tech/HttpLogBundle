@@ -11,15 +11,9 @@ use Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Reference;
 
-use function array_keys;
 use function array_unique;
 use function array_values;
-use function is_array;
 use function is_string;
-use function preg_match;
-use function rtrim;
-use function sprintf;
-use function str_starts_with;
 
 /**
  * 1.22 (REQ-RUNTIME-003 rule 6): scopes the commit tracking of the conflict answer (audit UE-CF-1: never every host
@@ -46,7 +40,7 @@ final class HttpLogCommitTrackingPass implements CompilerPassInterface
     public const TRANSACTION_DOCTRINE_MIDDLEWARE = 'nowo_transaction_doctrine.commit_tracking_middleware';
 
     /** Namespace of the bundle's entities. */
-    public const ENTITY_NAMESPACE = 'Nowo\\HttpLogBundle\\Entity';
+    public const ENTITY_NAMESPACE = EntityManagerMappings::ENTITY_NAMESPACE;
 
     public function process(ContainerBuilder $container): void
     {
@@ -94,11 +88,11 @@ final class HttpLogCommitTrackingPass implements CompilerPassInterface
     private function bundleConnections(ContainerBuilder $container): array
     {
         $default  = $container->hasParameter('doctrine.default_entity_manager') ? $container->getParameter('doctrine.default_entity_manager') : 'default';
-        $managers = [is_string($default) && $default !== '' ? $default : 'default', ...$this->managersMappingTheEntities($container)];
+        $managers = [is_string($default) && $default !== '' ? $default : 'default', ...EntityManagerMappings::managersMappingTheEntities($container)];
 
         $connections = [];
         foreach ($managers as $name) {
-            $connection = $this->connectionOf($container, $name);
+            $connection = EntityManagerMappings::connectionOf($container, $name);
             if ($connection !== null) {
                 $connections[] = $connection;
             }
@@ -110,59 +104,5 @@ final class HttpLogCommitTrackingPass implements CompilerPassInterface
         }
 
         return array_values(array_unique($connections));
-    }
-
-    /**
-     * Every configured manager whose metadata driver chain has a driver for a namespace covering the bundle entities.
-     *
-     * @return list<string>
-     */
-    private function managersMappingTheEntities(ContainerBuilder $container): array
-    {
-        $managers = $container->hasParameter('doctrine.entity_managers') ? $container->getParameter('doctrine.entity_managers') : [];
-        $found    = [];
-        foreach (array_keys(is_array($managers) ? $managers : []) as $name) {
-            $chainId = sprintf('doctrine.orm.%s_metadata_driver', $name);
-            if (!$container->hasDefinition($chainId)) {
-                continue;
-            }
-
-            foreach ($container->getDefinition($chainId)->getMethodCalls() as $call) {
-                if ($call[0] === 'addDriver' && $this->mapsTheEntities($call[1])) {
-                    $found[] = (string) $name;
-
-                    break;
-                }
-            }
-        }
-
-        return $found;
-    }
-
-    /**
-     * @param array<mixed> $arguments the `addDriver(driver, namespace)` arguments
-     */
-    private function mapsTheEntities(array $arguments): bool
-    {
-        $namespace = $arguments[1] ?? null;
-        if (!is_string($namespace)) {
-            return false;
-        }
-
-        $mapped = rtrim($namespace, '\\') . '\\';
-        $bundle = self::ENTITY_NAMESPACE . '\\';
-
-        return str_starts_with($bundle, $mapped) || str_starts_with($mapped, $bundle);
-    }
-
-    private function connectionOf(ContainerBuilder $container, string $manager): ?string
-    {
-        $id       = sprintf('doctrine.orm.%s_entity_manager', $manager);
-        $argument = $container->hasDefinition($id) ? ($container->getDefinition($id)->getArguments()[0] ?? null) : null;
-        if ($argument instanceof Reference && preg_match('/^doctrine\.dbal\.(.+)_connection$/D', (string) $argument, $match) === 1) {
-            return $match[1];
-        }
-
-        return null;
     }
 }

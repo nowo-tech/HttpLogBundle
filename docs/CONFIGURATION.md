@@ -10,6 +10,7 @@ All options live under the root key `nowo_http_log` (alias `nowo_http_log`).
 - [redaction](#redaction)
 - [retention](#retention)
 - [doctrine](#doctrine)
+  - [Mapping and entity manager (1.24)](#mapping-and-entity-manager-124)
 - [export](#export)
 - [web_ui](#web_ui)
   - [Form profile (FormKit)](#form-profile-formkit)
@@ -92,6 +93,9 @@ nowo_http_log:
     doctrine:
         table_name_prefix: nowo_http_log_ # Replaces the nowo_http_log_ part of the table name (REQ-ORM-002)
         table_prefix: ''                  # Prefix for nowo_http_log_entry + index names (REQ-ORM-002)
+        register_mapping: true            # 1.24: false = the host maps HttpLogEntry itself (DDD host)
+        mapping_type: attribute           # 1.24: attribute | xml (shipped src/Resources/config/doctrine/HttpLogEntry.orm.xml)
+        entity_manager: null              # 1.24: the manager holding the entries (null = whichever maps them)
     export:
         formats:
             - csv
@@ -251,6 +255,23 @@ the `HttpLogPersonalDataEraserInterface` service instead of SQL ([USAGE](USAGE.m
 from its default) rewrites the `HttpLogEntry` mapping only. Changing either option on an existing install renames the
 table: run the rename statements from [UPGRADING](UPGRADING.md#to-1211) (or generate a migration and turn the
 drop/create into a rename) instead of dropping the table.
+
+### Mapping and entity manager (1.24)
+
+Three options decide where `HttpLogEntry` is mapped (B3 of the DDD-host checklist). The defaults keep the 1.23 mapping:
+the entity attributes, as a bundle mapping named `NowoHttpLogBundle`, on the default entity manager.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `register_mapping` | `true` | `true`: the bundle registers the mapping. `false`: the host maps the entity itself (any mapping name, e.g. from the shipped XML); the bundle then adds a disabled `NowoHttpLogBundle` mapping so Doctrine `auto_mapping` does not map the entity on the auto-mapped manager too (unless the host already uses that mapping name). A literal boolean (no `%env()%`). |
+| `mapping_type` | `attribute` | What the bundle registers while `register_mapping` is true: `attribute` (the entity attributes) or `xml` (`src/Resources/config/doctrine/HttpLogEntry.orm.xml`: same table, columns, options, indexes and repository; CI checks the parity and the DDL on SQLite, MySQL and PostgreSQL). Switching it changes no schema. |
+| `entity_manager` | `null` | `null`: the services use whichever manager maps the entity (`ManagerRegistry::getManagerForClass()`). A name: with `register_mapping: true` the mapping goes on that manager instead of the default one, which must be declared under `doctrine.orm.entity_managers` (or be the default manager). Either way the container build fails unless that manager exists and is the **only** manager mapping `Nowo\HttpLogBundle\Entity`. A literal name (no `%env()%`). |
+
+Every option of this section (table names, path prefix and usage columns, rollup tables, exact collations) applies on
+whichever manager maps the entity, attribute or XML. The bundle never flushes a host manager: entries are written by
+DBAL on the connection of the manager that maps them. Moving the table to another connection is a data move (copy
+the rows, or keep both managers on one connection): the bundle does not migrate rows. See
+[USAGE](USAGE.md#keeping-the-log-table-off-your-domain-manager-124) for a DDD host configuration.
 
 **PostgreSQL with a SEQUENCE id strategy** (only when you set DoctrineBundle's `identity_generation_preferences` to
 `SEQUENCE` for PostgreSQL; the ORM 3 default is IDENTITY, whose sequence PostgreSQL names after the prefixed table):

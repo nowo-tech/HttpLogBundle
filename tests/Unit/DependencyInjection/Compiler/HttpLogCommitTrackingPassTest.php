@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\Tests\Unit\DependencyInjection\Compiler;
 
 use Doctrine\Bundle\DoctrineBundle\DependencyInjection\Compiler\MiddlewaresPass;
+use Nowo\HttpLogBundle\DependencyInjection\Compiler\EntityManagerMappings;
 use Nowo\HttpLogBundle\DependencyInjection\Compiler\HttpLogCommitTrackingPass;
 use Nowo\HttpLogBundle\DependencyInjection\NowoHttpLogExtension;
 use Nowo\HttpLogBundle\EventSubscriber\HttpLogConflictListener;
@@ -21,6 +22,7 @@ use Symfony\Component\DependencyInjection\Reference;
  * and is not registered at all when transaction-doctrine's commit_detection already counts commits (UE3-CF-1/2).
  */
 #[CoversClass(HttpLogCommitTrackingPass::class)]
+#[CoversClass(EntityManagerMappings::class)]
 final class HttpLogCommitTrackingPassTest extends TestCase
 {
     private const MIDDLEWARE = NowoHttpLogExtension::COMMIT_TRACKING_MIDDLEWARE;

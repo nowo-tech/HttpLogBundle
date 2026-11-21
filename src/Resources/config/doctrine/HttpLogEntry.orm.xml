@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    1.24 (DDD host): XML twin of the HttpLogEntry attributes, for `doctrine.mapping_type: xml` or a host that maps the
+    entity itself (`doctrine.register_mapping: false`). Same table, columns and indexes as the attributes
+    (tests/Unit/Doctrine/XmlMappingParityTest.php). The path_prefix and usage columns are not mapped here either:
+    PathPrefixColumnListener and UsageColumnsListener add them, and TablePrefixListener renames the table, on both.
+-->
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping https://www.doctrine-project.org/schemas/orm/doctrine-mapping.xsd">
+
+    <entity name="Nowo\HttpLogBundle\Entity\HttpLogEntry"
+            repository-class="Nowo\HttpLogBundle\Repository\HttpLogEntryRepository"
+            table="nowo_http_log_entry">
+
+        <indexes>
+            <index name="idx_http_log_created_at" columns="created_at,id"/>
+            <index name="idx_http_log_route_name" columns="route_name,created_at"/>
+            <index name="idx_http_log_status_code" columns="status_code,created_at"/>
+            <index name="idx_http_log_client_ip" columns="client_ip,created_at"/>
+        </indexes>
+
+        <id name="id" type="integer">
+            <generator strategy="AUTO"/>
+        </id>
+
+        <field name="requestId" column="request_id" type="string" length="64" unique="true" nullable="true"/>
+        <field name="method" column="method" type="string" length="16"/>
+        <field name="scheme" column="scheme" type="string" length="16" nullable="true"/>
+        <field name="host" column="host" type="string" length="255" nullable="true"/>
+        <field name="path" column="path" type="string" length="2048"/>
+        <field name="routeName" column="route_name" type="string" length="255" nullable="true"/>
+        <field name="queryParams" column="query_params" type="json" nullable="true"/>
+        <field name="statusCode" column="status_code" type="integer" nullable="true"/>
+        <field name="clientIp" column="client_ip" type="string" length="45" nullable="true"/>
+        <field name="contentType" column="content_type" type="string" length="128" nullable="true"/>
+        <field name="bodyContentType" column="body_content_type" type="string" length="16" nullable="true"/>
+        <field name="durationMs" column="duration_ms" type="float" nullable="true"/>
+        <field name="userIdentifier" column="user_identifier" type="string" length="255" nullable="true"/>
+        <field name="requestHeaders" column="request_headers" type="json" nullable="true"/>
+        <field name="responseHeaders" column="response_headers" type="json" nullable="true"/>
+        <field name="requestBody" column="request_body" type="text" nullable="true"/>
+        <field name="responseBody" column="response_body" type="text" nullable="true"/>
+        <field name="requestBodyTruncated" column="request_body_truncated" type="boolean">
+            <options>
+                <option name="default">false</option>
+            </options>
+        </field>
+        <field name="responseBodyTruncated" column="response_body_truncated" type="boolean">
+            <options>
+                <option name="default">false</option>
+            </options>
+        </field>
+        <field name="responseBodyStored" column="response_body_stored" type="boolean">
+            <options>
+                <option name="default">false</option>
+            </options>
+        </field>
+        <field name="createdAt" column="created_at" type="datetime_immutable"/>
+    </entity>
+</doctrine-mapping>

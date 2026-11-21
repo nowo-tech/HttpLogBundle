@@ -54,6 +54,15 @@ final class Configuration implements ConfigurationInterface
     /** Entries exported at most per subject by the personal-data export (newest first). */
     public const DEFAULT_PERSONAL_DATA_EXPORT_LIMIT = 1000;
 
+    /** `doctrine.mapping_type`: the entity attributes (default). */
+    public const MAPPING_TYPE_ATTRIBUTE = 'attribute';
+
+    /** `doctrine.mapping_type`: the shipped `src/Resources/config/doctrine/HttpLogEntry.orm.xml` (1.24). */
+    public const MAPPING_TYPE_XML = 'xml';
+
+    /** Allowed `doctrine.entity_manager` names (DoctrineBundle builds service ids from them). */
+    public const MANAGER_NAME_PATTERN = '/^[A-Za-z_][A-Za-z0-9_]*\z/';
+
     /** Composer package name used in configuration deprecations. */
     public const PACKAGE = 'nowo-tech/http-log-bundle';
 
@@ -232,6 +241,23 @@ final class Configuration implements ConfigurationInterface
                             ->validate()
                                 ->ifTrue(static fn (mixed $value): bool => !is_string($value) || ($value !== '' && preg_match(TablePrefixListener::PREFIX_PATTERN, $value) !== 1))
                                 ->thenInvalid('Invalid "nowo_http_log.doctrine.table_prefix" %s: use a lowercase letter, then lowercase letters, digits and underscores (or empty).')
+                            ->end()
+                        ->end()
+                        ->booleanNode('register_mapping')
+                            ->info('1.24 (DDD host): true (default) = the bundle maps HttpLogEntry itself (on the default entity manager, or on doctrine.entity_manager). false = the host maps it (e.g. src/Resources/config/doctrine/HttpLogEntry.orm.xml on a dedicated manager); the bundle then keeps Doctrine auto_mapping from mapping it on the auto-mapped manager. A literal boolean: it is read before the configuration is processed.')
+                            ->defaultTrue()
+                        ->end()
+                        ->enumNode('mapping_type')
+                            ->info('1.24: the mapping the bundle registers while register_mapping is true: attribute (default, the entity attributes) or xml (the shipped src/Resources/config/doctrine/HttpLogEntry.orm.xml: same table, columns and indexes).')
+                            ->values([self::MAPPING_TYPE_ATTRIBUTE, self::MAPPING_TYPE_XML])
+                            ->defaultValue(self::MAPPING_TYPE_ATTRIBUTE)
+                        ->end()
+                        ->scalarNode('entity_manager')
+                            ->info('1.24: the entity manager that holds the entries. null (default) = whichever manager maps HttpLogEntry (the default manager of a standard application). A name: register_mapping true maps the entity on that manager instead of the default one; the manager must exist and be the ONLY manager that maps the entity (the container build fails otherwise). The bundle never flushes a host manager either way.')
+                            ->defaultNull()
+                            ->validate()
+                                ->ifTrue(static fn (mixed $value): bool => $value !== null && (!is_string($value) || preg_match(self::MANAGER_NAME_PATTERN, $value) !== 1))
+                                ->thenInvalid('Invalid "nowo_http_log.doctrine.entity_manager" %s: use an entity manager name (letters, digits and underscores) or null.')
                             ->end()
                         ->end()
                     ->end()

@@ -23,6 +23,7 @@ use Twig\Extra\TwigExtraBundle\TwigExtraBundle;
 
 use function dirname;
 use function getmypid;
+use function is_array;
 use function md5;
 use function serialize;
 use function sys_get_temp_dir;
@@ -41,12 +42,15 @@ final class UsageKernel extends Kernel
      * @param array<string, mixed> $httpLog `nowo_http_log` configuration
      * @param array<string, mixed> $framework extra `framework` configuration (http_client, mailer, messenger…)
      * @param (callable(ContainerBuilder): void)|null $build extra services
+     * @param array<string, mixed> $doctrine `doctrine` configuration replacing the default one (one in-memory SQLite
+     *                                       connection, short-form ORM); `orm` gets the native lazy objects option
      */
     public function __construct(
         private readonly array $httpLog = [],
         private readonly array $framework = [],
         private $build = null,
         private readonly string $variant = '',
+        private readonly array $doctrine = [],
     ) {
         parent::__construct('test', false);
     }
@@ -70,7 +74,7 @@ final class UsageKernel extends Kernel
 
     public function getCacheDir(): string
     {
-        return sys_get_temp_dir() . '/nowo-http-log-usage-kernel/' . getmypid() . '/' . md5(serialize([$this->httpLog, $this->framework, $this->variant]));
+        return sys_get_temp_dir() . '/nowo-http-log-usage-kernel/' . getmypid() . '/' . md5(serialize([$this->httpLog, $this->framework, $this->variant, $this->doctrine]));
     }
 
     public function getLogDir(): string
@@ -108,10 +112,9 @@ final class UsageKernel extends Kernel
                 'main' => ['lazy' => true, 'provider' => 'memory'],
             ],
         ]);
-        $container->extension('doctrine', [
-            'dbal' => ['url' => 'sqlite:///:memory:'],
-            'orm'  => $this->ormConfig(),
-        ]);
+        $doctrine = $this->doctrine === [] ? ['dbal' => ['url' => 'sqlite:///:memory:'], 'orm' => []] : $this->doctrine;
+        $orm      = $doctrine['orm'] ?? [];
+        $container->extension('doctrine', ['orm' => (is_array($orm) ? $orm : []) + $this->ormConfig()] + $doctrine);
         $container->extension('nowo_http_log', $this->httpLog + ['web_ui' => ['enabled' => false]]);
         $container->services()->set(UsageTestController::class)->public()->tag('controller.service_arguments');
     }
