@@ -70,7 +70,7 @@ final class DedicatedEntityManagerKernelTest extends TestCase
 
         try {
             $this->expectException(InvalidArgumentException::class);
-            $this->expectExceptionMessage('are mapped on: default, http_log');
+            $this->expectExceptionMessageMatches('/are mapped on: (default, http_log|http_log, default)\\./');
             $kernel->boot();
         } finally {
             $kernel->shutdown();
@@ -106,17 +106,15 @@ final class DedicatedEntityManagerKernelTest extends TestCase
             self::assertFalse($default->getConnection()->createSchemaManager()->tablesExist(['nowo_http_log_entry']), 'no bundle table on the host database');
 
             // the host leaves a pending change on its manager; recording at terminate never flushes it
+            // (one request: the kernel resets its services, the managers included, before the next main request)
             $default->persist(new HostArticle('pending'));
-            foreach (['/hello', '/hello'] as $path) {
-                $request  = Request::create($path, 'GET', [], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
-                $response = $kernel->handle($request);
-                self::assertSame(200, $response->getStatusCode());
-                $kernel->terminate($request, $response);
-            }
+            $this->request($kernel);
+            self::assertSame(0, (int) $default->getConnection()->fetchOne('SELECT COUNT(*) FROM host_article'));
+            self::assertCount(1, $default->getUnitOfWork()->getScheduledEntityInsertions());
+            $this->request($kernel);
 
             self::assertSame(2, (int) $logs->getConnection()->fetchOne('SELECT COUNT(*) FROM nowo_http_log_entry'));
             self::assertSame(0, (int) $default->getConnection()->fetchOne('SELECT COUNT(*) FROM host_article'));
-            self::assertCount(1, $default->getUnitOfWork()->getScheduledEntityInsertions());
 
             $repository = $container->get(HttpLogEntryRepository::class);
             self::assertInstanceOf(HttpLogEntryRepository::class, $repository);
@@ -125,6 +123,14 @@ final class DedicatedEntityManagerKernelTest extends TestCase
         } finally {
             $kernel->shutdown();
         }
+    }
+
+    private function request(UsageKernel $kernel): void
+    {
+        $request  = Request::create('/hello', 'GET', [], [], [], ['REMOTE_ADDR' => '127.0.0.1']);
+        $response = $kernel->handle($request);
+        self::assertSame(200, $response->getStatusCode());
+        $kernel->terminate($request, $response);
     }
 
     /**

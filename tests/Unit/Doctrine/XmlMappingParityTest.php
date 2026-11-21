@@ -23,8 +23,9 @@ use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
-use function array_map;
+use function array_key_exists;
 use function dirname;
+use function is_array;
 use function ksort;
 
 use const PHP_VERSION_ID;
@@ -32,7 +33,7 @@ use const PHP_VERSION_ID;
 /**
  * 1.24 (DDD host, B3): the shipped `HttpLogEntry.orm.xml` (validated against Doctrine's XSD) describes exactly what the
  * entity attributes do: same table, columns, types, options, indexes, id generator and repository, and therefore the
- * same DDL on every platform, before and after the bundle's metadata listeners.
+ * same column declarations and indexes on every platform, before and after the bundle's metadata listeners.
  */
 final class XmlMappingParityTest extends TestCase
 {
@@ -60,7 +61,7 @@ final class XmlMappingParityTest extends TestCase
             $xml       = $this->createTableSql($this->xmlDriver(), $prefixes);
 
             self::assertSame($attribute, $xml);
-            self::assertNotSame([], $attribute['sqlite']);
+            self::assertNotSame([], $attribute);
         }
     }
 
@@ -77,9 +78,12 @@ final class XmlMappingParityTest extends TestCase
     }
 
     /**
+     * Column declarations (per platform, by column name: the XML driver maps the id after the fields, a column order
+     * the schema comparator ignores), indexes and primary key of every table.
+     *
      * @param list<string> $prefixes [table_prefix, table_name_prefix] of TablePrefixListener, none when empty
      *
-     * @return array<string, list<string>>
+     * @return array<string, array<string, mixed>>
      */
     private function createTableSql(MappingDriver $driver, array $prefixes): array
     {
@@ -89,15 +93,25 @@ final class XmlMappingParityTest extends TestCase
         if ($prefixes !== []) {
             $manager->getEventManager()->addEventListener('loadClassMetadata', new TablePrefixListener($prefixes[0], $prefixes[1]));
         }
-        $schema = (new SchemaTool($manager))->getSchemaFromMetadata([$manager->getClassMetadata(HttpLogEntry::class)]);
-        $sql    = [];
-        foreach (['sqlite' => $manager->getConnection()->getDatabasePlatform(), 'mysql' => new MySQL80Platform(), 'postgresql' => new PostgreSQLPlatform()] as $name => $platform) {
-            /* @var AbstractPlatform $platform */
-            $sql[$name] = [];
-            foreach ($schema->getTables() as $table) {
-                foreach ($platform->getCreateTableSQL($table) as $statement) {
-                    $sql[$name][] = $statement;
+        $schema    = (new SchemaTool($manager))->getSchemaFromMetadata([$manager->getClassMetadata(HttpLogEntry::class)]);
+        $platforms = ['sqlite' => $manager->getConnection()->getDatabasePlatform(), 'mysql' => new MySQL80Platform(), 'postgresql' => new PostgreSQLPlatform()];
+        $sql       = [];
+        foreach ($schema->getTables() as $table) {
+            $name    = $table->getName();
+            $indexes = [];
+            foreach ($table->getIndexes() as $index) {
+                $indexes[$index->getName()] = [$index->getColumns(), $index->isUnique(), $index->isPrimary()];
+            }
+            ksort($indexes);
+            $sql[$name]['indexes'] = $indexes;
+            foreach ($platforms as $platformName => $platform) {
+                /** @var AbstractPlatform $platform */
+                $columns = [];
+                foreach ($table->getColumns() as $column) {
+                    $columns[$column->getName()] = $platform->getColumnDeclarationSQL($column->getName(), $column->toArray());
                 }
+                ksort($columns);
+                $sql[$name][$platformName] = $columns;
             }
         }
 
@@ -111,7 +125,20 @@ final class XmlMappingParityTest extends TestCase
      */
     private function fields(ClassMetadata $metadata): array
     {
-        $fields = array_map(static fn (object $mapping): array => (array) $mapping, $metadata->fieldMappings);
+        $fields = [];
+        foreach ($metadata->fieldMappings as $name => $mapping) {
+            $field = (array) $mapping;
+            // the attribute driver writes false where the XML driver leaves null (same meaning), and only it numbers ids
+            foreach (['unique', 'index', 'nullable'] as $flag) {
+                $field[$flag] = (bool) ($field[$flag] ?? false);
+            }
+            unset($field['idPosition']);
+            // a boolean column default: false (attribute) and "0" (XML) are the same DEFAULT 0
+            if (is_array($field['options'] ?? null) && array_key_exists('default', $field['options']) && $field['type'] === 'boolean') {
+                $field['options']['default'] = (string) (int) (bool) $field['options']['default'];
+            }
+            $fields[$name] = $field;
+        }
         ksort($fields);
 
         return $fields;
