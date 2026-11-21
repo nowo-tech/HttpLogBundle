@@ -5,6 +5,7 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.24.0](#to-1240)
 - [To 1.23.1](#to-1231)
 - [To 1.23.0](#to-1230)
 - [To 1.22.0](#to-1220)
@@ -80,6 +81,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.24.0
+
+From **1.23.1**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 Nothing to change: the defaults keep the 1.23 mapping (attributes, on the default entity manager).
 

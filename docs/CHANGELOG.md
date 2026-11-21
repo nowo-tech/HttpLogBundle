@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.24.0] - 2026-11-21](#1240---2026-11-21)
 - [[1.23.1] - 2026-11-21](#1231---2026-11-21)
 - [[1.23.0] - 2026-11-19](#1230---2026-11-19)
 - [[1.22.0] - 2026-11-19](#1220---2026-11-19)
@@ -57,6 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-11-21
+
 ### Added
 
 - DDD host (B3 of the DDD-host checklist, REQ-ARCH-001): the bundle's table can stay off a host's domain entity manager. Three opt-in options under `doctrine`, defaults unchanged (standard Symfony path):
@@ -68,6 +71,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Internal: `HttpLogCommitTrackingPass` reads the managers mapping the entries through the new internal `EntityManagerMappings` helper (same result).
+
+[1.24.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.24.0
 
 ## [1.23.1] - 2026-11-21
 
