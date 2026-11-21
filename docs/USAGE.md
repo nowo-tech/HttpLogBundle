@@ -27,6 +27,7 @@ How to capture HTTP traffic, use the admin UI, export, purge, and exclude routes
   - [Backfill](#backfill)
 - [Standard Symfony host](#standard-symfony-host)
 - [DDD / hexagonal host](#ddd--hexagonal-host)
+  - [Keeping the log table off your domain manager (1.24)](#keeping-the-log-table-off-your-domain-manager-124)
   - [Keeping your domain free of the bundle](#keeping-your-domain-free-of-the-bundle)
   - [Entry-recorded event](#entry-recorded-event)
   - [Known limitations](#known-limitations)
@@ -729,7 +730,7 @@ hooks are autoconfigured services: the request-context resolver
 ## DDD / hexagonal host
 
 The same bundle, with the domain kept free of Symfony and Doctrine types (REQ-ARCH-001). Nothing is forced: no base
-class, no trait, no `resolve_target_entities`, no XML mapping to ship (the bundle owns its table and never maps your
+class, no trait, no `resolve_target_entities`, no XML mapping to write (the bundle owns its table and never maps your
 entities). Every port a host implements or calls takes scalars or bundle value objects:
 
 | Need | Port (no framework type) | Value objects |
@@ -740,6 +741,51 @@ entities). Every port a host implements or calls takes scalars or bundle value o
 | Read usage | `Usage\HttpLogUsageReaderInterface` (call) | `UsageQuery`, `CallQuery`, `DailyUsage`, `CallPage` |
 | Erase / export personal data | `Privacy\HttpLogPersonalDataErasureInterface`, `HttpLogPersonalDataExporterInterface` | `HttpLogPersonalDataSubject`, `HttpLogErasureResult` |
 | Erase usage of a credential or tenant | `Privacy\HttpLogUsageEraserInterface` | scalars |
+
+### Keeping the log table off your domain manager (1.24)
+
+By default the bundle maps `HttpLogEntry` (attributes) on the default entity manager. A host whose default manager holds
+only its domain moves the table to a manager of its own ([CONFIGURATION](CONFIGURATION.md#doctrine)):
+
+```yaml
+doctrine:
+    dbal:
+        connections:
+            default: { url: '%env(resolve:DATABASE_URL)%' }
+            http_log: { url: '%env(resolve:HTTP_LOG_DATABASE_URL)%' } # or the same URL: a separate manager is enough
+    orm:
+        default_entity_manager: default
+        entity_managers:
+            default: { connection: default, mappings: { App: { type: xml, dir: '%kernel.project_dir%/config/doctrine', prefix: 'App\Domain' } } }
+            http_log: { connection: http_log }
+
+nowo_http_log:
+    doctrine:
+        mapping_type: xml          # the shipped src/Resources/config/doctrine/HttpLogEntry.orm.xml
+        entity_manager: http_log   # mapped there only; the build fails if another manager maps it too
+```
+
+Or map it yourself (`register_mapping: false`) from the shipped XML, under any mapping name; the bundle then keeps
+Doctrine `auto_mapping` from mapping it on the auto-mapped manager:
+
+```yaml
+doctrine:
+    orm:
+        entity_managers:
+            http_log:
+                connection: http_log
+                mappings:
+                    HttpLog: { type: xml, is_bundle: false, prefix: 'Nowo\HttpLogBundle\Entity', dir: '%kernel.project_dir%/vendor/nowo-tech/http-log-bundle/src/Resources/config/doctrine' }
+
+nowo_http_log:
+    doctrine:
+        register_mapping: false
+        entity_manager: http_log   # optional: checks that this manager, and only it, maps the entries
+```
+
+The bundle writes entries by DBAL on that manager's connection and never flushes, clears or resets a host manager (it
+resets the manager only when it is closed and maps the bundle's entities alone). Give the dedicated manager the bundle's
+entities only: none of your entities ever reach it.
 
 ### Keeping your domain free of the bundle
 

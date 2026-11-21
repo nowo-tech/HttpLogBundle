@@ -7,6 +7,7 @@ namespace Nowo\HttpLogBundle;
 use Nowo\HttpLogBundle\DependencyInjection\Compiler\CsrfProtectionPass;
 use Nowo\HttpLogBundle\DependencyInjection\Compiler\DeprecatedRequestContextResolverPass;
 use Nowo\HttpLogBundle\DependencyInjection\Compiler\HttpLogCommitTrackingPass;
+use Nowo\HttpLogBundle\DependencyInjection\Compiler\HttpLogEntityManagerPass;
 use Nowo\HttpLogBundle\DependencyInjection\Compiler\OutboundHttpClientPass;
 use Nowo\HttpLogBundle\DependencyInjection\Compiler\TwigPathsPass;
 use Nowo\HttpLogBundle\DependencyInjection\NowoHttpLogExtension;
@@ -26,6 +27,8 @@ final class NowoHttpLogBundle extends Bundle
         $container->addCompilerPass(new DeprecatedRequestContextResolverPass());
         // 1.22 (REQ-RUNTIME-003): scope the commit-tracking middleware before DoctrineBundle's MiddlewaresPass (priority 0).
         $container->addCompilerPass(new HttpLogCommitTrackingPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, 5);
+        // 1.24 (DDD host): doctrine.entity_manager must be the only manager that maps the entries.
+        $container->addCompilerPass(new HttpLogEntityManagerPass());
     }
 
     public function getContainerExtension(): ExtensionInterface

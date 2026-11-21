@@ -57,6 +57,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- DDD host (B3 of the DDD-host checklist, REQ-ARCH-001): the bundle's table can stay off a host's domain entity manager. Three opt-in options under `doctrine`, defaults unchanged (standard Symfony path):
+  - `register_mapping` (default `true`): `false` leaves the mapping of `HttpLogEntry` to the host; the bundle then adds a disabled `NowoHttpLogBundle` mapping so Doctrine `auto_mapping` does not map the entity on the auto-mapped manager too.
+  - `mapping_type` (default `attribute`): `xml` registers the shipped `src/Resources/config/doctrine/HttpLogEntry.orm.xml` (same table, columns, options, indexes and repository as the attributes).
+  - `entity_manager` (default `null`): maps the entity on that manager instead of the default one; the container build fails unless the manager exists and is the only one mapping the bundle entities (`HttpLogEntityManagerPass`).
+- Tests: `XmlMappingParityTest` (XML vs attributes: metadata and DDL on SQLite, MySQL and PostgreSQL, with the table-naming and path-prefix listeners), `DedicatedEntityManagerKernelTest` (XML host leg: entries on a dedicated manager and connection, mapped by the bundle or by the host, with `auto_mapping` on the host manager; a pending host change is never flushed; double mapping fails the build), prepend and pass unit tests.
+
+### Changed
+
+- Internal: `HttpLogCommitTrackingPass` reads the managers mapping the entries through the new internal `EntityManagerMappings` helper (same result).
+
 ## [1.23.1] - 2026-11-21
 
 ### Changed

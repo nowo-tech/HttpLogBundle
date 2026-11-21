@@ -78,10 +78,13 @@ use function array_merge;
 use function array_unique;
 use function array_values;
 use function class_exists;
+use function implode;
+use function in_array;
 use function interface_exists;
 use function is_array;
 use function is_bool;
 use function is_string;
+use function preg_match;
 use function sprintf;
 use function str_replace;
 use function trait_exists;
@@ -105,6 +108,15 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
 
     /** 1.22: container parameter holding `conflict_response.commit_tracking` (bundle, all or off). */
     public const COMMIT_TRACKING_PARAMETER = 'nowo_http_log.conflict_response.commit_tracking';
+
+    /** Doctrine mapping key of the bundle entity (the bundle name: Doctrine auto_mapping skips a bundle mapped under it). */
+    public const MAPPING_NAME = 'NowoHttpLogBundle';
+
+    /** 1.24: directory of the shipped XML mapping (`HttpLogEntry.orm.xml`, same table, columns and indexes). */
+    public const XML_MAPPING_DIR = __DIR__ . '/../Resources/config/doctrine';
+
+    /** 1.24: container parameter holding `doctrine.entity_manager` (string, or null for whichever manager maps it). */
+    public const ENTITY_MANAGER_PARAMETER = 'nowo_http_log.doctrine.entity_manager';
 
     /**
      * Feature block => [class or trait that must exist, Composer package that provides it].
@@ -138,16 +150,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         }
 
         if ($container->hasExtension('doctrine')) {
-            $container->prependExtensionConfig('doctrine', [
-                'orm' => [
-                    'mappings' => [
-                        'NowoHttpLogBundle' => [
-                            'type'      => 'attribute',
-                            'is_bundle' => true,
-                        ],
-                    ],
-                ],
-            ]);
+            $this->prependDoctrineMapping($container);
         }
 
         $configs = $container->getExtensionConfig($this->getAlias());
@@ -165,6 +168,151 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         }
 
         $this->prependUiKitDefaults($container);
+    }
+
+    /**
+     * 1.24 (DDD host, B3): maps HttpLogEntry as configured by `doctrine.register_mapping`, `mapping_type` and
+     * `entity_manager` (read raw: prepend() runs before the configuration is processed; the last file that sets a key
+     * wins, load() validates the values again).
+     *
+     * - register_mapping true, no entity_manager: the 1.23 mapping (attribute, as a bundle mapping) on the default
+     *   manager, or the shipped XML with `mapping_type: xml`.
+     * - register_mapping true with entity_manager: the same mapping on that manager only. Doctrine auto_mapping skips a
+     *   bundle that any manager maps under its name, so the default manager no longer maps the entity.
+     * - register_mapping false: nothing is mapped; a disabled mapping under the bundle name keeps auto_mapping from
+     *   mapping the entity on the auto-mapped manager, unless the host already uses that mapping name itself.
+     */
+    private function prependDoctrineMapping(ContainerBuilder $container): void
+    {
+        [$register, $type, $manager] = $this->rawDoctrineOptions($container);
+        $doctrine                    = $container->getExtensionConfig('doctrine');
+
+        if ($register) {
+            $mapping = $type === Configuration::MAPPING_TYPE_XML
+                ? ['type' => 'xml', 'dir' => self::XML_MAPPING_DIR, 'prefix' => HttpLogCommitTrackingPass::ENTITY_NAMESPACE, 'is_bundle' => false]
+                : ['type' => 'attribute', 'is_bundle' => true];
+
+            if ($manager === null) {
+                $container->prependExtensionConfig('doctrine', ['orm' => ['mappings' => [self::MAPPING_NAME => $mapping]]]);
+
+                return;
+            }
+
+            if (!in_array($manager, $this->declaredManagers($doctrine), true)) {
+                throw new InvalidConfigurationException(sprintf('nowo_http_log.doctrine.entity_manager "%s" is not a configured entity manager: declare it under doctrine.orm.entity_managers (configured: %s).', $manager, implode(', ', $this->declaredManagers($doctrine))));
+            }
+
+            $container->prependExtensionConfig('doctrine', ['orm' => ['entity_managers' => [$manager => ['mappings' => [self::MAPPING_NAME => $mapping]]]]]);
+
+            return;
+        }
+
+        if ($this->hostMapsTheBundleName($doctrine)) {
+            return;
+        }
+
+        $target = $manager ?? $this->declaredManagers($doctrine)[0] ?? null;
+        if ($target === null) {
+            return;
+        }
+
+        $container->prependExtensionConfig('doctrine', ['orm' => ['entity_managers' => [$target => ['mappings' => [self::MAPPING_NAME => ['mapping' => false]]]]]]);
+    }
+
+    /**
+     * Raw `doctrine.register_mapping`, `mapping_type` and `entity_manager` of the bundle configuration.
+     *
+     * @return array{0: bool, 1: string, 2: string|null}
+     */
+    private function rawDoctrineOptions(ContainerBuilder $container): array
+    {
+        $register = true;
+        $type     = Configuration::MAPPING_TYPE_ATTRIBUTE;
+        $manager  = null;
+        foreach ($container->getExtensionConfig($this->getAlias()) as $config) {
+            $doctrine = is_array($config['doctrine'] ?? null) ? $config['doctrine'] : [];
+            if (array_key_exists('register_mapping', $doctrine)) {
+                if (!is_bool($doctrine['register_mapping'])) {
+                    throw new InvalidConfigurationException('nowo_http_log.doctrine.register_mapping must be a literal boolean: it decides the Doctrine mapping at compile time (no %env()%).');
+                }
+                $register = $doctrine['register_mapping'];
+            }
+            if (in_array($doctrine['mapping_type'] ?? null, [Configuration::MAPPING_TYPE_ATTRIBUTE, Configuration::MAPPING_TYPE_XML], true)) {
+                $type = $doctrine['mapping_type'];
+            }
+            if (array_key_exists('entity_manager', $doctrine)) {
+                $manager = is_string($doctrine['entity_manager']) && $doctrine['entity_manager'] !== '' ? $doctrine['entity_manager'] : null;
+            }
+        }
+
+        if ($manager !== null && preg_match(Configuration::MANAGER_NAME_PATTERN, $manager) !== 1) {
+            throw new InvalidConfigurationException(sprintf('Invalid "nowo_http_log.doctrine.entity_manager" "%s": use a literal entity manager name (letters, digits and underscores; no %%env()%%) or null.', $manager));
+        }
+
+        return [$register, $type, $manager];
+    }
+
+    /**
+     * Entity manager names the host declares, the default one first: `default_entity_manager`, then every
+     * `entity_managers` key; `default` for a short-form `orm` block (DoctrineBundle's name for it).
+     *
+     * @param array<array<string, mixed>> $doctrine raw `doctrine` configurations
+     *
+     * @return list<string>
+     */
+    private function declaredManagers(array $doctrine): array
+    {
+        $default  = null;
+        $managers = [];
+        foreach ($doctrine as $config) {
+            $orm = $config['orm'] ?? null;
+            if (!is_array($orm)) {
+                continue;
+            }
+            if (is_string($orm['default_entity_manager'] ?? null) && $orm['default_entity_manager'] !== '') {
+                $default = $orm['default_entity_manager'];
+            }
+            if (is_array($orm['entity_managers'] ?? null)) {
+                foreach (array_keys($orm['entity_managers']) as $name) {
+                    $managers[] = (string) $name;
+                }
+            } elseif (is_array($orm['entity_manager'] ?? null)) {
+                foreach (array_keys($orm['entity_manager']) as $name) {
+                    $managers[] = (string) $name;
+                }
+            } else {
+                $managers[] = $default ?? 'default';
+            }
+        }
+
+        if ($default !== null) {
+            $managers = [$default, ...$managers];
+        }
+
+        return array_values(array_unique($managers));
+    }
+
+    /**
+     * True when a host configuration already maps something under the bundle name (on any manager).
+     *
+     * @param array<array<string, mixed>> $doctrine raw `doctrine` configurations
+     */
+    private function hostMapsTheBundleName(array $doctrine): bool
+    {
+        foreach ($doctrine as $config) {
+            $orm = is_array($config['orm'] ?? null) ? $config['orm'] : [];
+            if (is_array($orm['mappings'] ?? null) && array_key_exists(self::MAPPING_NAME, $orm['mappings'])) {
+                return true;
+            }
+            $managers = is_array($orm['entity_managers'] ?? null) ? $orm['entity_managers'] : (is_array($orm['entity_manager'] ?? null) ? $orm['entity_manager'] : []);
+            foreach ($managers as $manager) {
+                if (is_array($manager) && is_array($manager['mappings'] ?? null) && array_key_exists(self::MAPPING_NAME, $manager['mappings'])) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -345,6 +493,16 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         // REQ-ORM-002: the table naming listener only exists when a name differs from the mapped one.
         $container->setParameter($alias . '.doctrine.table_prefix', $config['doctrine']['table_prefix']);
         $container->setParameter($alias . '.doctrine.table_name_prefix', $config['doctrine']['table_name_prefix']);
+        // 1.24: the mapping switch was applied in prepend(); the manager name is checked by HttpLogEntityManagerPass.
+        foreach (['mapping_type', 'entity_manager'] as $option) {
+            $value = $config['doctrine'][$option];
+            if (is_string($value) && $container->resolveEnvPlaceholders($value) !== $value) {
+                throw new InvalidConfigurationException(sprintf('nowo_http_log.doctrine.%s does not support %%env()%%: it decides the Doctrine mapping at compile time; set a literal value.', $option));
+            }
+        }
+        $container->setParameter($alias . '.doctrine.register_mapping', $config['doctrine']['register_mapping']);
+        $container->setParameter($alias . '.doctrine.mapping_type', $config['doctrine']['mapping_type']);
+        $container->setParameter(self::ENTITY_MANAGER_PARAMETER, $config['doctrine']['entity_manager']);
         $container->setParameter($alias . '.web_ui.filter_match', $config['web_ui']['filter_match']);
         if ($config['web_ui']['filter_match'] === Configuration::FILTER_MATCH_PREFIX) {
             // Prefix filters (PERF-1147-02): map path_prefix and its index, before TablePrefixListener (priority 0).

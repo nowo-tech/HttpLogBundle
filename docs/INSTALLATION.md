@@ -58,7 +58,7 @@ Copy the default YAML from the recipe or from `src/Resources/config/packages/now
 
 ## Database schema
 
-The bundle registers a Doctrine mapping for `Nowo\HttpLogBundle\Entity\HttpLogEntry` (table `nowo_http_log_entry` by default, renamed by `doctrine.table_name_prefix`: see [CONFIGURATION](CONFIGURATION.md#doctrine)).
+The bundle registers a Doctrine mapping for `Nowo\HttpLogBundle\Entity\HttpLogEntry` (table `nowo_http_log_entry` by default, renamed by `doctrine.table_name_prefix`: see [CONFIGURATION](CONFIGURATION.md#doctrine)) on the default entity manager. Since 1.24 it can map the shipped XML instead, on a manager of your own, or leave the mapping to you (`doctrine.register_mapping`, `mapping_type`, `entity_manager`: see [CONFIGURATION](CONFIGURATION.md#mapping-and-entity-manager-124)).
 
 Generate and run a migration:
 

@@ -81,6 +81,19 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+Nothing to change: the defaults keep the 1.23 mapping (attributes, on the default entity manager).
+
+Opt-in (DDD host): keep the log table off your domain manager with `doctrine.mapping_type: xml` and
+`doctrine.entity_manager: <name>`, or map the shipped XML yourself with `doctrine.register_mapping: false`
+([CONFIGURATION](CONFIGURATION.md#mapping-and-entity-manager-124)). Notes:
+
+- If you already map `Nowo\HttpLogBundle\Entity` by hand on another manager (next to the bundle's own mapping on the
+  default one), set `register_mapping: false` (and `entity_manager`) so only your mapping remains; `entity_manager`
+  makes the build fail while a second manager still maps the entity.
+- Moving the table to another connection does not move the rows: copy them first, or point the dedicated manager at
+  the same connection.
+- `register_mapping`, `mapping_type` and `entity_manager` are read at compile time: `%env()%` is rejected.
+
 ## To 1.23.1
 
 From **1.23.0**:
