@@ -146,6 +146,21 @@ nowo_http_log:
         access_checker: App\Security\MyHttpLogAccessChecker
 ```
 
+### Header actions and filter actions (1.25, opt-in)
+
+```yaml
+nowo_http_log:
+    web_ui:
+        header_actions: split        # toolbar (default) | split
+        filter_actions: filter_bar   # scaffold (default) | filter_bar
+```
+
+- `split`: UiKit split header (needs UiKit >= 2.21): Export and *Purge old entries* go in the square more menu, Purge last, with its confirmation dialog.
+- The header actions are always `page.header.actions` (`View\Action`, Purge last, with its confirmation). With the UiKit compact header and `compact_actions: bar` the host takes them into its top bar and the page header leaves them out; the bundle renders no menu of its own.
+- `filter_bar`: the filters render as a UiKit filter bar and Filter + Clear come from `_filter_actions` (Clear is always shown). A host `web_ui.templates.filter` partial is not used in this mode.
+
+The method, body type and channel selects show a named empty option (*Any method*, *Any body type*, *Any channel*) and every field keeps its label.
+
 ## Twig template overrides
 
 Since **1.8** the admin pages follow the UiKit 2.1 page contract (REQ-UI-003): `admin/index.html.twig` extends the

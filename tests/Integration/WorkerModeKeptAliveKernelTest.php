@@ -10,6 +10,7 @@ use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Service\HttpLogRecorder;
 use Nowo\HttpLogBundle\Tests\Kernel\PublicServicesPass;
 use Nowo\HttpLogBundle\Tests\Kernel\UsageKernel;
+use Nowo\HttpLogBundle\Tests\Support\NativeFileStreams;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\Compiler\PassConfig;
@@ -45,6 +46,7 @@ final class WorkerModeKeptAliveKernelTest extends TestCase
             $container->addCompilerPass(new PublicServicesPass([HttpLogRecorder::class, 'security.token_storage']), PassConfig::TYPE_BEFORE_REMOVING);
         }, 'worker-kept-alive');
         $kernel->boot();
+        $native = false;
 
         try {
             $container = $kernel->getContainer()->get('test.service_container');
@@ -60,6 +62,10 @@ final class WorkerModeKeptAliveKernelTest extends TestCase
             self::assertInstanceOf(TerminableInterface::class, $httpKernel);
             $baseline = 0;
             for ($i = 0; $i < self::REQUESTS; ++$i) {
+                if ($i === 2) {
+                    // one warm-up request of each visitor ran through BypassFinals: measure the bundle, not the harness
+                    $native = NativeFileStreams::begin();
+                }
                 if ($i === self::WARMUP) {
                     gc_collect_cycles();
                     $baseline = memory_get_usage();
@@ -93,6 +99,7 @@ final class WorkerModeKeptAliveKernelTest extends TestCase
             self::assertSame(self::REQUESTS, (int) $em->getConnection()->fetchOne('SELECT COUNT(*) FROM nowo_http_log_entry'));
             self::assertSame(0, $em->getUnitOfWork()->size());
         } finally {
+            NativeFileStreams::end($native);
             $kernel->shutdown();
         }
     }

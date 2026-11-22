@@ -14,6 +14,7 @@ use Symfony\Component\Form\Extension\Core\Type\DateTimeType;
 use Symfony\Component\Form\Extension\Core\Type\IntegerType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormFactoryBuilder;
+use Symfony\Component\Translation\TranslatableMessage;
 
 use function array_keys;
 
@@ -79,8 +80,12 @@ final class HttpLogFilterTypeTest extends TestCase
             ['q', 'method', 'statusCode', 'clientIp', 'path', 'routeName', 'bodyContentType', 'createdFrom', 'createdTo'],
             array_keys($form->all()),
         );
-        self::assertSame('filter.any', $form->get('method')->getConfig()->getOption('placeholder'));
-        self::assertSame('filter.any', $form->get('bodyContentType')->getConfig()->getOption('placeholder'));
+        $method = $form->get('method')->getConfig()->getOption('placeholder');
+        self::assertInstanceOf(TranslatableMessage::class, $method);
+        self::assertSame(['filter.any_method', 'NowoHttpLogBundle'], [$method->getMessage(), $method->getDomain()]);
+        $body = $form->get('bodyContentType')->getConfig()->getOption('placeholder');
+        self::assertInstanceOf(TranslatableMessage::class, $body);
+        self::assertSame(['filter.any_body_type', 'NowoHttpLogBundle'], [$body->getMessage(), $body->getDomain()]);
         self::assertFalse($form->get('createdFrom')->getConfig()->getOption('with_seconds'));
         self::assertSame('datetime-local', $form->createView()['createdTo']->vars['type']);
     }

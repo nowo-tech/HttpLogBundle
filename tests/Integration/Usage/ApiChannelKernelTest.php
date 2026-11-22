@@ -16,6 +16,7 @@ use Nowo\HttpLogBundle\Tests\Kernel\TestRequestContextResolver;
 use Nowo\HttpLogBundle\Tests\Kernel\UsageKernel;
 use Nowo\HttpLogBundle\Tests\Kernel\UsageMockResponses;
 use Nowo\HttpLogBundle\Tests\Support\CollectingLogger;
+use Nowo\HttpLogBundle\Tests\Support\NativeFileStreams;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -28,6 +29,7 @@ use function array_column;
 use function array_map;
 use function base64_encode;
 use function file_exists;
+use function gc_collect_cycles;
 use function implode;
 use function intdiv;
 use function json_encode;
@@ -219,17 +221,23 @@ final class ApiChannelKernelTest extends TestCase
     public function noTenantOrCredentialLeaksAcrossAThousandRequestsInOneKernel(): void
     {
         [$kernel, $container] = $this->boot(['channels' => ['api' => ['path_prefixes' => ['/api']]], 'rollup' => ['enabled' => false]] + self::CONFIG);
+        $native               = false;
 
         try {
             $context = $container->get(HttpLogContext::class);
             self::assertInstanceOf(HttpLogContext::class, $context);
             $memory = 0;
             for ($i = 0; $i < 1000; ++$i) {
+                if ($i === 2) {
+                    // one warm-up request of each kind ran through BypassFinals: measure the bundle, not the harness
+                    $native = NativeFileStreams::begin();
+                }
                 $headers = $i % 2 === 0 ? ['HTTP_X_TEST_ORG' => 'org-' . $i, 'HTTP_AUTHORIZATION' => 'Bearer ' . str_repeat('x', 10 + $i % 7)] : [];
                 $this->request($kernel, '/api/sync', $headers);
                 self::assertSame(0, $context->depth());
                 $container->get('services_resetter')->reset();
                 if ($i === 100) {
+                    gc_collect_cycles();
                     $memory = memory_get_usage();
                 }
             }
@@ -243,8 +251,10 @@ final class ApiChannelKernelTest extends TestCase
                     self::assertNull($row['credential_id']);
                 }
             }
+            gc_collect_cycles();
             self::assertLessThan(4 * 1024 * 1024, memory_get_usage() - $memory, 'memory flat');
         } finally {
+            NativeFileStreams::end($native);
             $kernel->shutdown();
         }
     }

@@ -8,6 +8,20 @@
 #}
 {% extends '@NowoUiKit/page/list.html.twig' %}
 
+{#
+  1.25 (opt-in, the default keeps the 1.24 output): web_ui.filter_actions: filter_bar -> `filter_actions` is 'filter_bar': the
+  filters render as a UiKit filter bar with the `_filter_actions` partial (Filter + Clear), see admin/_filter_bar.html.twig.
+  The header actions (export, purge) are always `page.header.actions`: a host layout with the UiKit compact header
+  and compact_actions `bar` takes them into its top bar; this template renders no menu of its own.
+#}
+{% block nowo_ui_list_filters %}
+    {% if page.filters and filter_actions|default('scaffold') == 'filter_bar' %}
+        {{ include('@NowoHttpLogBundle/admin/_filter_bar.html.twig', {page: page, region: 'filters', bundle: page.bundle}, false) }}
+    {% else %}
+        {{ parent() }}
+    {% endif %}
+{% endblock %}
+
 {% block nowo_ui_list_row %}
     {%- set _b = page.bundle -%}
     {%- set _cell = nowo_ui_class('table_cell', _b) -%}

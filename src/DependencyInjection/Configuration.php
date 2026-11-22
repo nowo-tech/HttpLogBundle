@@ -9,6 +9,7 @@ use Nowo\HttpLogBundle\Enum\CssFramework;
 use Nowo\HttpLogBundle\Enum\ExportFormat;
 use Nowo\HttpLogBundle\Inbound\HttpRequestContextFactory;
 use Nowo\HttpLogBundle\View\AdminChrome;
+use Nowo\HttpLogBundle\View\AdminPages;
 use Nowo\TransactionDoctrine\Symfony\Conflict\ConflictResponsePolicy;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\NodeDefinition;
@@ -357,6 +358,16 @@ final class Configuration implements ConfigurationInterface
                             ->info('Deprecated, no effect: the UiKit layout (or the host layout) loads nowo-ui.css.')
                             ->setDeprecated(self::PACKAGE, '1.8', 'The "%path%.%node%" option is deprecated and has no effect: the admin layout loads nowo-ui.css.')
                             ->defaultTrue()
+                        ->end()
+                        ->enumNode('header_actions')
+                            ->info('1.25: how the list page presents its header actions (export, download, purge; always `page.header.actions`, Purge last with its confirmation). toolbar (default, the 1.24 output): one button per action in the page header. split: UiKit split header (needs nowo-tech/ui-kit-bundle >= 2.21) - the actions go in the square "more" menu. With the UiKit compact header and compact_actions `bar` the host takes `page.header.actions` into its top bar and the page header leaves them out; the bundle renders no menu of its own.')
+                            ->values([AdminPages::HEADER_ACTIONS_TOOLBAR, AdminPages::HEADER_ACTIONS_SPLIT])
+                            ->defaultValue(AdminPages::HEADER_ACTIONS_TOOLBAR)
+                        ->end()
+                        ->enumNode('filter_actions')
+                            ->info('1.25: scaffold (default, the 1.24 output): the filter row of the UiKit list scaffold. filter_bar: the filters render as a UiKit `.nowo-ui-filter-bar` whose Filter + Clear buttons come from the UiKit `_filter_actions` partial (Clear is always shown). A host that sets web_ui.templates.filter keeps the scaffold row.')
+                            ->values([AdminPages::FILTER_ACTIONS_SCAFFOLD, AdminPages::FILTER_ACTIONS_FILTER_BAR])
+                            ->defaultValue(AdminPages::FILTER_ACTIONS_SCAFFOLD)
                         ->end()
                         ->booleanNode('header_actions_in_layout')
                             ->info('Deprecated, no effect: header actions are part of the page header the layout renders (nowo_ui_page_header).')
