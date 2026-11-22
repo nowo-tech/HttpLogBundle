@@ -14,6 +14,7 @@ use Nowo\HttpLogBundle\Tests\Kernel\DddHostContextResolver;
 use Nowo\HttpLogBundle\Tests\Kernel\DddHostEntryListener;
 use Nowo\HttpLogBundle\Tests\Kernel\UsageKernel;
 use Nowo\HttpLogBundle\Tests\Kernel\UsageMockResponses;
+use Nowo\HttpLogBundle\Tests\Support\NativeFileStreams;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -88,6 +89,7 @@ final class DddHostKernelTest extends TestCase
     public function alternatingTenantsNeverLeakWithTheResetterOff(): void
     {
         [$kernel, $container] = $this->boot();
+        $native               = false;
 
         try {
             $listener = $container->get(DddHostEntryListener::class);
@@ -97,6 +99,10 @@ final class DddHostKernelTest extends TestCase
 
             $memory = 0;
             for ($i = 0; $i < self::ITERATIONS; ++$i) {
+                if ($i === 4) {
+                    // one warm-up request of each kind ran through BypassFinals: measure the bundle, not the harness
+                    $native = NativeFileStreams::begin();
+                }
                 // even: org-a with a credential; odd: org-b, or no tenant at all every fourth request
                 $server = match ($i % 4) {
                     0, 2    => ['HTTP_X_TEST_ORG' => 'org-a', 'HTTP_AUTHORIZATION' => 'Bearer SEED14placeholder'],
@@ -129,6 +135,7 @@ final class DddHostKernelTest extends TestCase
             gc_collect_cycles();
             self::assertLessThan(self::MEMORY_MARGIN, memory_get_usage() - $memory, 'memory flat');
         } finally {
+            NativeFileStreams::end($native);
             $kernel->shutdown();
         }
     }
