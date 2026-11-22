@@ -151,12 +151,12 @@ nowo_http_log:
 ```yaml
 nowo_http_log:
     web_ui:
-        header_actions: split        # toolbar (default) | split | page_actions
+        header_actions: split        # toolbar (default) | split
         filter_actions: filter_bar   # scaffold (default) | filter_bar
 ```
 
 - `split`: UiKit split header (needs UiKit >= 2.21): Export and *Purge old entries* go in the square more menu, Purge last, with its confirmation dialog.
-- `page_actions`: the header carries no buttons; the list prints the same actions through the UiKit `page_actions` menu under the header. The list is also the `page_actions` template variable (list of `Nowo\UiKitBundle\View\Action`) for a host layout that places the menu itself.
+- The header actions are always `page.header.actions` (`View\Action`, Purge last, with its confirmation). With the UiKit compact header and `compact_actions: bar` the host takes them into its top bar and the page header leaves them out; the bundle renders no menu of its own.
 - `filter_bar`: the filters render as a UiKit filter bar and Filter + Clear come from `_filter_actions` (Clear is always shown). A host `web_ui.templates.filter` partial is not used in this mode.
 
 The method, body type and channel selects show a named empty option (*Any method*, *Any body type*, *Any channel*) and every field keeps its label.

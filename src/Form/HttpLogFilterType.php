@@ -11,6 +11,7 @@ use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\DateTimeType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Component\Translation\TranslatableMessage;
 
 /**
  * @extends AbstractType<array<string, mixed>>
@@ -29,7 +30,7 @@ final class HttpLogFilterType extends AbstractType
             $this->addChoiceField('method', [
                 'required'    => false,
                 'label'       => 'filter.method',
-                'placeholder' => 'filter.any_method',
+                'placeholder' => new TranslatableMessage('filter.any_method', [], 'NowoHttpLogBundle'),
                 // HTTP methods are literals: not looked up in the bundle domain (REQ: no profiler missing messages).
                 'choice_translation_domain' => false,
                 'choices'                   => [
@@ -49,7 +50,7 @@ final class HttpLogFilterType extends AbstractType
             $this->addChoiceField('bodyContentType', [
                 'required'    => false,
                 'label'       => 'filter.body_content_type',
-                'placeholder' => 'filter.any_body_type',
+                'placeholder' => new TranslatableMessage('filter.any_body_type', [], 'NowoHttpLogBundle'),
                 // Body types are enum values (json, xml…), not translation keys.
                 'choice_translation_domain' => false,
                 'choices'                   => array_combine(
@@ -87,7 +88,7 @@ final class HttpLogFilterType extends AbstractType
             $this->addChoiceField('channel', [
                 'required'    => false,
                 'label'       => 'filter.channel',
-                'placeholder' => 'filter.any_channel',
+                'placeholder' => new TranslatableMessage('filter.any_channel', [], 'NowoHttpLogBundle'),
                 // Channel names are literals (web, outbound, mailer), not translation keys.
                 'choice_translation_domain' => false,
                 'choices'                   => array_combine($channels, $channels),

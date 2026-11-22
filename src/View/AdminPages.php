@@ -67,9 +67,6 @@ final readonly class AdminPages
     /** `web_ui.header_actions`: UiKit split header (square "more" menu, destructive Purge last). */
     public const HEADER_ACTIONS_SPLIT = 'split';
 
-    /** `web_ui.header_actions`: the actions leave the page header and render as UiKit `page_actions` items. */
-    public const HEADER_ACTIONS_PAGE_ACTIONS = 'page_actions';
-
     /** `web_ui.filter_actions`: the filter row of the UiKit list scaffold (default). */
     public const FILTER_ACTIONS_SCAFFOLD = 'scaffold';
 
@@ -149,7 +146,7 @@ final readonly class AdminPages
             new PageHeader(
                 $this->label('admin.index.title'),
                 $this->label('admin.index.total', ['%count%' => $totalCapped ? $total . '+' : $total]),
-                $mode === self::HEADER_ACTIONS_PAGE_ACTIONS ? [] : $actions,
+                $actions,
                 actionsLayout: $mode === self::HEADER_ACTIONS_SPLIT ? 'split' : 'toolbar',
             ),
             $columns,
@@ -171,9 +168,8 @@ final readonly class AdminPages
     }
 
     /**
-     * The header actions of the list page: export per enabled format, downloads of finished background exports and
-     * purge (UiKit confirm dialog). In `web_ui.header_actions: page_actions` mode the page header carries none of
-     * them and the template renders this list through the UiKit `page_actions` menu.
+     * The header actions of the list page (`page.header.actions`): export per enabled format, downloads of finished
+     * background exports and purge last (UiKit confirm dialog).
      *
      * @param array<string, FormView> $exportForms
      * @param list<array{name: string, format: ExportFormat, size: int, createdAt: DateTimeImmutable}> $downloads
@@ -226,7 +222,7 @@ final readonly class AdminPages
     {
         $mode = $this->webUi['header_actions'] ?? self::HEADER_ACTIONS_TOOLBAR;
 
-        return $mode === self::HEADER_ACTIONS_SPLIT || $mode === self::HEADER_ACTIONS_PAGE_ACTIONS ? $mode : self::HEADER_ACTIONS_TOOLBAR;
+        return $mode === self::HEADER_ACTIONS_SPLIT ? $mode : self::HEADER_ACTIONS_TOOLBAR;
     }
 
     /** `web_ui.filter_actions` (scaffold when unset or unknown). */

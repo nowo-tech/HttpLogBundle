@@ -119,13 +119,13 @@ final class ConfigurationTest extends TestCase
     public function testHeaderAndFilterActionsAcceptOnlyTheirModes(): void
     {
         $config = (new Processor())->processConfiguration(new Configuration(), [[
-            'web_ui' => ['header_actions' => 'page_actions', 'filter_actions' => 'filter_bar'],
+            'web_ui' => ['header_actions' => 'split', 'filter_actions' => 'filter_bar'],
         ]]);
-        self::assertSame('page_actions', $config['web_ui']['header_actions']);
+        self::assertSame('split', $config['web_ui']['header_actions']);
         self::assertSame('filter_bar', $config['web_ui']['filter_actions']);
 
         $this->expectException(InvalidConfigurationException::class);
-        (new Processor())->processConfiguration(new Configuration(), [['web_ui' => ['header_actions' => 'floating']]]);
+        (new Processor())->processConfiguration(new Configuration(), [['web_ui' => ['header_actions' => 'page_actions']]]);
     }
 
     public function testPathPrefixTrailingSlashIsTrimmed(): void

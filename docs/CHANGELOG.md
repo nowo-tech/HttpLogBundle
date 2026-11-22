@@ -60,13 +60,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `web_ui.header_actions` (`toolbar` default, `split`, `page_actions`): `split` renders the list header through the UiKit split header (Export and Purge in the square more menu, Purge last, confirmation kept); `page_actions` drops the header buttons and prints them as `View\Action` items of the UiKit `page_actions` menu (also the `page_actions` template variable). Default output unchanged.
+- `web_ui.header_actions` (`toolbar` default, `split`): `split` renders the list header through the UiKit split header (Export and Purge in the square more menu, Purge last, confirmation kept). The actions stay `page.header.actions`, so a host with the UiKit compact header (`compact_actions: bar`) takes them into its top bar. Default output unchanged.
 - `web_ui.filter_actions` (`scaffold` default, `filter_bar`): `filter_bar` renders the filters as a UiKit `.nowo-ui-filter-bar` with the `_filter_actions` partial (Filter + Clear, Clear always shown).
 - New translation keys `filter.any_method`, `filter.any_body_type`, `filter.any_channel`, `filter.client_ip_placeholder` (all 7 locales).
 
 ### Changed
 
-- The method, body type and channel selects now offer a named empty option (Any method, ...) and the client IP field has a placeholder, so no filter field is an unlabelled box. Requires `nowo-tech/ui-kit-bundle` ^2.27.
+- The method, body type and channel selects now offer a named empty option (Any method, ...) and the client IP field has a placeholder, so no filter field is an unlabelled box. Requires `nowo-tech/ui-kit-bundle` ^2.21.
+- The method, body type and channel placeholders are `TranslatableMessage`s in the bundle domain: the choice placeholder is no longer left untranslated by `choice_translation_domain: false`.
 
 ## [1.24.0] - 2026-11-21
 

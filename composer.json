@@ -39,7 +39,7 @@
         "nowo-tech/form-kit-bundle": "^2.10",
         "nowo-tech/transaction-contract": "^1.0",
         "nowo-tech/transaction-doctrine": "^1.8.1",
-        "nowo-tech/ui-kit-bundle": "^2.27",
+        "nowo-tech/ui-kit-bundle": "^2.21",
         "psr/clock": "^1.0",
         "psr/event-dispatcher": "^1.0",
         "psr/log": "^1 || ^2 || ^3",

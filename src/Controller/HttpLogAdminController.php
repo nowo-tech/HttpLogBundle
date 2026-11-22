@@ -164,11 +164,8 @@ final class HttpLogAdminController extends AbstractController
                 $result['cursor'],
             ),
             'criteria' => $criteria,
-            // 1.25: web_ui.filter_actions / web_ui.header_actions (page_actions: the list of View\Action items)
+            // 1.25: web_ui.filter_actions
             'filter_actions' => $pages->filterActionsMode(),
-            'page_actions'   => $pages->headerActionsMode() === AdminPages::HEADER_ACTIONS_PAGE_ACTIONS
-                ? $pages->headerActions($exportForms, $purgeForm, $canExport, $canPurge, $downloads)
-                : [],
         ]);
     }
 

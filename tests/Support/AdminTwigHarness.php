@@ -44,6 +44,7 @@ use Twig\Extra\String\StringExtension;
 use Twig\Loader\FilesystemLoader;
 use Twig\RuntimeLoader\FactoryRuntimeLoader;
 
+use function array_unique;
 use function dirname;
 
 /**
@@ -62,11 +63,14 @@ final readonly class AdminTwigHarness
 
     private UrlGenerator $router;
 
-    public function __construct()
+    public function __construct(string $locale = 'en')
     {
-        $this->translator = new Translator('en');
+        $this->translator = new Translator($locale, null, null, false);
+        $this->translator->setFallbackLocales(['en']);
         $this->translator->addLoader('yaml', new YamlFileLoader());
-        $this->translator->addResource('yaml', dirname(__DIR__, 2) . '/src/Resources/translations/NowoHttpLogBundle.en.yaml', 'en', 'NowoHttpLogBundle');
+        foreach (array_unique(['en', $locale]) as $catalogueLocale) {
+            $this->translator->addResource('yaml', dirname(__DIR__, 2) . '/src/Resources/translations/NowoHttpLogBundle.' . $catalogueLocale . '.yaml', $catalogueLocale, 'NowoHttpLogBundle');
+        }
         $this->translator->addResource('yaml', dirname(__DIR__, 2) . '/vendor/nowo-tech/ui-kit-bundle/src/Resources/translations/NowoUiKitBundle.en.yaml', 'en', 'NowoUiKitBundle');
 
         $filterType = new HttpLogFilterType();

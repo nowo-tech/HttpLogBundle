@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\Tests\Integration;
 
-use Nowo\HttpLogBundle\Form\HttpLogExportType;
-use Nowo\HttpLogBundle\Form\HttpLogPurgeType;
 use Nowo\HttpLogBundle\Tests\Support\AdminPageFixtures;
 use Nowo\HttpLogBundle\Tests\Support\AdminTwigHarness;
 use Nowo\HttpLogBundle\View\AdminPages;
-use Nowo\UiKitBundle\View\Action;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -17,7 +14,7 @@ use function substr_count;
 
 /**
  * 1.25 (Beacon UX review): translated, named "Any ..." options, the opt-in UiKit filter bar with `_filter_actions`,
- * the opt-in split header (Purge in the more menu) and the opt-in `page_actions` menu. Defaults keep the 1.24 output.
+ * the opt-in split header (Purge in the more menu) The header actions are always `page.header.actions`. Defaults keep the 1.24 output.
  */
 final class AdminPagesUx1171Test extends TestCase
 {
@@ -33,6 +30,24 @@ final class AdminPagesUx1171Test extends TestCase
             self::assertStringContainsString('<label for="http_log_filter_' . $field . '">' . $label . '</label>', $html);
         }
         self::assertStringContainsString('placeholder="203.0.113.7"', $html);
+    }
+
+    #[Test]
+    public function thePlaceholdersAreTranslatedInTheRenderedFormInEnglishAndSpanish(): void
+    {
+        $expected = [
+            'en' => ['Any method', 'Any body type'],
+            'es' => ['Cualquier método', 'Cualquier tipo de cuerpo'],
+        ];
+        foreach ($expected as $locale => [$method, $body]) {
+            $html = (new AdminTwigHarness($locale))->createEnvironment()->render('@NowoHttpLogBundle/admin/index.html.twig', [
+                'page' => AdminPageFixtures::listPage(AdminPageFixtures::entries(), 3), 'criteria' => [],
+            ]);
+
+            self::assertStringContainsString('<option value="">' . $method . '</option>', $html, $locale);
+            self::assertStringContainsString('<option value="">' . $body . '</option>', $html, $locale);
+            self::assertStringNotContainsString('filter.any', $html, $locale);
+        }
     }
 
     #[Test]
@@ -82,32 +97,6 @@ final class AdminPagesUx1171Test extends TestCase
         self::assertStringContainsString('name="_token" value="token-http_log_purge"', $html);
         // destructive last in the menu: Purge after the exports
         self::assertGreaterThan(strpos($html, 'Export JSON'), strpos($html, 'Purge old entries'));
-    }
-
-    #[Test]
-    public function pageActionsModeDropsTheHeaderButtonsAndRendersTheUiKitPageActionsMenu(): void
-    {
-        $webUi = ['header_actions' => AdminPages::HEADER_ACTIONS_PAGE_ACTIONS];
-        $pages = AdminPageFixtures::pages($webUi);
-        $page  = AdminPageFixtures::listPage(AdminPageFixtures::entries(), 3, false, $webUi);
-        $forms = (new AdminTwigHarness())->formFactory();
-        $items = $pages->headerActions(
-            [
-                'csv' => $forms->create(HttpLogExportType::class, null, ['action' => '/admin/http-log/export', 'format' => 'csv', 'criteria' => []])->createView(),
-            ],
-            $forms->create(HttpLogPurgeType::class, null, ['action' => '/admin/http-log/purge'])->createView(),
-        );
-
-        self::assertSame([], $page->header->actions);
-        self::assertContainsOnlyInstancesOf(Action::class, $items);
-        self::assertCount(2, $items);
-
-        $html = $this->render(['page' => $page, 'page_actions' => $items]);
-
-        self::assertStringContainsString('nowo-http-log-page-actions', $html);
-        self::assertStringContainsString('data-nowo-ui-page-actions', $html);
-        self::assertStringContainsString('Export CSV', $html);
-        self::assertStringContainsString('Purge HTTP log entries matching the retention policy?', $html);
     }
 
     #[Test]
