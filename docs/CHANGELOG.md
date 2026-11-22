@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.25.0] - 2026-11-22](#1250---2026-11-22)
 - [[1.24.0] - 2026-11-21](#1240---2026-11-21)
 - [[1.23.1] - 2026-11-21](#1231---2026-11-21)
 - [[1.23.0] - 2026-11-19](#1230---2026-11-19)
@@ -58,6 +59,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-11-22
+
 ### Added
 
 - `web_ui.header_actions` (`toolbar` default, `split`): `split` renders the list header through the UiKit split header (Export and Purge in the square more menu, Purge last, confirmation kept). The actions stay `page.header.actions`, so a host with the UiKit compact header (`compact_actions: bar`) takes them into its top bar. Default output unchanged.
@@ -68,6 +71,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The method, body type and channel selects now offer a named empty option (Any method, ...) and the client IP field has a placeholder, so no filter field is an unlabelled box. Requires `nowo-tech/ui-kit-bundle` ^2.21.
 - The method, body type and channel placeholders are `TranslatableMessage`s in the bundle domain: the choice placeholder is no longer left untranslated by `choice_translation_domain: false`.
+
+[1.25.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.25.0
 
 ## [1.24.0] - 2026-11-21
 
