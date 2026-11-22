@@ -2,9 +2,9 @@
 
 **Baseline spec**: [`spec.md`](spec.md)  
 **Package**: `nowo-tech/http-log-bundle`  
-**Last audited**: 2026-11-19 (concurrency, REQ-RUNTIME-003)
+**Last audited**: 2026-11-22 (1.23-1.25 units: purge conflict, DDD host mapping, filter bar)
 
-Maps **100%** of production files under `src/` (135 units; audit: `git ls-files src | wc -l` → 135). Test and demo trees are out of Packagist scope unless promoted in the spec.
+Maps **100%** of production files under `src/` (140 units; audit: `git ls-files src | wc -l` → 140). Test and demo trees are out of Packagist scope unless promoted in the spec.
 
 ## Bundle entry
 
@@ -120,6 +120,7 @@ Maps **100%** of production files under `src/` (135 units; audit: `git ls-files 
 | `Resources/views/admin/index.html.twig` | List page | FR-ADM-001, FR-TWIG-001 |
 | `Resources/views/admin/show.html.twig` | Detail page | FR-ADM-001, FR-TWIG-001 |
 | `Resources/views/admin/_filter.html.twig` | Filter partial | FR-ADM-001, FR-TWIG-001, FR-CHR-001 |
+| `Resources/views/admin/_filter_bar.html.twig` | UiKit filter bar of the list page (`web_ui.filter_actions: filter_bar`, 1.25) | FR-ADM-001, FR-TWIG-001, FR-UI-005 |
 | `View/AdminPages.php` | Admin page view models (UiKit) | FR-UI-003, 004: FR-UIC-002 |
 | `Resources/public/css/nowo-http-log-admin.css` | Admin payload stylesheet | FR-UI-003, 004: FR-UIC-001 |
 
@@ -241,6 +242,9 @@ Maps **100%** of production files under `src/` (135 units; audit: `git ls-files 
 | `Doctrine/ExactColumnsCollationListener.php` | Applies the exact collation to identifier columns of the entry table on MySQL / MariaDB | FR-DB-001 |
 | `Doctrine/PathPrefixColumnListener.php` | Maps `path_prefix` and its index with `web_ui.filter_match: prefix` | FR-DB-002 |
 | `Doctrine/UsageColumnsListener.php` | Maps the usage columns and indexes only when a usage channel is enabled | FR-DB-003 |
+| `DependencyInjection/Compiler/EntityManagerMappings.php` | Reads DoctrineBundle's compiled definitions: which entity managers map the bundle entities and their connection (shared by the commit-tracking and entity-manager passes) | FR-DB-004, FR-CONC-003 |
+| `DependencyInjection/Compiler/HttpLogEntityManagerPass.php` | 1.24: with `doctrine.entity_manager` set, the build fails unless that manager exists and is the only one mapping the bundle entities | FR-DB-004 |
+| `Resources/config/doctrine/HttpLogEntry.orm.xml` | 1.24: XML twin of the `HttpLogEntry` attributes (`doctrine.mapping_type: xml` or a host that maps the entity itself) | FR-DB-004 |
 
 ## Admin list, export storage & access
 
@@ -259,6 +263,7 @@ Maps **100%** of production files under `src/` (135 units; audit: `git ls-files 
 | `Doctrine/LogWriteUnit.php` | Auto-commit, own transaction (runner, replays) or savepoint inside the host's transaction for every bundle write | FR-CONC-001 |
 | `EventSubscriber/HttpLogConflictListener.php` | 409 / 503 + `CONFLICT_001` / `CONFLICT_002` for lock conflicts on the admin routes | FR-CONC-002 |
 | `DependencyInjection/Compiler/HttpLogCommitTrackingPass.php` | Scopes the commit-tracking middleware to the bundle's connection, or reuses transaction-doctrine's ledger | FR-CONC-003 |
+| `Doctrine/PurgeConflict.php` | 1.23: a purge that met a lock conflict after deleting rows is rethrown as `ConcurrencyConflict` with `committed: true` (CONFLICT_002), no middleware needed | FR-CONC-004 |
 
 ## Coverage summary
 
@@ -276,7 +281,7 @@ Maps **100%** of production files under `src/` (135 units; audit: `git ls-files 
 | CLI | 2 |
 | Symfony config (`src/Resources/config/`) | 3 |
 | Translations (`src/Resources/translations/`) | 7 |
-| Twig views (`src/Resources/views/`) | 5 |
+| Twig views (`src/Resources/views/`) | 6 |
 | Outbound capture (HttpClient) | 10 |
 | Mailer capture | 2 |
 | Named inbound channels | 15 |
@@ -285,7 +290,7 @@ Maps **100%** of production files under `src/` (135 units; audit: `git ls-files 
 | Usage read API | 8 |
 | Daily rollup | 6 |
 | Privacy (GDPR) | 15 |
-| Database exactness & optional mappings | 4 |
+| Database exactness & optional mappings | 7 |
 | Admin list, export storage & access | 5 |
-| Concurrency | 3 |
-| **Total** | **135** |
+| Concurrency | 4 |
+| **Total** | **140** |

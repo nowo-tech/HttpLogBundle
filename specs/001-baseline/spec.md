@@ -178,9 +178,11 @@ As a maintainer, I run the Symfony 8 FrankenPHP demo and CI smoke checks to veri
 | FR-DB-001 | On MySQL / MariaDB the identifier columns of the entry table use a binary NO PAD collation so filters and indexes do not fold case, accents or trailing spaces |
 | FR-DB-002 | With `web_ui.filter_match: prefix`, a `path_prefix` column and index are mapped; other hosts keep their schema |
 | FR-DB-003 | Usage columns and indexes are mapped only when `outbound`, `mailer` or a named channel is enabled |
+| FR-DB-004 | With `doctrine.mapping_type: xml` (or `doctrine.register_mapping: false` and a host that maps the entity itself) the entry mapping is the XML twin of the attributes (same table, columns, indexes); with `doctrine.entity_manager` set the container build fails unless that manager exists and is the only one mapping the bundle entities (1.24) |
 | FR-ADM-002 | The admin list reads scalar projections and pages by keyset cursor (`?cursor=`) instead of `OFFSET` |
 | FR-EXP-002 | Background exports are written to a private directory under random names, offered only to users allowed to export (and to the channels they may see), and deleted after `export.ttl_hours` |
 | FR-UI-004 | When the access checker implements `HttpLogChannelAccessCheckerInterface`, list, entry, export and purge leave out denied channels (a denied entry gives the same 404 as a missing one) |
+| FR-UI-005 | With `web_ui.filter_actions: filter_bar` the list page draws its filters as a UiKit filter bar (`_filter_bar.html.twig`, labelled rows plus the Filter / Clear actions) (1.25) |
 | FR-SEC-001 | The container build fails when the admin UI is enabled without form CSRF protection |
 
 ### Concurrency (`FR-CONC-*`, REQ-RUNTIME-003, 1.22)
@@ -190,6 +192,7 @@ As a maintainer, I run the Symfony 8 FrankenPHP demo and CI smoke checks to veri
 | FR-CONC-001 | Every bundle write runs in auto-commit, in one transaction of its own (multi-statement units, through transaction-doctrine's connection runner), or in a uniquely named savepoint inside the host's open transaction; a failed write never aborts the host's transaction, and a lost savepoint marks it rollback-only |
 | FR-CONC-002 | A lock conflict on the bundle's admin routes answers 409 (or the configured 503) with `X-Conflict-Code: CONFLICT_001` and `Retry-After` when nothing was committed, `CONFLICT_002` without `Retry-After` otherwise; unique violations and lost connections are not mapped |
 | FR-CONC-003 | Commit tracking for `CONFLICT_002` wraps only the connection of the default entity manager, or reuses transaction-doctrine's ledger when its `commit_detection` is on |
+| FR-CONC-004 | A purge that meets a lock conflict after an earlier batch was deleted rethrows it as `ConcurrencyConflict` with `committed: true` (CONFLICT_002, no `Retry-After`); a conflict before any deletion and any other error are rethrown unchanged (1.23) |
 
 ### Internationalization (`FR-I18N-*`)
 
