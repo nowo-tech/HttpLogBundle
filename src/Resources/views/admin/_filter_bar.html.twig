@@ -1,0 +1,24 @@
+{#
+  Filter bar of the list page (web_ui.filter_actions: filter_bar, 1.25): a UiKit `.nowo-ui-filter-bar` form — every
+  filter field as a labelled row — and the UiKit `_filter_actions` partial (Filter + Clear, Clear always shown).
+
+  Variables: page (View\ListPage; page.filters is the filter FormView), region, bundle.
+  Fields keep the width tokens of page.filterFields; the input classes come from the `input` theme slot.
+#}
+{% set _b = bundle|default(page.bundle) %}
+{% set _filters = page.filters %}
+{{ form_start(_filters, {attr: {class: 'nowo-ui-filter-bar', role: 'search', 'data-nowo-ui-filters': '', 'data-nowo-ui-region': region|default('filters')}}) }}
+    {% for child in _filters %}
+        {% if not child.rendered %}
+            {% set _prefixes = child.vars.block_prefixes %}
+            {% set _attr = child.vars.attr %}
+            {% if 'checkbox' not in _prefixes and 'radio' not in _prefixes and 'hidden' not in _prefixes %}
+                {% set _attr = _attr|merge({class: ((_attr.class ?? '') ~ ' ' ~ nowo_ui_class('input', _b))|trim}) %}
+            {% endif %}
+            <div class="nowo-ui-filter-bar__field{{ 'q' == child.vars.name ? ' nowo-ui-filter-bar__field--search' }}">
+                {{ form_row(child, {attr: _attr}) }}
+            </div>
+        {% endif %}
+    {% endfor %}
+    {{ include('@NowoUiKitBundle/partials/_filter_actions.html.twig', {clear_href: path('nowo_http_log_admin_index'), submit_label: 'admin.action.filter'|trans({}, 'NowoHttpLogBundle'), framework: null}, false) }}
+{{ form_end(_filters) }}

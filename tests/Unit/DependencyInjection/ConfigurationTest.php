@@ -48,6 +48,8 @@ final class ConfigurationTest extends TestCase
         self::assertTrue($config['web_ui']['enabled']);
         self::assertSame('/admin/http-log', $config['web_ui']['path_prefix']);
         self::assertSame(CssFramework::Bootstrap5->value, $config['web_ui']['css_framework']);
+        self::assertSame('toolbar', $config['web_ui']['header_actions'], '1.25 opt-in: the 1.24 toolbar by default');
+        self::assertSame('scaffold', $config['web_ui']['filter_actions'], '1.25 opt-in: the scaffold filter row by default');
         self::assertSame(['ROLE_ADMIN'], $config['security']['access_roles']);
         self::assertFalse($config['security']['allow_unauthenticated']);
     }
@@ -112,6 +114,18 @@ final class ConfigurationTest extends TestCase
         (new Processor())->processConfiguration(new Configuration(), [[
             'web_ui' => ['path_prefix' => 'admin/http-log'],
         ]]);
+    }
+
+    public function testHeaderAndFilterActionsAcceptOnlyTheirModes(): void
+    {
+        $config = (new Processor())->processConfiguration(new Configuration(), [[
+            'web_ui' => ['header_actions' => 'page_actions', 'filter_actions' => 'filter_bar'],
+        ]]);
+        self::assertSame('page_actions', $config['web_ui']['header_actions']);
+        self::assertSame('filter_bar', $config['web_ui']['filter_actions']);
+
+        $this->expectException(InvalidConfigurationException::class);
+        (new Processor())->processConfiguration(new Configuration(), [['web_ui' => ['header_actions' => 'floating']]]);
     }
 
     public function testPathPrefixTrailingSlashIsTrimmed(): void

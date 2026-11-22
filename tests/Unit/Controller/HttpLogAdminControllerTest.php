@@ -414,6 +414,42 @@ final class HttpLogAdminControllerTest extends TestCase
     }
 
     #[Test]
+    public function indexPassesTheOptInModesAndPageActionsToTheTemplate(): void
+    {
+        $request = Request::create('/admin/http-log', 'GET');
+
+        $form = $this->createMock(FormInterface::class);
+        $form->method('isSubmitted')->willReturn(false);
+        $form->method('createView')->willReturn(new FormView());
+
+        $repository = $this->createMock(HttpLogEntryRepository::class);
+        $repository->method('findListRows')->willReturn(['items' => [], 'total' => 0, 'total_capped' => false, 'page' => 1, 'cursor' => null]);
+
+        $twig = $this->createMock(Environment::class);
+        $twig->expects(self::once())
+            ->method('render')
+            ->with(
+                '@NowoHttpLogBundle/admin/index.html.twig',
+                self::callback(static fn (array $parameters): bool => $parameters['filter_actions'] === 'filter_bar'
+                    && $parameters['page']->header->actions === []
+                    && count($parameters['page_actions']) === 3
+                    && $parameters['page_actions'][2]->confirm instanceof Confirm),
+            )
+            ->willReturn('index');
+
+        $controller = $this->createController(
+            request: $request,
+            repository: $repository,
+            formFactory: $this->createIndexFormFactory($form),
+            twig: $twig,
+            allowUnauthenticated: true,
+            webUi: ['header_actions' => 'page_actions', 'filter_actions' => 'filter_bar'],
+        );
+
+        self::assertSame('index', $controller->index($request)->getContent());
+    }
+
+    #[Test]
     public function indexHidesHeaderActionsTheUserMayNotUse(): void
     {
         $request = Request::create('/admin/http-log', 'GET');

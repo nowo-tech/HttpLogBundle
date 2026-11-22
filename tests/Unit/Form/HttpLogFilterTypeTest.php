@@ -79,8 +79,8 @@ final class HttpLogFilterTypeTest extends TestCase
             ['q', 'method', 'statusCode', 'clientIp', 'path', 'routeName', 'bodyContentType', 'createdFrom', 'createdTo'],
             array_keys($form->all()),
         );
-        self::assertSame('filter.any', $form->get('method')->getConfig()->getOption('placeholder'));
-        self::assertSame('filter.any', $form->get('bodyContentType')->getConfig()->getOption('placeholder'));
+        self::assertSame('filter.any_method', $form->get('method')->getConfig()->getOption('placeholder'));
+        self::assertSame('filter.any_body_type', $form->get('bodyContentType')->getConfig()->getOption('placeholder'));
         self::assertFalse($form->get('createdFrom')->getConfig()->getOption('with_seconds'));
         self::assertSame('datetime-local', $form->createView()['createdTo']->vars['type']);
     }

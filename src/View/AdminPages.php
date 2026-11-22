@@ -61,6 +61,21 @@ final readonly class AdminPages
 {
     public const DOMAIN = LegacyThemeBridge::BUNDLE;
 
+    /** `web_ui.header_actions`: one toolbar button per action (the 1.24 output, default). */
+    public const HEADER_ACTIONS_TOOLBAR = 'toolbar';
+
+    /** `web_ui.header_actions`: UiKit split header (square "more" menu, destructive Purge last). */
+    public const HEADER_ACTIONS_SPLIT = 'split';
+
+    /** `web_ui.header_actions`: the actions leave the page header and render as UiKit `page_actions` items. */
+    public const HEADER_ACTIONS_PAGE_ACTIONS = 'page_actions';
+
+    /** `web_ui.filter_actions`: the filter row of the UiKit list scaffold (default). */
+    public const FILTER_ACTIONS_SCAFFOLD = 'scaffold';
+
+    /** `web_ui.filter_actions`: a UiKit filter bar with the `_filter_actions` partial. */
+    public const FILTER_ACTIONS_FILTER_BAR = 'filter_bar';
+
     /**
      * @param array<string, mixed> $webUi processed `nowo_http_log.web_ui` (layout_template, deprecated attributes)
      */
@@ -95,6 +110,78 @@ final readonly class AdminPages
         bool $totalCapped = false,
         ?HttpLogListCursor $cursor = null,
     ): ListPage {
+        $mode    = $this->headerActionsMode();
+        $actions = $this->headerActions($exportForms, $purgeForm, $canExport, $canPurge, $downloads);
+
+        $columns = [
+            new Column('id', $this->label('admin.column.id'), required: true),
+            new Column('createdAt', $this->label('admin.column.created_at'), priority: 2),
+            new Column('method', $this->label('admin.column.method'), required: true),
+            new Column('path', $this->label('admin.column.path'), required: true),
+            new Column('statusCode', $this->label('admin.column.status'), required: true),
+            new Column('durationMs', $this->label('admin.column.duration'), align: 'end', priority: 2),
+            new Column('clientIp', $this->label('admin.column.client_ip'), priority: 3),
+        ];
+        $filterFields = [
+            'q'               => new FilterField('q', width: 'lg'),
+            'method'          => new FilterField('method', width: 'xs'),
+            'statusCode'      => new FilterField('statusCode', width: 'xs'),
+            'clientIp'        => new FilterField('clientIp', width: 'sm'),
+            'path'            => new FilterField('path', width: 'lg'),
+            'routeName'       => new FilterField('routeName', width: 'md'),
+            'bodyContentType' => new FilterField('bodyContentType', width: 'sm'),
+            'createdFrom'     => new FilterField('createdFrom', width: 'md'),
+            'createdTo'       => new FilterField('createdTo', width: 'md'),
+        ];
+        if ($this->usageColumns) {
+            $columns[] = new Column('channel', $this->label('admin.column.channel'), priority: 2);
+            $columns[] = new Column('provider', $this->label('admin.column.provider'), priority: 2);
+            $filterFields += [
+                'channel'        => new FilterField('channel', width: 'sm'),
+                'provider'       => new FilterField('provider', width: 'sm'),
+                'tenantKey'      => new FilterField('tenantKey', width: 'md'),
+                'projectKey'     => new FilterField('projectKey', width: 'md'),
+                'credentialKind' => new FilterField('credentialKind', width: 'sm'),
+            ];
+        }
+
+        return new ListPage(
+            new PageHeader(
+                $this->label('admin.index.title'),
+                $this->label('admin.index.total', ['%count%' => $totalCapped ? $total . '+' : $total]),
+                $mode === self::HEADER_ACTIONS_PAGE_ACTIONS ? [] : $actions,
+                actionsLayout: $mode === self::HEADER_ACTIONS_SPLIT ? 'split' : 'toolbar',
+            ),
+            $columns,
+            $entries,
+            $filters,
+            fn (HttpLogEntry|HttpLogListRow $entry): array => [
+                Action::view($this->urls->generate('nowo_http_log_admin_show', ['id' => $entry->getId()]), $this->label('admin.action.view')),
+            ],
+            // the page links carry this page's keyset position (a stale ?cursor= of the request is replaced)
+            new Pagination($page, $pageSize, $total, route: 'nowo_http_log_admin_index', query: [HttpLogListCursor::PARAM => $cursor?->toString()]),
+            new EmptyState($this->label('admin.index.empty')),
+            $filtered ? $this->urls->generate('nowo_http_log_admin_index') : null,
+            bundle: LegacyThemeBridge::BUNDLE,
+            layout: $this->layout(),
+            attributes: ['data-testid' => 'http-log-list'] + LegacyThemeBridge::pageAttributes($this->webUi, 'results'),
+            filterFields: $filterFields,
+            filtersSubmit: new Action('filter', $this->label('admin.action.filter')),
+        );
+    }
+
+    /**
+     * The header actions of the list page: export per enabled format, downloads of finished background exports and
+     * purge (UiKit confirm dialog). In `web_ui.header_actions: page_actions` mode the page header carries none of
+     * them and the template renders this list through the UiKit `page_actions` menu.
+     *
+     * @param array<string, FormView> $exportForms
+     * @param list<array{name: string, format: ExportFormat, size: int, createdAt: DateTimeImmutable}> $downloads
+     *
+     * @return list<Action>
+     */
+    public function headerActions(array $exportForms, FormView $purgeForm, bool $canExport = true, bool $canPurge = true, array $downloads = []): array
+    {
         $exportUrl = $this->urls->generate('nowo_http_log_admin_export');
         $purgeUrl  = $this->urls->generate('nowo_http_log_admin_purge');
 
@@ -131,56 +218,21 @@ final readonly class AdminPages
             visible: $canPurge,
         );
 
-        $columns = [
-            new Column('id', $this->label('admin.column.id'), required: true),
-            new Column('createdAt', $this->label('admin.column.created_at'), priority: 2),
-            new Column('method', $this->label('admin.column.method'), required: true),
-            new Column('path', $this->label('admin.column.path'), required: true),
-            new Column('statusCode', $this->label('admin.column.status'), required: true),
-            new Column('durationMs', $this->label('admin.column.duration'), align: 'end', priority: 2),
-            new Column('clientIp', $this->label('admin.column.client_ip'), priority: 3),
-        ];
-        $filterFields = [
-            'q'               => new FilterField('q', width: 'lg'),
-            'method'          => new FilterField('method', width: 'xs'),
-            'statusCode'      => new FilterField('statusCode', width: 'xs'),
-            'clientIp'        => new FilterField('clientIp', width: 'sm'),
-            'path'            => new FilterField('path', width: 'lg'),
-            'routeName'       => new FilterField('routeName', width: 'md'),
-            'bodyContentType' => new FilterField('bodyContentType', width: 'sm'),
-            'createdFrom'     => new FilterField('createdFrom', width: 'md'),
-            'createdTo'       => new FilterField('createdTo', width: 'md'),
-        ];
-        if ($this->usageColumns) {
-            $columns[] = new Column('channel', $this->label('admin.column.channel'), priority: 2);
-            $columns[] = new Column('provider', $this->label('admin.column.provider'), priority: 2);
-            $filterFields += [
-                'channel'        => new FilterField('channel', width: 'sm'),
-                'provider'       => new FilterField('provider', width: 'sm'),
-                'tenantKey'      => new FilterField('tenantKey', width: 'md'),
-                'projectKey'     => new FilterField('projectKey', width: 'md'),
-                'credentialKind' => new FilterField('credentialKind', width: 'sm'),
-            ];
-        }
+        return $actions;
+    }
 
-        return new ListPage(
-            new PageHeader($this->label('admin.index.title'), $this->label('admin.index.total', ['%count%' => $totalCapped ? $total . '+' : $total]), $actions),
-            $columns,
-            $entries,
-            $filters,
-            fn (HttpLogEntry|HttpLogListRow $entry): array => [
-                Action::view($this->urls->generate('nowo_http_log_admin_show', ['id' => $entry->getId()]), $this->label('admin.action.view')),
-            ],
-            // the page links carry this page's keyset position (a stale ?cursor= of the request is replaced)
-            new Pagination($page, $pageSize, $total, route: 'nowo_http_log_admin_index', query: [HttpLogListCursor::PARAM => $cursor?->toString()]),
-            new EmptyState($this->label('admin.index.empty')),
-            $filtered ? $this->urls->generate('nowo_http_log_admin_index') : null,
-            bundle: LegacyThemeBridge::BUNDLE,
-            layout: $this->layout(),
-            attributes: ['data-testid' => 'http-log-list'] + LegacyThemeBridge::pageAttributes($this->webUi, 'results'),
-            filterFields: $filterFields,
-            filtersSubmit: new Action('filter', $this->label('admin.action.filter')),
-        );
+    /** `web_ui.header_actions` (toolbar when unset or unknown). */
+    public function headerActionsMode(): string
+    {
+        $mode = $this->webUi['header_actions'] ?? self::HEADER_ACTIONS_TOOLBAR;
+
+        return $mode === self::HEADER_ACTIONS_SPLIT || $mode === self::HEADER_ACTIONS_PAGE_ACTIONS ? $mode : self::HEADER_ACTIONS_TOOLBAR;
+    }
+
+    /** `web_ui.filter_actions` (scaffold when unset or unknown). */
+    public function filterActionsMode(): string
+    {
+        return ($this->webUi['filter_actions'] ?? self::FILTER_ACTIONS_SCAFFOLD) === self::FILTER_ACTIONS_FILTER_BAR ? self::FILTER_ACTIONS_FILTER_BAR : self::FILTER_ACTIONS_SCAFFOLD;
     }
 
     public function showPage(HttpLogEntry $entry, FormView $deleteForm, bool $canPurge = true): ShowPage

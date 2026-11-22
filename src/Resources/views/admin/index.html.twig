@@ -8,6 +8,30 @@
 #}
 {% extends '@NowoUiKit/page/list.html.twig' %}
 
+{#
+  1.25 (opt-in, defaults keep the 1.24 output):
+    - web_ui.header_actions: page_actions -> `page_actions` (list<View\Action>: export, download, purge) renders through
+      the UiKit `page_actions` menu right under the page header (the page header carries no actions then);
+    - web_ui.filter_actions: filter_bar -> `filter_actions` is 'filter_bar': the filters render as a UiKit filter bar
+      with the `_filter_actions` partial (Filter + Clear), see admin/_filter_bar.html.twig.
+#}
+{% block nowo_ui_page_header %}
+    {{ parent() }}
+    {% if page_actions|default([]) is not empty %}
+        <div class="nowo-http-log-page-actions" data-nowo-ui-region="page-actions">
+            {{ include(nowo_ui_partial('page_actions', page.bundle), {actions: page_actions, bundle: page.bundle, nowo_ui_page_type: 'list', align: 'end'}, false) }}
+        </div>
+    {% endif %}
+{% endblock %}
+
+{% block nowo_ui_list_filters %}
+    {% if page.filters and filter_actions|default('scaffold') == 'filter_bar' %}
+        {{ include('@NowoHttpLogBundle/admin/_filter_bar.html.twig', {page: page, region: 'filters', bundle: page.bundle}, false) }}
+    {% else %}
+        {{ parent() }}
+    {% endif %}
+{% endblock %}
+
 {% block nowo_ui_list_row %}
     {%- set _b = page.bundle -%}
     {%- set _cell = nowo_ui_class('table_cell', _b) -%}

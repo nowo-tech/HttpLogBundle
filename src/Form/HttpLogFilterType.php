@@ -29,7 +29,7 @@ final class HttpLogFilterType extends AbstractType
             $this->addChoiceField('method', [
                 'required'    => false,
                 'label'       => 'filter.method',
-                'placeholder' => 'filter.any',
+                'placeholder' => 'filter.any_method',
                 // HTTP methods are literals: not looked up in the bundle domain (REQ: no profiler missing messages).
                 'choice_translation_domain' => false,
                 'choices'                   => [
@@ -43,13 +43,13 @@ final class HttpLogFilterType extends AbstractType
                 ],
             ]);
             $this->addIntegerField('statusCode', ['required' => false, 'label' => 'filter.status_code', 'attr' => ['min' => 100, 'max' => 599, 'placeholder' => 'filter.status_code_placeholder']]);
-            $this->addTextField('clientIp', ['required' => false, 'label' => 'filter.client_ip']);
+            $this->addTextField('clientIp', ['required' => false, 'label' => 'filter.client_ip', 'attr' => ['placeholder' => 'filter.client_ip_placeholder']]);
             $this->addTextField('path', ['required' => false, 'label' => 'filter.path', 'attr' => ['placeholder' => 'filter.path_placeholder']]);
             $this->addTextField('routeName', ['required' => false, 'label' => 'filter.route_name', 'attr' => ['placeholder' => 'filter.route_name_placeholder']]);
             $this->addChoiceField('bodyContentType', [
                 'required'    => false,
                 'label'       => 'filter.body_content_type',
-                'placeholder' => 'filter.any',
+                'placeholder' => 'filter.any_body_type',
                 // Body types are enum values (json, xml…), not translation keys.
                 'choice_translation_domain' => false,
                 'choices'                   => array_combine(
@@ -87,7 +87,7 @@ final class HttpLogFilterType extends AbstractType
             $this->addChoiceField('channel', [
                 'required'    => false,
                 'label'       => 'filter.channel',
-                'placeholder' => 'filter.any',
+                'placeholder' => 'filter.any_channel',
                 // Channel names are literals (web, outbound, mailer), not translation keys.
                 'choice_translation_domain' => false,
                 'choices'                   => array_combine($channels, $channels),

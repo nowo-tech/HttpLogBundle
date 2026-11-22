@@ -139,25 +139,36 @@ final class HttpLogAdminController extends AbstractController
             }
         }
 
+        $pages     = $this->pages();
+        $purgeForm = $this->createForm(HttpLogPurgeType::class, null, [
+            'action' => $this->generateUrl('nowo_http_log_admin_purge'),
+        ])->createView();
+        $canExport = $this->canExport();
+        $canPurge  = $this->canPurge();
+        $downloads = $canExport ? $this->readyExports() : [];
+
         return $this->render($this->template('index'), [
-            'page' => $this->pages()->listPage(
+            'page' => $pages->listPage(
                 $result['items'],
                 $result['total'],
                 $page,
                 $this->pageSize,
                 $filterForm->createView(),
                 $exportForms,
-                $this->createForm(HttpLogPurgeType::class, null, [
-                    'action' => $this->generateUrl('nowo_http_log_admin_purge'),
-                ])->createView(),
+                $purgeForm,
                 $criteria !== [],
-                $this->canExport(),
-                $this->canPurge(),
-                $this->canExport() ? $this->readyExports() : [],
+                $canExport,
+                $canPurge,
+                $downloads,
                 $result['total_capped'],
                 $result['cursor'],
             ),
             'criteria' => $criteria,
+            // 1.25: web_ui.filter_actions / web_ui.header_actions (page_actions: the list of View\Action items)
+            'filter_actions' => $pages->filterActionsMode(),
+            'page_actions'   => $pages->headerActionsMode() === AdminPages::HEADER_ACTIONS_PAGE_ACTIONS
+                ? $pages->headerActions($exportForms, $purgeForm, $canExport, $canPurge, $downloads)
+                : [],
         ]);
     }
 
