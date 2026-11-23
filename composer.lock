@@ -197,8 +197,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-11-14T18:08:09+00:00",
-            "published-time": "2026-11-14T18:18:19+00:00"
+            "time": "2026-11-14T18:08:09+00:00"
         },
         {
             "name": "doctrine/deprecations",
@@ -246,8 +245,7 @@
                 "issues": "https://github.com/doctrine/deprecations/issues",
                 "source": "https://github.com/doctrine/deprecations/tree/1.2.0"
             },
-            "time": "2026-11-11T10:04:49+00:00",
-            "published-time": "2026-11-11T10:12:24+00:00"
+            "time": "2026-11-11T10:04:49+00:00"
         },
         {
             "name": "doctrine/doctrine-bundle",
@@ -462,8 +460,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-01-29T07:11:08+00:00",
-            "published-time": "2026-01-29T07:11:33+00:00"
+            "time": "2026-01-29T07:11:08+00:00"
         },
         {
             "name": "doctrine/inflector",
@@ -1125,8 +1122,7 @@
                 "issues": "https://github.com/nowo-tech/transaction-contract/issues",
                 "source": "https://github.com/nowo-tech/transaction-contract"
             },
-            "time": "2026-11-15T08:04:23+00:00",
-            "published-time": "2026-11-15T08:05:10+00:00"
+            "time": "2026-11-15T08:04:23+00:00"
         },
         {
             "name": "nowo-tech/transaction-doctrine",
@@ -1236,21 +1232,20 @@
                 "issues": "https://github.com/nowo-tech/transaction-doctrine/issues",
                 "source": "https://github.com/nowo-tech/transaction-doctrine"
             },
-            "time": "2026-11-20T09:09:22+00:00",
-            "published-time": "2026-11-20T09:23:55+00:00"
+            "time": "2026-11-20T09:09:22+00:00"
         },
         {
             "name": "nowo-tech/ui-kit-bundle",
-            "version": "v2.52.1",
+            "version": "v2.59.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/nowo-tech/UiKitBundle.git",
-                "reference": "2715214cf4c459b6aad33ba366d75b8cd0e4385f"
+                "reference": "580b05d1d70a010e249aa9ff3ec6265436d9f4d5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/2715214cf4c459b6aad33ba366d75b8cd0e4385f",
-                "reference": "2715214cf4c459b6aad33ba366d75b8cd0e4385f",
+                "url": "https://api.github.com/repos/nowo-tech/UiKitBundle/zipball/580b05d1d70a010e249aa9ff3ec6265436d9f4d5",
+                "reference": "580b05d1d70a010e249aa9ff3ec6265436d9f4d5",
                 "shasum": ""
             },
             "require": {
@@ -1339,7 +1334,7 @@
                 "issues": "https://github.com/nowo-tech/UiKitBundle/issues",
                 "source": "https://github.com/nowo-tech/UiKitBundle"
             },
-            "time": "2026-11-16T16:23:57+00:00"
+            "time": "2026-11-19T21:24:18+00:00"
         },
         {
             "name": "psr/cache",
@@ -1388,8 +1383,7 @@
             "support": {
                 "source": "https://github.com/php-fig/cache/tree/3.0.0"
             },
-            "time": "2021-02-03T23:26:27+00:00",
-            "published-time": "2021-02-03T23:27:34+00:00"
+            "time": "2021-02-03T23:26:27+00:00"
         },
         {
             "name": "psr/clock",
@@ -7333,8 +7327,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-11-15T19:58:26+00:00",
-            "published-time": "2026-11-15T19:58:39+00:00"
+            "time": "2026-11-15T19:58:26+00:00"
         },
         {
             "name": "phpstan/phpstan-phpunit",
@@ -10474,5 +10467,5 @@
     "platform-overrides": {
         "php": "8.2.0"
     },
-    "plugin-api-version": "2.11.0"
+    "plugin-api-version": "2.9.0"
 }
