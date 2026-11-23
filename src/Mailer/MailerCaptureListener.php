@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\HttpLogBundle\Mailer;
 
 use DateTimeImmutable;
+use IgorPhp\IgorBundle\Attribute\WorkerSafe;
 use Nowo\HttpLogBundle\Context\HttpLogContext;
 use Nowo\HttpLogBundle\Context\HttpLogFrame;
 use Nowo\HttpLogBundle\Enum\OutboundErrorKind;
@@ -48,6 +49,8 @@ final class MailerCaptureListener implements EventSubscriberInterface, ResetInte
      * @param array<string, string> $providers transport scheme => provider key (`mailer.providers`)
      */
     public function __construct(
+        // @igor-ignore - Collaborator, not state: the buffer is its own kernel.reset service and reset() flushes it.
+        #[WorkerSafe]
         private readonly HttpLogBuffer $buffer,
         private readonly HttpLogContext $context,
         private readonly ClockInterface $clock,
