@@ -59,7 +59,8 @@ final class AdminPagesRenderTest extends TestCase
         self::assertStringContainsString('<label for="http_log_filter_routeName">Route name</label>', $html);
         self::assertStringContainsString('nowo-ui-filters__field--xs', $html);
         self::assertStringContainsString('>Filter</button>', $html);
-        self::assertStringContainsString('href="/admin/http-log">Clear</a>', $html);
+        // UiKit >= 2.72 labels the clear link "Clear filters"; older releases keep "Clear"
+        self::assertMatchesRegularExpression('#href="/admin/http-log">Clear( filters)?</a>#', $html);
         self::assertStringNotContainsString('filter.method', $html);
         // pagination (7 entries, 2 per page)
         self::assertStringContainsString('data-nowo-ui-region="pagination"', $html);
@@ -77,7 +78,7 @@ final class AdminPagesRenderTest extends TestCase
         self::assertStringContainsString('No HTTP log entries found.', $html);
         self::assertStringContainsString('data-nowo-ui-region="empty"', $html);
         self::assertStringNotContainsString('<table', $html);
-        self::assertStringNotContainsString('>Clear</a>', $html);
+        self::assertDoesNotMatchRegularExpression('#>Clear( filters)?</a>#', $html);
     }
 
     #[Test]
