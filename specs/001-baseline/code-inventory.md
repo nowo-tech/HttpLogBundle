@@ -2,7 +2,7 @@
 
 **Baseline spec**: [`spec.md`](spec.md)  
 **Package**: `nowo-tech/http-log-bundle`  
-**Last audited**: 2026-11-22 (1.23-1.25 units: purge conflict, DDD host mapping, filter bar)
+**Last audited**: 2026-11-25 (re-verified file by file against `git ls-files src`: 140/140; 1.23-1.25 units: purge conflict, DDD host mapping, filter bar; no production file added since 1.25.0)
 
 Maps **100%** of production files under `src/` (140 units; audit: `git ls-files src | wc -l` → 140). Test and demo trees are out of Packagist scope unless promoted in the spec.
 
