@@ -11,6 +11,7 @@ use Nowo\HttpLogBundle\Context\HttpLogContext;
 use Nowo\HttpLogBundle\Context\HttpLogContextInterface;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
 use Nowo\HttpLogBundle\DependencyInjection\Compiler\HttpLogCommitTrackingPass;
+use Nowo\HttpLogBundle\Doctrine\ErrorCodeColumnListener;
 use Nowo\HttpLogBundle\Doctrine\PathPrefixColumnListener;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
 use Nowo\HttpLogBundle\Doctrine\UsageColumnsListener;
@@ -706,6 +707,11 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
             $container->setDefinition(UsageColumnsListener::class, (new Definition(UsageColumnsListener::class))
                 // Before TablePrefixListener (priority 0), which then prefixes the usage index names too.
                 ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata', 'priority' => 100]));
+            if ($outboundEnabled && array_filter($config['outbound']['providers'], static fn (array $provider): bool => $provider['error_code']['paths'] !== []) !== []) {
+                // error_code: mapped only while a provider reads it (no migration for hosts that do not)
+                $container->setDefinition(ErrorCodeColumnListener::class, (new Definition(ErrorCodeColumnListener::class))
+                    ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata', 'priority' => 100]));
+            }
         }
 
         if ($usageColumns || $rollupEnabled) {

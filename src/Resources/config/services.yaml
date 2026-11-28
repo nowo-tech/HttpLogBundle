@@ -22,6 +22,7 @@ services:
             - '../../Usage/'
             - '../../Doctrine/UsageColumnsListener.php'
             - '../../Doctrine/PathPrefixColumnListener.php'
+            - '../../Doctrine/ErrorCodeColumnListener.php'
             - '../../Doctrine/ExactCollation.php'
             # 1.22 (REQ-RUNTIME-003): a static helper, and the conflict answer registered by the extension with the web UI.
             - '../../Doctrine/LogWriteUnit.php'

@@ -113,7 +113,7 @@ final class HttpLogAdminController extends AbstractController
         $filterForm = $this->createForm(HttpLogFilterType::class, null, $this->usageChannels === [] ? [] : [
             // only the channels this user may see (IX-I5)
             'usage_channels' => $this->allowedChannels() ?? [HttpLogChannel::WEB, ...$this->usageChannels],
-        ]);
+        ] + ($this->hasErrorCode() ? ['error_code' => true] : []));
         $filterForm->handleRequest($request);
 
         $criteria = $filterForm->isSubmitted() && $filterForm->isValid()
@@ -203,7 +203,13 @@ final class HttpLogAdminController extends AbstractController
             throw new LogicException('HttpLogAdminController needs a UrlGeneratorInterface (autowired from the router).');
         }
 
-        return new AdminPages($this->urlGenerator, $this->webUi, $this->usageChannels !== []);
+        return new AdminPages($this->urlGenerator, $this->webUi, $this->usageChannels !== [], $this->hasErrorCode());
+    }
+
+    /** A provider configures outbound `error_code`: the column is mapped (and so is the list column, filter and field). */
+    private function hasErrorCode(): bool
+    {
+        return $this->usageChannels !== [] && $this->repository->hasErrorCodeColumn();
     }
 
     #[Route('/export', name: 'nowo_http_log_admin_export', methods: ['POST'])]

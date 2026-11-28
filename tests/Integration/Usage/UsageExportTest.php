@@ -59,6 +59,24 @@ final class UsageExportTest extends TestCase
         self::assertIsArray($json);
         self::assertSame('clickup', $json[0]['provider']);
         self::assertSame(2, $json[0]['retryCount']);
-        self::assertSame(ExportHttpLogService::USAGE_FIELDS, array_slice(array_keys($json[0]), -12));
+        self::assertSame(ExportHttpLogService::USAGE_FIELDS, array_slice(array_keys($json[0]), -11));
+        self::assertArrayNotHasKey('errorCode', $json[0]);
+    }
+
+    #[Test]
+    public function withTheErrorCodeColumnItIsTheLastExportColumn(): void
+    {
+        $db = new UsageTestDatabase(errorCode: true);
+        (new UsageEntryWriter($db))->write(new UsageCapture('outbound', new DateTimeImmutable(), 'GET', '/v2', provider: 'login', statusCode: 401, errorCode: 'invalid_client'));
+        $service = new ExportHttpLogService($db->repository());
+
+        $lines = explode("\n", $service->exportToString([], ExportFormat::Csv));
+        self::assertSame(self::CSV_1_14 . ',' . implode(',', ExportHttpLogService::USAGE_FIELDS) . ',errorCode', $lines[0]);
+        self::assertStringEndsWith(',invalid_client', $lines[1]);
+
+        $json = json_decode($service->exportToString([], ExportFormat::Json), true, flags: JSON_THROW_ON_ERROR);
+        self::assertIsArray($json);
+        self::assertSame('invalid_client', $json[0]['errorCode']);
+        self::assertSame('errorCode', array_key_last($json[0]));
     }
 }

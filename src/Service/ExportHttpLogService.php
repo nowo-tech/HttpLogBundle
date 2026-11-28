@@ -36,7 +36,7 @@ final readonly class ExportHttpLogService
     /** HL-1 usage columns, appended (CSV and JSON) only while they are mapped: 1.14 exports keep their column set. */
     public const USAGE_FIELDS = [
         'channel', 'provider', 'credentialKind', 'credentialId', 'tenantKey', 'projectKey',
-        'responseBytes', 'retryCount', 'errorKind', 'errorCode', 'messengerMessageId', 'externalMessageId',
+        'responseBytes', 'retryCount', 'errorKind', 'messengerMessageId', 'externalMessageId',
     ];
 
     public function __construct(
@@ -124,9 +124,10 @@ final readonly class ExportHttpLogService
             'statusCode', 'clientIp', 'contentType', 'bodyContentType', 'durationMs',
             'userIdentifier', 'createdAt',
         ];
-        $usage = $this->repository->hasUsageColumns();
+        $usage     = $this->repository->hasUsageColumns();
+        $errorCode = $usage && $this->repository->hasErrorCodeColumn();
         if ($usage) {
-            $headers = [...$headers, ...self::USAGE_FIELDS];
+            $headers = [...$headers, ...self::USAGE_FIELDS, ...($errorCode ? ['errorCode'] : [])];
         }
         fputcsv($resource, $headers);
 
@@ -136,7 +137,7 @@ final readonly class ExportHttpLogService
         do {
             $result = $this->repository->findFiltered($criteria, $page, self::BATCH_SIZE, withTotal: false);
             foreach ($result['items'] as $entry) {
-                fputcsv($resource, array_map(self::csvCell(...), $usage ? [...$this->entryToCsvRow($entry), ...array_values($this->usageValues($entry))] : $this->entryToCsvRow($entry)));
+                fputcsv($resource, array_map($this->csvCell(...), $usage ? [...$this->entryToCsvRow($entry), ...array_values($this->usageValues($entry, $errorCode))] : $this->entryToCsvRow($entry)));
                 ++$total;
             }
             $this->repository->detachAll($result['items']);
@@ -150,7 +151,7 @@ final readonly class ExportHttpLogService
      * CSV formula neutralisation (OWASP): a text cell starting with `=`, `+`, `-`, `@`, TAB or CR is prefixed with `'`, so a
      * spreadsheet shows it as text instead of evaluating it (user identifiers, route names and paths are request data).
      */
-    private static function csvCell(mixed $value): mixed
+    private function csvCell(mixed $value): mixed
     {
         return is_string($value) && $value !== '' && strpbrk($value[0], "=+-@\t\r") !== false ? "'" . $value : $value;
     }
@@ -159,10 +160,11 @@ final readonly class ExportHttpLogService
     private function exportJson(array $criteria, mixed $resource): int
     {
         fwrite($resource, '[');
-        $usage = $this->repository->hasUsageColumns();
-        $page  = 1;
-        $total = 0;
-        $first = true;
+        $usage     = $this->repository->hasUsageColumns();
+        $errorCode = $usage && $this->repository->hasErrorCodeColumn();
+        $page      = 1;
+        $total     = 0;
+        $first     = true;
 
         do {
             $result = $this->repository->findFiltered($criteria, $page, self::BATCH_SIZE, withTotal: false);
@@ -170,7 +172,7 @@ final readonly class ExportHttpLogService
                 if (!$first) {
                     fwrite($resource, ',');
                 }
-                fwrite($resource, json_encode($usage ? $this->entryToArray($entry) + $this->usageValues($entry) : $this->entryToArray($entry), JSON_THROW_ON_ERROR));
+                fwrite($resource, json_encode($usage ? $this->entryToArray($entry) + $this->usageValues($entry, $errorCode) : $this->entryToArray($entry), JSON_THROW_ON_ERROR));
                 $first = false;
                 ++$total;
             }
@@ -234,9 +236,9 @@ final readonly class ExportHttpLogService
     }
 
     /** @return array<string, int|string|null> */
-    private function usageValues(HttpLogEntry $entry): array
+    private function usageValues(HttpLogEntry $entry, bool $errorCode): array
     {
-        return [
+        $values = [
             'channel'            => $entry->getChannel(),
             'provider'           => $entry->getProvider(),
             'credentialKind'     => $entry->getCredentialKind(),
@@ -246,9 +248,11 @@ final readonly class ExportHttpLogService
             'responseBytes'      => $entry->getResponseBytes(),
             'retryCount'         => $entry->getRetryCount(),
             'errorKind'          => $entry->getErrorKind(),
-            'errorCode'          => $entry->getErrorCode(),
             'messengerMessageId' => $entry->getMessengerMessageId(),
             'externalMessageId'  => $entry->getExternalMessageId(),
         ];
+
+        // appended last: the 1.25 usage columns keep their position
+        return $errorCode ? $values + ['errorCode' => $entry->getErrorCode()] : $values;
     }
 }

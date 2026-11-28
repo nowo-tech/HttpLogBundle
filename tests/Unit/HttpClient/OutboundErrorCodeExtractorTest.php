@@ -25,9 +25,9 @@ final class OutboundErrorCodeExtractorTest extends TestCase
     public static function bodies(): iterable
     {
         yield 'login: string and integer codes with a prefix' => [
-            '{"error":"invalid_client","error_description":"AADSTS7000215: Invalid client secret for jane@example.com","error_codes":[7000215],"trace_id":"0f6c2a1e-1111-2222-3333-444455556666"}',
-            new OutboundErrorCodeSpec(['error', 'error_codes'], 'AADSTS'),
-            'invalid_client,AADSTS7000215',
+            '{"error":"invalid_client","error_description":"ERR7000215: Invalid client secret for jane@example.com","error_codes":[7000215],"trace_id":"0f6c2a1e-1111-2222-3333-444455556666"}',
+            new OutboundErrorCodeSpec(['error', 'error_codes'], 'ERR'),
+            'invalid_client,ERR7000215',
         ];
         yield 'integer array keeps five values' => [
             '{"error_codes":[1,2,3,4,5,6,7]}',
@@ -51,6 +51,22 @@ final class OutboundErrorCodeExtractorTest extends TestCase
         yield 'a sentence is unknown' => ['{"error":"The client secret is wrong for tenant Acme"}', new OutboundErrorCodeSpec(['error']), 'unknown'];
         yield 'a JWT-shaped string is unknown' => ['{"error":"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2ln"}', new OutboundErrorCodeSpec(['error']), 'unknown'];
         yield 'a three-segment token is unknown' => ['{"error":"abcdefgh.ijklmnop.qrstuvwx"}', new OutboundErrorCodeSpec(['error']), 'unknown'];
+        yield 'a card number is unknown' => ['{"error":"4111111111111111"}', new OutboundErrorCodeSpec(['error']), 'unknown'];
+        yield 'ten digits are unknown' => ['{"error":"E0123456789"}', new OutboundErrorCodeSpec(['error']), 'unknown'];
+        yield 'nine digits are a code' => ['{"error":"E012345678"}', new OutboundErrorCodeSpec(['error']), 'E012345678'];
+        yield 'sixteen hex digits are unknown' => ['{"error":"deadBEEF01234567"}', new OutboundErrorCodeSpec(['error']), 'unknown'];
+        yield 'a mixed-case key is unknown' => ['{"error":"dGhpc0lzQVNlY3JldDEyMw"}', new OutboundErrorCodeSpec(['error']), 'unknown'];
+        yield 'a long word is a code' => ['{"error":"InvalidAuthenticationTokenProvided"}', new OutboundErrorCodeSpec(['error']), 'InvalidAuthenticationTokenProvided'];
+        yield 'an IPv4 address is unknown' => ['{"error":"192.168.1.10"}', new OutboundErrorCodeSpec(['error']), 'unknown'];
+        yield 'an IPv6 address is unknown' => ['{"error":"2001:db8::1"}', new OutboundErrorCodeSpec(['error']), 'unknown'];
+        yield 'a host name is unknown' => ['{"error":"bob.smith.example.com"}', new OutboundErrorCodeSpec(['error']), 'unknown'];
+        yield 'one dot is a code' => ['{"error":"auth.invalid_token"}', new OutboundErrorCodeSpec(['error']), 'auth.invalid_token'];
+        yield 'a Stripe key is unknown' => ['{"error":"sk_live_abc"}', new OutboundErrorCodeSpec(['error']), 'unknown'];
+        yield 'a publishable key is unknown' => ['{"error":"pk_live_abc"}', new OutboundErrorCodeSpec(['error']), 'unknown'];
+        yield 'a GitHub token is unknown' => ['{"a":"ghp_abc","b":"gho_abc"}', new OutboundErrorCodeSpec(['a', 'b']), 'unknown,unknown'];
+        yield 'a Slack token is unknown' => ['{"error":"xoxb-1"}', new OutboundErrorCodeSpec(['error']), 'unknown'];
+        yield 'an AWS key id is unknown' => ['{"error":"AKIAIOSFODNN7EXAMPLE"}', new OutboundErrorCodeSpec(['error']), 'unknown'];
+        yield 'a Google key is unknown' => ['{"error":"AIzaSyA-abc"}', new OutboundErrorCodeSpec(['error']), 'unknown'];
         yield 'a UUID is unknown' => ['{"error":"0f6c2a1e-1111-2222-3333-444455556666"}', new OutboundErrorCodeSpec(['error']), 'unknown'];
         yield 'a long hex id is unknown' => ['{"error":"0123456789abcdef01234567"}', new OutboundErrorCodeSpec(['error']), 'unknown'];
         yield 'a long description is unknown' => ['{"error":"' . str_repeat('a', 65) . '"}', new OutboundErrorCodeSpec(['error']), 'unknown'];

@@ -54,12 +54,12 @@ final class UsageCaptureTest extends TestCase
     public function theErrorCodeTravelsInThePayloadOnlyWhenPresentAndIsValidatedAgain(): void
     {
         $now     = new DateTimeImmutable('2026-11-08T10:00:00+00:00');
-        $capture = new UsageCapture('outbound', $now, 'POST', statusCode: 401, errorCode: 'invalid_client,AADSTS7000215');
-        self::assertSame('invalid_client,AADSTS7000215', $capture->toArray()['errorCode']);
-        self::assertSame('invalid_client,AADSTS7000215', UsageCapture::fromArray($capture->toArray())->errorCode);
+        $capture = new UsageCapture('outbound', $now, 'POST', statusCode: 401, errorCode: 'invalid_client,ERR7000215');
+        self::assertSame('invalid_client,ERR7000215', $capture->toArray()['errorCode']);
+        self::assertSame('invalid_client,ERR7000215', UsageCapture::fromArray($capture->toArray())->errorCode);
 
         self::assertArrayNotHasKey('errorCode', (new UsageCapture('outbound', $now, 'GET'))->toArray());
-        self::assertNull((new UsageCapture('outbound', $now, 'GET', errorCode: 'AADSTS7000215: wrong secret for jane@example.com'))->errorCode);
+        self::assertNull((new UsageCapture('outbound', $now, 'GET', errorCode: 'ERR7000215: wrong secret for jane@example.com'))->errorCode);
 
         $payload              = $capture->toArray();
         $payload['errorCode'] = 'free text with spaces';

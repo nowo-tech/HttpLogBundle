@@ -36,7 +36,9 @@ use function trim;
 /**
  * State of one outbound call, owned by its response's passthru closure (never by the decorator service): records the
  * call **exactly once** at the first of last chunk, fatal error chunk, `cancel()` or destruct (HL-1 §5.1). Chunks are
- * forwarded untouched; the body is never read or buffered.
+ * forwarded untouched; the body is never stored. It is read only for the `error_code` of a failed call of a provider that
+ * configures one (at most {@see OutboundErrorCodeExtractor::MAX_BODY_BYTES}, kept in this object and cleared once the
+ * call is recorded).
  */
 final class OutboundCall
 {
@@ -276,7 +278,11 @@ final class OutboundCall
             return null;
         }
 
-        return OutboundErrorCodeExtractor::extract($this->errorBody, $target->errorCode);
+        $code = OutboundErrorCodeExtractor::extract($this->errorBody, $target->errorCode);
+        // @igor-ignore - per-call state owned by the response passthru closure; OutboundCall is never a container service
+        $this->errorBody = '';
+
+        return $code;
     }
 
     /**

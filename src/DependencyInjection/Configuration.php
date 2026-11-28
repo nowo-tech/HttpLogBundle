@@ -751,7 +751,7 @@ final class Configuration implements ConfigurationInterface
                                         ->defaultValue([])
                                     ->end()
                                     ->scalarNode('prefix')
-                                        ->info('Prepended to integer values only (e.g. "AADSTS" for 7000215).')
+                                        ->info('Prepended to integer values only (e.g. "ERR" for 7000215).')
                                         ->defaultValue('')
                                         ->validate()
                                             ->ifTrue(static fn (mixed $p): bool => !is_string($p) || preg_match('/^[A-Za-z0-9_.:-]{0,16}\z/', $p) !== 1)

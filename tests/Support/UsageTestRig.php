@@ -47,9 +47,9 @@ final class UsageTestRig
 
     public readonly AbstractLogger $logger;
 
-    public function __construct()
+    public function __construct(bool $errorCode = false)
     {
-        $this->db      = new UsageTestDatabase();
+        $this->db      = new UsageTestDatabase(errorCode: $errorCode);
         $this->context = new HttpLogContext();
         $this->clock   = new MockClock(new DateTimeImmutable('2026-11-08T10:00:00+00:00'));
         $messages      = &$this->messages;

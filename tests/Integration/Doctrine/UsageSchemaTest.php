@@ -8,6 +8,7 @@ use Doctrine\DBAL\Tools\DsnParser;
 use Doctrine\ORM\Event\LoadClassMetadataEventArgs;
 use Doctrine\ORM\Tools\SchemaTool;
 use InvalidArgumentException;
+use Nowo\HttpLogBundle\Doctrine\ErrorCodeColumnListener;
 use Nowo\HttpLogBundle\Doctrine\ExactCollation;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
 use Nowo\HttpLogBundle\Doctrine\UsageColumnsListener;
@@ -73,7 +74,7 @@ final class UsageSchemaTest extends TestCase
     }
 
     #[Test]
-    public function theListenerMapsTwelveNullableColumnsAndSixIndexesOnce(): void
+    public function theListenerMapsElevenNullableColumnsAndFiveIndexesOnce(): void
     {
         $db       = new UsageTestDatabase(createSchema: false);
         $metadata = $db->entityManager->getClassMetadata(HttpLogEntry::class);
@@ -89,7 +90,27 @@ final class UsageSchemaTest extends TestCase
         // a second event on the same metadata (or another class) changes nothing
         $listener = new UsageColumnsListener();
         $listener->loadClassMetadata(new LoadClassMetadataEventArgs($metadata, $db->entityManager));
-        self::assertCount(22 + 12, $metadata->getFieldNames());
+        self::assertCount(22 + 11, $metadata->getFieldNames());
+    }
+
+    #[Test]
+    public function errorCodeIsMappedOnlyWhenAProviderConfiguresIt(): void
+    {
+        $without = (new UsageTestDatabase(createSchema: false))->entityManager->getClassMetadata(HttpLogEntry::class);
+        self::assertFalse($without->hasField(ErrorCodeColumnListener::FIELD));
+        self::assertArrayNotHasKey(ErrorCodeColumnListener::INDEX, $without->table['indexes'] ?? []);
+        $db = new UsageTestDatabase(createSchema: false);
+        self::assertStringNotContainsString('error_code', implode("\n", (new SchemaTool($db->entityManager))->getCreateSchemaSql([$db->entityManager->getClassMetadata(HttpLogEntry::class)])));
+
+        $db       = new UsageTestDatabase(tablePrefix: 'app_', createSchema: false, errorCode: true);
+        $metadata = $db->entityManager->getClassMetadata(HttpLogEntry::class);
+        self::assertTrue($metadata->isNullable(ErrorCodeColumnListener::FIELD));
+        self::assertSame('error_code', $metadata->getColumnName(ErrorCodeColumnListener::FIELD));
+        self::assertSame(['columns' => ['error_code', 'created_at']], $metadata->table['indexes']['app_' . ErrorCodeColumnListener::INDEX] ?? null);
+
+        // a second event on the same metadata changes nothing
+        (new ErrorCodeColumnListener())->loadClassMetadata(new LoadClassMetadataEventArgs($metadata, $db->entityManager));
+        self::assertCount(22 + 11 + 1, $metadata->getFieldNames());
     }
 
     #[Test]
@@ -163,22 +184,55 @@ final class UsageSchemaTest extends TestCase
         self::assertSame([], $diff);
     }
 
+    #[Test]
+    #[DataProvider('platforms')]
+    public function documentedErrorCodeDdlLeavesNoSchemaDiff(string $platform, string $source, string $prefixes): void
+    {
+        [$tablePrefix, $tableNamePrefix] = explode('|', $prefixes);
+        $file                            = sys_get_temp_dir() . '/http-log-error-code-schema-' . bin2hex(random_bytes(6)) . '.sqlite';
+        $params                          = ['driver' => 'pdo_sqlite', 'path' => $file];
+        if ($platform !== 'sqlite') {
+            $url = getenv($source);
+            if (!is_string($url) || $url === '') {
+                self::markTestSkipped($source . ' is not set.');
+            }
+            $params = (new DsnParser(['mysql' => 'pdo_mysql', 'postgresql' => 'pdo_pgsql', 'pgsql' => 'pdo_pgsql']))->parse($url);
+            RollupTestPlatforms::dropTables($params);
+        }
+
+        // a 1.25 table with the usage columns (no error_code), then the documented error_code DDL
+        $old       = new UsageTestDatabase(true, $tablePrefix, $tableNamePrefix, $params);
+        $collation = ExactCollation::forConnection($old->connection());
+        foreach ($this->ddl($platform, $old->table(), $tablePrefix, 'error-code-ddl') as $statement) {
+            $old->connection()->executeStatement($collation === null ? $statement : str_replace(ExactCollation::MYSQL_NOPAD, $collation, $statement));
+        }
+        $old->connection()->close();
+
+        $new  = new UsageTestDatabase(true, $tablePrefix, $tableNamePrefix, $params, false, errorCode: true);
+        $diff = (new SchemaTool($new->entityManager))->getUpdateSchemaSql([$new->entityManager->getClassMetadata(HttpLogEntry::class)]);
+        $new->connection()->close();
+
+        if ($platform === 'sqlite') {
+            @unlink($file);
+        } else {
+            RollupTestPlatforms::dropTables($params);
+        }
+
+        self::assertSame([], $diff);
+    }
+
     /**
-     * Statements of the `hl1-ddl:<platform>` block and the `error-code-ddl` block of docs/UPGRADING.md, renamed for the variant.
+     * Statements of the `<block>:<platform>` block (`hl1-ddl`, `error-code-ddl`) of docs/UPGRADING.md, renamed for the variant.
      *
      * @return list<string>
      */
-    private function ddl(string $platform, string $table, string $tablePrefix): array
+    private function ddl(string $platform, string $table, string $tablePrefix, string $block = 'hl1-ddl'): array
     {
         $doc = (string) file_get_contents(dirname(__DIR__, 3) . '/docs/UPGRADING.md');
-        if (preg_match('/<!-- hl1-ddl:' . preg_quote($platform, '/') . ' -->\s*```sql\n(.*?)```/s', $doc, $match) !== 1) {
+        if (preg_match('/<!-- ' . preg_quote($block, '/') . ':' . preg_quote($platform, '/') . ' -->\s*```sql\n(.*?)```/s', $doc, $match) !== 1) {
             throw new RuntimeException('No DDL block for ' . $platform);
         }
-        // the later `error_code` column (docs/UPGRADING.md, Unreleased), the same statements on every platform
-        if (preg_match('/<!-- error-code-ddl -->\s*```sql\n(.*?)```/s', $doc, $errorCode) !== 1) {
-            throw new RuntimeException('No error_code DDL block');
-        }
-        $sql = str_replace('nowo_http_log_entry', $table, $match[1] . ";\n" . $errorCode[1]);
+        $sql = str_replace('nowo_http_log_entry', $table, $match[1]);
         $sql = str_replace('INDEX idx_http_log_', 'INDEX ' . $tablePrefix . 'idx_http_log_', $sql);
 
         return array_values(array_filter(array_map(trim(...), explode(';', $sql)), static fn (string $s): bool => $s !== ''));

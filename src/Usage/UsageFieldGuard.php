@@ -20,6 +20,7 @@ use function sprintf;
 use function strlen;
 use function strtolower;
 use function strtoupper;
+use function substr_count;
 use function trim;
 
 use const FILTER_VALIDATE_IP;
@@ -56,8 +57,8 @@ final class UsageFieldGuard
     /** One provider error code (`outbound.providers.<name>.error_code`). */
     private const ERROR_CODE_PART = '/^[A-Za-z0-9_.:-]{1,64}\z/';
 
-    /** Shapes that look like an identifier or a credential, not a code: JWT, UUID, long hex string. */
-    private const ERROR_CODE_OPAQUE = '/^(?:eyJ|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z|[0-9a-f]{24,}\z|[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*\z)/i';
+    /** A UUID, or a value that starts like a well-known credential (JWT, Stripe, GitHub, Slack, AWS, Google keys). */
+    private const ERROR_CODE_OPAQUE = '/^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z|(?:eyJ|sk_|rk_|pk_live|pk_test|ghp_|gho_|ghs_|ghu_|ghr_|xox|AKIA|AIza))/i';
 
     /** Stored in place of a provider code that fails {@see self::errorCodePart()}. */
     public const UNKNOWN_ERROR_CODE = 'unknown';
@@ -158,11 +159,37 @@ final class UsageFieldGuard
      */
     public static function errorCodePart(mixed $value): string
     {
-        if (is_string($value) && preg_match(self::ERROR_CODE_PART, $value) === 1 && preg_match(self::ERROR_CODE_OPAQUE, $value) !== 1) {
+        if (is_string($value) && self::isCode($value)) {
             return $value;
         }
 
         return self::UNKNOWN_ERROR_CODE;
+    }
+
+    /**
+     * The shape of a machine code: the charset, and none of the shapes of an identifier, a person or a credential. A
+     * guard, not a proof: hosts point `paths` at fields the provider documents as codes.
+     */
+    private static function isCode(string $value): bool
+    {
+        if (preg_match(self::ERROR_CODE_PART, $value) !== 1
+            || preg_match(self::ERROR_CODE_OPAQUE, $value) === 1
+            || preg_match('/[0-9]{10}|[0-9a-f]{16}/i', $value) === 1 // account / card / phone numbers, hex ids
+            || substr_count($value, '.') >= 2 // host names, JWT-like tokens
+            || filter_var($value, FILTER_VALIDATE_IP) !== false
+        ) {
+            return false;
+        }
+        // a long run that mixes upper case, lower case and digits is a key or a token, not a word
+        if (preg_match_all('/[A-Za-z0-9]{20,}/', $value, $runs) > 0) {
+            foreach ($runs[0] as $run) {
+                if (preg_match('/[a-z]/', $run) === 1 && preg_match('/[A-Z]/', $run) === 1 && preg_match('/[0-9]/', $run) === 1) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -179,7 +206,7 @@ final class UsageFieldGuard
             return null;
         }
         foreach ($parts as $part) {
-            if (preg_match(self::ERROR_CODE_PART, $part) !== 1 || preg_match(self::ERROR_CODE_OPAQUE, $part) === 1) {
+            if (!self::isCode($part)) {
                 return null;
             }
         }

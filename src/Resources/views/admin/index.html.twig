@@ -60,6 +60,9 @@
         <td class="{{ _cell }}{{ row.provider ? '' : ' ' ~ nowo_ui_class('table_cell_muted', _b) }} nowo-ui-cell--start" data-label="{{ 'admin.column.provider'|trans({}, 'NowoHttpLogBundle') }}" data-nowo-ui-priority="2">
             {{ row.provider ?: '—' }}
         </td>
+    {%- endif %}
+    {%- if page.columns|filter(c => c.key == 'errorCode')|length > 0 %}
+        {#- outbound error_code is mapped (a provider configures error_code.paths) -#}
         <td class="{{ _cell }}{{ row.errorCode ? '' : ' ' ~ nowo_ui_class('table_cell_muted', _b) }} nowo-ui-cell--start" data-label="{{ 'admin.column.error_code'|trans({}, 'NowoHttpLogBundle') }}" data-nowo-ui-priority="2">
             {% if row.errorCode %}<code class="{{ nowo_ui_class('code', _b) }}">{{ row.errorCode }}</code>{% else %}—{% endif %}
         </td>

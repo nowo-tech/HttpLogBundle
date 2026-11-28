@@ -17,7 +17,7 @@ use function method_exists;
 /**
  * Exact-match collation for the identifier columns of the entry table on MySQL / MariaDB (REQ-SEC-006, since 1.20.1):
  * `user_identifier` and `client_ip` (the GDPR export / erasure keys) and, when the usage columns are mapped, `provider`,
- * `credential_kind`, `credential_id`, `tenant_key` and `project_key`.
+ * `credential_kind`, `credential_id`, `tenant_key` and `project_key`, and `error_code` while a provider configures it.
  *
  * The exporter, the eraser and the usage reader already re-check every row in PHP (`===`) or compare with
  * `CAST(… AS BINARY)`; the binary NO PAD collation ({@see ExactCollation}) keeps the database itself exact, so the admin
@@ -39,7 +39,7 @@ use function method_exists;
 final readonly class ExactColumnsCollationListener
 {
     /** Columns of the entry table that hold an identifier (those that are mapped get the collation). */
-    public const COLUMNS = ['user_identifier', 'client_ip', 'provider', 'credential_kind', 'credential_id', 'tenant_key', 'project_key'];
+    public const COLUMNS = ['user_identifier', 'client_ip', 'provider', 'credential_kind', 'credential_id', 'tenant_key', 'project_key', 'error_code'];
 
     /**
      * @param ManagerRegistry|null $doctrine unused since 1.23.1 (the platform comes from the schema tool's entity

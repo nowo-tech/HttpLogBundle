@@ -51,9 +51,9 @@ final class UsageReaderTest extends TestCase
         return RollupTestPlatforms::platforms();
     }
 
-    private function seed(string $source): void
+    private function seed(string $source, bool $errorCode = true): void
     {
-        $this->db     = RollupTestPlatforms::open($source);
+        $this->db     = RollupTestPlatforms::open($source, errorCode: $errorCode);
         $store        = new UsageRollupStore($this->db, $this->db->rollupTables, new MockClock(new DateTimeImmutable('2026-11-08T12:00:00+00:00')));
         $writer       = new UsageEntryWriter($this->db, $store);
         $this->reader = new HttpLogUsageReader($this->db, $store);
@@ -185,6 +185,19 @@ final class UsageReaderTest extends TestCase
         self::assertCount(1, $this->reader->calls(CallQuery::forTenant('org-a')->between(new DateTimeImmutable('2026-11-08 09:30:00+00:00'), new DateTimeImmutable('2026-11-08 23:00:00+00:00')))->items);
         self::assertCount(1, $this->reader->calls(CallQuery::forTenant('ORG-A'))->items);
         self::assertCount(6, $this->reader->calls(CallQuery::platform())->items);
+    }
+
+    #[Test]
+    public function withoutTheErrorCodeColumnCallsStillReadAndAnErrorCodeFilterFailsClosed(): void
+    {
+        $this->seed('sqlite', false);
+
+        $page = $this->reader->calls(CallQuery::platform());
+        self::assertCount(6, $page->items);
+        self::assertNull($page->items[0]->errorCode);
+
+        $this->expectException(LogicException::class);
+        $this->reader->calls(CallQuery::platform()->withErrorCode('upstream_down'));
     }
 
     #[Test]

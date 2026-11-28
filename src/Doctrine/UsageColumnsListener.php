@@ -31,7 +31,6 @@ final readonly class UsageColumnsListener
         'responseBytes'      => ['column' => 'response_bytes', 'type' => Types::BIGINT],
         'retryCount'         => ['column' => 'retry_count', 'type' => Types::SMALLINT],
         'errorKind'          => ['column' => 'error_kind', 'type' => Types::STRING, 'length' => 32],
-        'errorCode'          => ['column' => 'error_code', 'type' => Types::STRING, 'length' => 128],
         'messengerMessageId' => ['column' => 'messenger_message_id', 'type' => Types::STRING, 'length' => 64],
         'externalMessageId'  => ['column' => 'external_message_id', 'type' => Types::STRING, 'length' => 255],
     ];
@@ -47,7 +46,6 @@ final readonly class UsageColumnsListener
         'idx_http_log_tenant_created'   => ['columns' => ['tenant_key', 'created_at']],
         'idx_http_log_project_created'  => ['columns' => ['project_key', 'created_at']],
         'idx_http_log_provider_created' => ['columns' => ['provider', 'created_at']],
-        'idx_http_log_errcode_created'  => ['columns' => ['error_code', 'created_at']],
         'idx_http_log_cred_created'     => ['columns' => ['credential_kind', 'credential_id', 'created_at']],
     ];
 

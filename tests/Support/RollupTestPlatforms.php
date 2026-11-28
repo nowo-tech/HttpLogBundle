@@ -34,16 +34,16 @@ final class RollupTestPlatforms
      *
      * @throws SkippedWithMessageException when the platform's URL is not set
      */
-    public static function open(string $source, string $tablePrefix = '', string $tableNamePrefix = 'nowo_http_log_', bool $pathPrefix = false, array $middlewares = []): UsageTestDatabase
+    public static function open(string $source, string $tablePrefix = '', string $tableNamePrefix = 'nowo_http_log_', bool $pathPrefix = false, array $middlewares = [], bool $errorCode = false): UsageTestDatabase
     {
         if ($source === 'sqlite') {
-            return new UsageTestDatabase(true, $tablePrefix, $tableNamePrefix, rollup: true, pathPrefix: $pathPrefix);
+            return new UsageTestDatabase(true, $tablePrefix, $tableNamePrefix, rollup: true, pathPrefix: $pathPrefix, errorCode: $errorCode);
         }
 
         $params = self::params($source);
         self::dropTables($params);
 
-        return new UsageTestDatabase(true, $tablePrefix, $tableNamePrefix, $params, rollup: true, pathPrefix: $pathPrefix, middlewares: $middlewares);
+        return new UsageTestDatabase(true, $tablePrefix, $tableNamePrefix, $params, rollup: true, pathPrefix: $pathPrefix, middlewares: $middlewares, errorCode: $errorCode);
     }
 
     /**

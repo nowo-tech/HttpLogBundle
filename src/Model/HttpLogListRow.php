@@ -24,7 +24,7 @@ final readonly class HttpLogListRow
     public const FIELDS = ['id', 'createdAt', 'method', 'path', 'statusCode', 'durationMs', 'clientIp', 'routeName', 'host', 'scheme', 'userIdentifier', 'requestId'];
 
     /** Usage fields the list projection adds while the HL-1 usage columns are mapped. */
-    public const USAGE_FIELDS = ['channel', 'provider', 'errorCode'];
+    public const USAGE_FIELDS = ['channel', 'provider'];
 
     public function __construct(
         public int $id,

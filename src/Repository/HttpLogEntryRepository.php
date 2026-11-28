@@ -16,6 +16,7 @@ use Doctrine\Persistence\Mapping\Driver\MappingDriver;
 use InvalidArgumentException;
 use LogicException;
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
+use Nowo\HttpLogBundle\Doctrine\ErrorCodeColumnListener;
 use Nowo\HttpLogBundle\Doctrine\PathPrefixColumnListener;
 use Nowo\HttpLogBundle\Doctrine\PurgeConflict;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
@@ -64,7 +65,7 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
     public const SMALL_MATCH_SET = 500;
 
     /** HL-1 exact-match filters of the admin list (applied only while the usage columns are mapped). */
-    public const USAGE_EXACT_FILTERS = ['provider', 'tenantKey', 'projectKey', 'credentialKind', 'errorCode'];
+    public const USAGE_EXACT_FILTERS = ['provider', 'tenantKey', 'projectKey', 'credentialKind'];
 
     public function __construct(private readonly ManagerRegistry $registry)
     {
@@ -269,6 +270,9 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
         $fields = HttpLogListRow::FIELDS;
         if ($this->hasUsageColumns()) {
             $fields = array_merge($fields, HttpLogListRow::USAGE_FIELDS);
+            if ($this->hasErrorCodeColumn()) {
+                $fields[] = ErrorCodeColumnListener::FIELD;
+            }
         }
         $direction = $after !== null && $after[2] === '>' ? SortDirection::Ascending : SortDirection::Descending;
 
@@ -615,6 +619,12 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
         return ($prefix ? '' : '%') . $escaped . '%';
     }
 
+    /** True when a provider configures outbound `error_code`: the `error_code` column is mapped ({@see ErrorCodeColumnListener}). */
+    public function hasErrorCodeColumn(): bool
+    {
+        return $this->resolveEntityManager()->getClassMetadata(HttpLogEntry::class)->hasField(ErrorCodeColumnListener::FIELD);
+    }
+
     /** `web_ui.filter_match: prefix` maps the `path_prefix` column ({@see PathPrefixColumnListener}). */
     public function hasPathPrefixColumn(): bool
     {
@@ -658,6 +668,10 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
             } else {
                 $qb->andWhere('e.channel = :channel')->setParameter('channel', $criteria['channel']);
             }
+        }
+
+        if ($this->hasErrorCodeColumn() && isset($criteria[ErrorCodeColumnListener::FIELD]) && is_string($criteria[ErrorCodeColumnListener::FIELD]) && $criteria[ErrorCodeColumnListener::FIELD] !== '') {
+            $qb->andWhere('e.errorCode = :errorCode')->setParameter('errorCode', $criteria[ErrorCodeColumnListener::FIELD]);
         }
 
         foreach (self::USAGE_EXACT_FILTERS as $field) {

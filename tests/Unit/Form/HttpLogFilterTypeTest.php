@@ -105,6 +105,8 @@ final class HttpLogFilterTypeTest extends TestCase
             self::assertTrue($form->has($field), $field);
         }
         self::assertSame(['web' => 'web', 'outbound' => 'outbound'], $form->get('channel')->getConfig()->getOption('choices'));
+        self::assertFalse($form->has('errorCode'), 'only while a provider configures error_code');
+        self::assertTrue($factory->create(HttpLogFilterType::class, null, ['usage_channels' => ['web', 'outbound'], 'error_code' => true])->has('errorCode'));
 
         $form->submit(['channel' => 'outbound', 'tenantKey' => 'org-1']);
         self::assertTrue($form->isValid());

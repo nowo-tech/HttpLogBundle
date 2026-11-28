@@ -8,6 +8,7 @@ use LogicException;
 use Nowo\HttpLogBundle\Context\HttpLogContext;
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
 use Nowo\HttpLogBundle\DependencyInjection\NowoHttpLogExtension;
+use Nowo\HttpLogBundle\Doctrine\ErrorCodeColumnListener;
 use Nowo\HttpLogBundle\Doctrine\UsageColumnsListener;
 use Nowo\HttpLogBundle\HttpClient\HttpLogHttpClientWrapper;
 use Nowo\HttpLogBundle\HttpClient\OutboundCapturePolicy;
@@ -29,7 +30,10 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ParameterBag\EnvPlaceholderParameterBag;
 use Symfony\Component\DependencyInjection\Reference;
 
+use function json_encode;
+
 use const ARRAY_FILTER_USE_KEY;
+use const JSON_THROW_ON_ERROR;
 
 /**
  * HL-1 S1: the feature blocks are off by default and register nothing but the inert context API; enabling one
@@ -243,18 +247,33 @@ final class UsageExtensionTest extends TestCase
         $config = (new Processor())->processConfiguration(new Configuration(), [[
             'outbound' => ['providers' => [
                 'plain' => ['hosts' => ['a.example']],
-                'login' => ['hosts' => ['b.example'], 'error_code' => ['paths' => ['error', '/error_codes'], 'prefix' => 'AADSTS']],
+                'login' => ['hosts' => ['b.example'], 'error_code' => ['paths' => ['error', '/error_codes'], 'prefix' => 'ERR']],
             ]],
         ]]);
         self::assertSame(['paths' => [], 'prefix' => ''], $config['outbound']['providers']['plain']['error_code']);
 
         $container = $this->load(['outbound' => ['enabled' => true, 'providers' => [
             'plain' => ['hosts' => ['a.example']],
-            'login' => ['hosts' => ['b.example'], 'error_code' => ['paths' => ['error', '/error_codes'], 'prefix' => 'AADSTS']],
+            'login' => ['hosts' => ['b.example'], 'error_code' => ['paths' => ['error', '/error_codes'], 'prefix' => 'ERR']],
         ]]]);
+        self::assertSame([['event' => 'loadClassMetadata', 'priority' => 100]], $container->getDefinition(ErrorCodeColumnListener::class)->getTag('doctrine.event_listener'));
         $providers = $container->getDefinition(OutboundCapturePolicy::class)->getArgument(0);
         self::assertArrayNotHasKey('error_code', $providers['plain']);
-        self::assertSame(['paths' => ['error', '/error_codes'], 'prefix' => 'AADSTS'], $providers['login']['error_code']);
+        self::assertSame(['paths' => ['error', '/error_codes'], 'prefix' => 'ERR'], $providers['login']['error_code']);
+    }
+
+    #[Test]
+    public function theErrorCodeColumnIsMappedOnlyWhileAProviderReadsIt(): void
+    {
+        foreach ([
+            ['outbound' => ['enabled' => true, 'providers' => ['p' => ['hosts' => ['a.example']]]]],
+            ['outbound' => ['enabled' => true, 'providers' => ['p' => ['hosts' => ['a.example'], 'error_code' => ['paths' => [], 'prefix' => 'ERR']]]]],
+            ['mailer' => ['enabled' => true]],
+            ['outbound' => ['enabled' => false, 'providers' => ['p' => ['hosts' => ['a.example'], 'error_code' => ['paths' => ['error']]]]]],
+            [],
+        ] as $config) {
+            self::assertFalse($this->registered($this->load($config), ErrorCodeColumnListener::class), json_encode($config, JSON_THROW_ON_ERROR));
+        }
     }
 
     /**
