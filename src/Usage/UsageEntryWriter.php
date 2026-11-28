@@ -149,6 +149,7 @@ final readonly class UsageEntryWriter
             'path'                  => [$capture->path, ParameterType::STRING],
             'statusCode'            => [$capture->statusCode, ParameterType::INTEGER],
             'errorKind'             => [$capture->errorKind, ParameterType::STRING],
+            'errorCode'             => [$capture->errorCode, ParameterType::STRING],
             'durationMs'            => [$capture->durationMs, Types::FLOAT],
             'responseBytes'         => [$capture->responseBytes, Types::BIGINT],
             'retryCount'            => [$capture->retryCount, ParameterType::INTEGER],

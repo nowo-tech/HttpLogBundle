@@ -133,12 +133,14 @@ final readonly class AdminPages
         if ($this->usageColumns) {
             $columns[] = new Column('channel', $this->label('admin.column.channel'), priority: 2);
             $columns[] = new Column('provider', $this->label('admin.column.provider'), priority: 2);
+            $columns[] = new Column('errorCode', $this->label('admin.column.error_code'), priority: 2);
             $filterFields += [
                 'channel'        => new FilterField('channel', width: 'sm'),
                 'provider'       => new FilterField('provider', width: 'sm'),
                 'tenantKey'      => new FilterField('tenantKey', width: 'md'),
                 'projectKey'     => new FilterField('projectKey', width: 'md'),
                 'credentialKind' => new FilterField('credentialKind', width: 'sm'),
+                'errorCode'      => new FilterField('errorCode', width: 'md'),
             ];
         }
 
@@ -297,6 +299,7 @@ final readonly class AdminPages
             new DetailItem($this->label('admin.column.channel'), $entry->getChannel() ?? 'web'),
             new DetailItem($this->label('admin.column.provider'), $entry->getProvider()),
             new DetailItem($this->label('admin.field.error_kind'), $entry->getErrorKind()),
+            new DetailItem($this->label('admin.column.error_code'), $entry->getErrorCode()),
             new DetailItem($this->label('admin.field.retry_count'), $entry->getRetryCount()),
             new DetailItem($this->label('admin.field.response_bytes'), $entry->getResponseBytes()),
             new DetailItem($this->label('admin.field.tenant_key'), $entry->getTenantKey()),

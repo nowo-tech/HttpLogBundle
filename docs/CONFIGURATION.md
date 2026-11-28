@@ -452,6 +452,8 @@ migration of [UPGRADING](UPGRADING.md#to-1150) first. `enabled` must be a litera
 | `providers.<key>.path_depth` | `null` | Overrides `default_path_depth` (`0` = host only, e.g. webhooks). |
 | `providers.<key>.per_call` | `true` | `false`: never a per-call row (uptime probes): with the [rollup](#rollup) enabled they are counted there only. |
 | `providers.<key>.rollup` | `true` | Counted by the daily [rollup](#rollup) while it is enabled (every call, with or without a row). |
+| `providers.<key>.error_code.paths` | `[]` | Where the provider keeps the machine code of a failed call: up to 8 dotted paths (`error.code`) or JSON pointers (`/error/code`) of letters, digits, `_` and `-`, read in order. Empty = no code is read and the response body is never touched. See [USAGE](USAGE.md#outbound-error-code). |
+| `providers.<key>.error_code.prefix` | `''` | Up to 16 characters (`A-Z a-z 0-9 _ . : -`) prepended to **integer** values only (`ERR` turns `7000215` into `ERR7000215`). |
 
 With `async: false`, a batch flushed because the buffer reached 100 captures inside host code (a long stream loop
 or handler) is inserted on the host's connection and joins a host transaction that is still open; the boundary
@@ -479,6 +481,11 @@ nowo_http_log:
             uptime:
                 clients: [uptime.http_client]
                 per_call: false
+            login:
+                hosts: [login.example.com]
+                error_code:
+                    paths: [error, error_codes]   # {"error": "invalid_client", "error_codes": [7000215]}
+                    prefix: ERR                   # integers only: invalid_client,ERR7000215
 ```
 
 ## mailer

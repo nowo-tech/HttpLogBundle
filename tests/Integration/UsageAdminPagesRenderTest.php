@@ -48,7 +48,8 @@ final class UsageAdminPagesRenderTest extends TestCase
         self::assertStringContainsString('nowo-http-log-channel">outbound<', $html);
         self::assertStringContainsString('nowo-http-log-channel">web<', $html);
         self::assertStringContainsString('clickup', $html);
-        self::assertSame(9, count($page->columns));
+        self::assertSame(10, count($page->columns));
+        self::assertStringContainsString('<code', $html);
 
         $plain = $harness->createEnvironment()->render('@NowoHttpLogBundle/admin/index.html.twig', ['page' => AdminPageFixtures::listPage(AdminPageFixtures::entries(), 3), 'criteria' => []]);
         self::assertStringNotContainsString('nowo-http-log-channel', $plain);
@@ -65,6 +66,7 @@ final class UsageAdminPagesRenderTest extends TestCase
             'tenantKey'          => 'org-1',
             'projectKey'         => 'project-1',
             'errorKind'          => 'http_5xx',
+            'errorCode'          => 'invalid_client,AADSTS7000215',
             'retryCount'         => 2,
             'responseBytes'      => '2048',
             'messengerMessageId' => 'msg-1',
@@ -83,6 +85,7 @@ final class UsageAdminPagesRenderTest extends TestCase
         self::assertSame('mailer', $items['admin.column.channel']);
         self::assertSame('personal_token:42', $items['admin.field.credential']);
         self::assertSame(2048, $items['admin.field.response_bytes']);
+        self::assertSame('invalid_client,AADSTS7000215', $items['admin.column.error_code']);
 
         $html = $harness->createEnvironment()->render('@NowoHttpLogBundle/admin/show.html.twig', ['page' => $show, 'entry' => $entry, 'payload' => $pages->payload($entry)]);
         self::assertStringContainsString('id-1@mail.example', $html);

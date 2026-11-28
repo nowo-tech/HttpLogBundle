@@ -51,6 +51,22 @@ final class UsageCaptureTest extends TestCase
     }
 
     #[Test]
+    public function theErrorCodeTravelsInThePayloadOnlyWhenPresentAndIsValidatedAgain(): void
+    {
+        $now     = new DateTimeImmutable('2026-11-08T10:00:00+00:00');
+        $capture = new UsageCapture('outbound', $now, 'POST', statusCode: 401, errorCode: 'invalid_client,AADSTS7000215');
+        self::assertSame('invalid_client,AADSTS7000215', $capture->toArray()['errorCode']);
+        self::assertSame('invalid_client,AADSTS7000215', UsageCapture::fromArray($capture->toArray())->errorCode);
+
+        self::assertArrayNotHasKey('errorCode', (new UsageCapture('outbound', $now, 'GET'))->toArray());
+        self::assertNull((new UsageCapture('outbound', $now, 'GET', errorCode: 'AADSTS7000215: wrong secret for jane@example.com'))->errorCode);
+
+        $payload              = $capture->toArray();
+        $payload['errorCode'] = 'free text with spaces';
+        self::assertNull(UsageCapture::fromArray($payload)->errorCode);
+    }
+
+    #[Test]
     public function invalidValuesBecomeNullAndAnInvalidEventIdIsReplaced(): void
     {
         $capture = new UsageCapture(

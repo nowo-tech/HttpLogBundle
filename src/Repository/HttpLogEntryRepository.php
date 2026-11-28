@@ -64,7 +64,7 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
     public const SMALL_MATCH_SET = 500;
 
     /** HL-1 exact-match filters of the admin list (applied only while the usage columns are mapped). */
-    public const USAGE_EXACT_FILTERS = ['provider', 'tenantKey', 'projectKey', 'credentialKind'];
+    public const USAGE_EXACT_FILTERS = ['provider', 'tenantKey', 'projectKey', 'credentialKind', 'errorCode'];
 
     public function __construct(private readonly ManagerRegistry $registry)
     {

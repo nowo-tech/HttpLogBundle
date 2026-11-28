@@ -73,7 +73,7 @@ final class UsageSchemaTest extends TestCase
     }
 
     #[Test]
-    public function theListenerMapsElevenNullableColumnsAndFiveIndexesOnce(): void
+    public function theListenerMapsTwelveNullableColumnsAndSixIndexesOnce(): void
     {
         $db       = new UsageTestDatabase(createSchema: false);
         $metadata = $db->entityManager->getClassMetadata(HttpLogEntry::class);
@@ -89,7 +89,7 @@ final class UsageSchemaTest extends TestCase
         // a second event on the same metadata (or another class) changes nothing
         $listener = new UsageColumnsListener();
         $listener->loadClassMetadata(new LoadClassMetadataEventArgs($metadata, $db->entityManager));
-        self::assertCount(22 + 11, $metadata->getFieldNames());
+        self::assertCount(22 + 12, $metadata->getFieldNames());
     }
 
     #[Test]
@@ -164,7 +164,7 @@ final class UsageSchemaTest extends TestCase
     }
 
     /**
-     * Statements of the `hl1-ddl:<platform>` block of docs/UPGRADING.md, renamed for the variant.
+     * Statements of the `hl1-ddl:<platform>` block and the `error-code-ddl` block of docs/UPGRADING.md, renamed for the variant.
      *
      * @return list<string>
      */
@@ -174,7 +174,11 @@ final class UsageSchemaTest extends TestCase
         if (preg_match('/<!-- hl1-ddl:' . preg_quote($platform, '/') . ' -->\s*```sql\n(.*?)```/s', $doc, $match) !== 1) {
             throw new RuntimeException('No DDL block for ' . $platform);
         }
-        $sql = str_replace('nowo_http_log_entry', $table, $match[1]);
+        // the later `error_code` column (docs/UPGRADING.md, Unreleased), the same statements on every platform
+        if (preg_match('/<!-- error-code-ddl -->\s*```sql\n(.*?)```/s', $doc, $errorCode) !== 1) {
+            throw new RuntimeException('No error_code DDL block');
+        }
+        $sql = str_replace('nowo_http_log_entry', $table, $match[1] . ";\n" . $errorCode[1]);
         $sql = str_replace('INDEX idx_http_log_', 'INDEX ' . $tablePrefix . 'idx_http_log_', $sql);
 
         return array_values(array_filter(array_map(trim(...), explode(';', $sql)), static fn (string $s): bool => $s !== ''));

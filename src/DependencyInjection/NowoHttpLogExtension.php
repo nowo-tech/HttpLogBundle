@@ -765,6 +765,9 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                 if ($rollupEnabled) {
                     $providers[$key]['rollup'] = $provider['rollup'];
                 }
+                if ($provider['error_code']['paths'] !== []) {
+                    $providers[$key]['error_code'] = $provider['error_code'];
+                }
             }
             $container->setDefinition(OutboundCapturePolicy::class, (new Definition(OutboundCapturePolicy::class))
                 ->setArguments([

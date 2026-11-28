@@ -45,11 +45,16 @@ final class UsageQueryTest extends TestCase
         self::assertSame(['day'], $base->groupBy);
         self::assertSame([['api'], ['clickup'], 'personal_token', ['pt-1'], '2026-11-09', '2026-11-09', ['day', 'tenant_key']], [$query->channels, $query->providers, $query->credentialKind, $query->credentialIds, $query->fromDay, $query->toDay, $query->groupBy]);
 
-        $calls = CallQuery::platform()->withChannels('api')->withProviders('x')->withCredential('k', 'a', 'b')->between(null, new DateTimeImmutable('2026-11-09'))->withStatusClass(4)->withErrorKind('exception');
-        self::assertSame([['api'], ['x'], 'k', ['a', 'b'], null, 4, 'exception'], [$calls->channels, $calls->providers, $calls->credentialKind, $calls->credentialIds, $calls->from, $calls->statusClass, $calls->errorKind]);
+        $calls = CallQuery::platform()->withChannels('api')->withProviders('x')->withCredential('k', 'a', 'b')->between(null, new DateTimeImmutable('2026-11-09'))->withStatusClass(4)->withErrorKind('exception')->withErrorCode('invalid_client');
+        self::assertSame([['api'], ['x'], 'k', ['a', 'b'], null, 4, 'exception', 'invalid_client'], [$calls->channels, $calls->providers, $calls->credentialKind, $calls->credentialIds, $calls->from, $calls->statusClass, $calls->errorKind, $calls->errorCode]);
         self::assertSame('2026-11-09', $calls->to?->format('Y-m-d'));
         self::assertNotNull(CallQuery::platform()->between(new DateTimeImmutable(), null)->from);
 
+        try {
+            CallQuery::platform()->withErrorCode('free text');
+            self::fail('invalid error code');
+        } catch (InvalidArgumentException) {
+        }
         try {
             CallQuery::platform()->withStatusClass(6);
             self::fail('status class 6');

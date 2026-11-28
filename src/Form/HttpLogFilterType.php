@@ -97,6 +97,7 @@ final class HttpLogFilterType extends AbstractType
             $this->addTextField('tenantKey', ['required' => false, 'label' => 'filter.tenant_key']);
             $this->addTextField('projectKey', ['required' => false, 'label' => 'filter.project_key']);
             $this->addTextField('credentialKind', ['required' => false, 'label' => 'filter.credential_kind']);
+            $this->addTextField('errorCode', ['required' => false, 'label' => 'filter.error_code']);
         });
     }
 

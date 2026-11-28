@@ -237,6 +237,26 @@ final class UsageExtensionTest extends TestCase
         self::assertSame(['resend', 'resend+api'], $config['mailer']['providers']['resend']['schemes']);
     }
 
+    #[Test]
+    public function errorCodeIsOffByDefaultAndReachesThePolicyWhenConfigured(): void
+    {
+        $config = (new Processor())->processConfiguration(new Configuration(), [[
+            'outbound' => ['providers' => [
+                'plain' => ['hosts' => ['a.example']],
+                'login' => ['hosts' => ['b.example'], 'error_code' => ['paths' => ['error', '/error_codes'], 'prefix' => 'AADSTS']],
+            ]],
+        ]]);
+        self::assertSame(['paths' => [], 'prefix' => ''], $config['outbound']['providers']['plain']['error_code']);
+
+        $container = $this->load(['outbound' => ['enabled' => true, 'providers' => [
+            'plain' => ['hosts' => ['a.example']],
+            'login' => ['hosts' => ['b.example'], 'error_code' => ['paths' => ['error', '/error_codes'], 'prefix' => 'AADSTS']],
+        ]]]);
+        $providers = $container->getDefinition(OutboundCapturePolicy::class)->getArgument(0);
+        self::assertArrayNotHasKey('error_code', $providers['plain']);
+        self::assertSame(['paths' => ['error', '/error_codes'], 'prefix' => 'AADSTS'], $providers['login']['error_code']);
+    }
+
     /**
      * @return iterable<string, array{0: array<string, mixed>}>
      */
@@ -258,6 +278,12 @@ final class UsageExtensionTest extends TestCase
         yield 'excluded host with scheme' => [['outbound' => ['exclude_hosts' => ['redis://cache']]]];
         yield 'sampling' => [['outbound' => ['sampling_rate' => 1.5]]];
         yield 'retention' => [['outbound' => ['retention_days' => -1]]];
+        yield 'error code path with a space' => [['outbound' => ['providers' => ['p' => ['hosts' => ['a.example'], 'error_code' => ['paths' => ['error description']]]]]]];
+        yield 'error code path with a wildcard' => [['outbound' => ['providers' => ['p' => ['hosts' => ['a.example'], 'error_code' => ['paths' => ['errors.*.code']]]]]]];
+        yield 'error code path not a string' => [['outbound' => ['providers' => ['p' => ['hosts' => ['a.example'], 'error_code' => ['paths' => [['x']]]]]]]];
+        yield 'nine error code paths' => [['outbound' => ['providers' => ['p' => ['hosts' => ['a.example'], 'error_code' => ['paths' => ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']]]]]]];
+        yield 'error code prefix with a space' => [['outbound' => ['providers' => ['p' => ['hosts' => ['a.example'], 'error_code' => ['paths' => ['e'], 'prefix' => 'A B']]]]]];
+        yield 'error code prefix too long' => [['outbound' => ['providers' => ['p' => ['hosts' => ['a.example'], 'error_code' => ['paths' => ['e'], 'prefix' => str_repeat('A', 17)]]]]]];
         yield 'mailer retention' => [['mailer' => ['retention_days' => 'x']]];
         yield 'mailer provider key' => [['mailer' => ['providers' => ['Bad' => ['schemes' => ['smtp']]]]]];
         yield 'mailer scheme' => [['mailer' => ['providers' => ['p' => ['schemes' => ['SMTP://']]]]]];

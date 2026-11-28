@@ -79,6 +79,7 @@ final class HttpLogAdminController extends AbstractController
         'tenantKey',
         'projectKey',
         'credentialKind',
+        'errorCode',
     ];
 
     public function __construct(

@@ -31,7 +31,7 @@ final readonly class OutboundCapturePolicy
     public const OTHER = 'other';
 
     /**
-     * @param array<string, array{clients: list<string>, hosts: list<string>, path_templates: list<string>, path_depth: int|null, per_call: bool, rollup?: bool}> $providers
+     * @param array<string, array{clients: list<string>, hosts: list<string>, path_templates: list<string>, path_depth: int|null, per_call: bool, rollup?: bool, error_code?: array{paths: list<string>, prefix: string}|null}> $providers
      */
     public function __construct(
         private array $providers = [],
@@ -61,7 +61,7 @@ final readonly class OutboundCapturePolicy
             // unparsable (or relative, after a synchronous failure): the client id still names the provider (IX-I2)
             $provider = $this->resolve('', $clientId, $clientProvider, $requestProvider) ?? self::OTHER;
 
-            return new OutboundTarget($provider, null, OutboundUrlTemplater::INVALID_HOST, UsageFieldGuard::COLLAPSED_PATH, $this->providers[$provider]['per_call'] ?? true, $this->countsInRollup($provider));
+            return new OutboundTarget($provider, null, OutboundUrlTemplater::INVALID_HOST, UsageFieldGuard::COLLAPSED_PATH, $this->providers[$provider]['per_call'] ?? true, $this->countsInRollup($provider), $this->errorCodeSpec($provider));
         }
         if ($this->hostMatches($parsed['host'], $this->excludeHosts)) {
             return null; // e.g. the Messenger transport or database host (IX-L3)
@@ -76,7 +76,14 @@ final readonly class OutboundCapturePolicy
         $depth  = $config['path_depth'] ?? $this->defaultPathDepth;
         $path   = OutboundUrlTemplater::path($parsed['segments'], $config['path_templates'] ?? [], $depth, $this->pathWords);
 
-        return new OutboundTarget($provider, $parsed['scheme'], $parsed['host'], $path, $config['per_call'] ?? true, $this->countsInRollup($provider));
+        return new OutboundTarget($provider, $parsed['scheme'], $parsed['host'], $path, $config['per_call'] ?? true, $this->countsInRollup($provider), $this->errorCodeSpec($provider));
+    }
+
+    private function errorCodeSpec(string $provider): ?OutboundErrorCodeSpec
+    {
+        $config = $this->providers[$provider]['error_code'] ?? null;
+
+        return $config === null || $config['paths'] === [] ? null : new OutboundErrorCodeSpec($config['paths'], $config['prefix']);
     }
 
     /** Unmapped calls (`other`) count like a provider with the default `rollup: true`. */

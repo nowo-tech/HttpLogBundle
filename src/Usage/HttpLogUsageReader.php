@@ -44,7 +44,7 @@ final readonly class HttpLogUsageReader implements HttpLogUsageReaderInterface
         'id', 'requestId', 'channel', 'provider', 'method', 'scheme', 'host', 'path', 'routeName', 'statusCode',
         'errorKind', 'durationMs', 'responseBytes', 'retryCount', 'contentType', 'clientIp', 'userIdentifier',
         'credentialKind', 'credentialId', 'tenantKey', 'projectKey', 'messengerMessageId', 'externalMessageId',
-        'createdAt',
+        'createdAt', 'errorCode',
     ];
 
     public function __construct(
@@ -118,6 +118,9 @@ final readonly class HttpLogUsageReader implements HttpLogUsageReaderInterface
         }
         if ($query->errorKind !== null) {
             $qb->andWhere($column('errorKind') . ' = :errorKind')->setParameter('errorKind', $query->errorKind);
+        }
+        if ($query->errorCode !== null) {
+            $qb->andWhere($column('errorCode') . ' = :errorCode')->setParameter('errorCode', $query->errorCode);
         }
         if ($cursor !== null) {
             $qb->andWhere($column('id') . ' < :cursor')->setParameter('cursor', (int) $cursor);
@@ -332,6 +335,7 @@ final readonly class HttpLogUsageReader implements HttpLogUsageReaderInterface
             $this->str($row['messengerMessageId']),
             $this->str($row['externalMessageId']),
             new DateTimeImmutable((string) $row['createdAt']),
+            $this->str($row['errorCode']),
         );
     }
 

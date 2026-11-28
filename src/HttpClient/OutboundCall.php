@@ -45,6 +45,17 @@ final class OutboundCall
     /** The last chunk seen was an idle timeout: if the response ends (destruct) before more data, it timed out. */
     private bool $timedOut = false;
 
+    /**
+     * Response body read so far, only for a failed call (status >= 400) of a provider with an `error_code` extractor,
+     * at most {@see OutboundErrorCodeExtractor::MAX_BODY_BYTES}; it never reaches the row, only the extracted code does.
+     */
+    private string $errorBody = '';
+
+    /** The body outgrew the cap (or is not worth reading): no code is extracted. */
+    private bool $errorBodySkipped = false;
+
+    private ?OutboundTarget $resolved = null;
+
     private readonly int $startedAt;
 
     /**
@@ -113,6 +124,8 @@ final class OutboundCall
                 return;
             }
 
+            $this->collect($chunk, $context);
+
             if (!$chunk->isLast()) {
                 // @igor-ignore - per-call state owned by the response passthru closure; OutboundCall is never a container service
                 $this->timedOut = false;
@@ -132,6 +145,52 @@ final class OutboundCall
             $this->done = true;
             $this->logger->warning('HTTP log outbound capture dropped.', ['exception_class' => $exception::class]);
         }
+    }
+
+    /** Keeps the content of an error response while it fits the cap, for the `error_code` extractor. */
+    private function collect(ChunkInterface $chunk, AsyncContext $context): void
+    {
+        if ($this->errorBodySkipped || $chunk->isFirst()) {
+            return;
+        }
+        $status = $context->getInfo('http_code');
+        if (!is_int($status) || $status < 400) {
+            return;
+        }
+        $spec = $this->targetFor($context->getInfo())?->errorCode;
+        // @igor-ignore - per-call state owned by the response passthru closure; OutboundCall is never a container service
+        $this->errorBodySkipped = !$spec instanceof OutboundErrorCodeSpec;
+        if ($this->errorBodySkipped) {
+            return;
+        }
+
+        $content = $chunk->getContent();
+        if (strlen($this->errorBody) + strlen($content) > OutboundErrorCodeExtractor::MAX_BODY_BYTES) {
+            // @igor-ignore - per-call state owned by the response passthru closure; OutboundCall is never a container service
+            $this->errorBodySkipped = true;
+            // @igor-ignore - per-call state owned by the response passthru closure; OutboundCall is never a container service
+            $this->errorBody = '';
+
+            return;
+        }
+        // @igor-ignore - per-call state owned by the response passthru closure; OutboundCall is never a container service
+        $this->errorBody .= $content;
+    }
+
+    /** @param array<string, mixed> $info */
+    private function targetFor(array $info): ?OutboundTarget
+    {
+        if ($this->target instanceof OutboundTarget) {
+            return $this->target;
+        }
+
+        // @igor-ignore - per-call state owned by the response passthru closure; OutboundCall is never a container service
+        return $this->resolved ??= $this->policy->target(
+            is_string($info['original_url'] ?? null) ? $info['original_url'] : $this->resolve['url'],
+            $this->resolve['clientId'],
+            $this->resolve['clientProvider'],
+            $this->resolve['requestProvider'],
+        );
     }
 
     /**
@@ -164,12 +223,7 @@ final class OutboundCall
         $this->done = true;
 
         try {
-            $target = $this->target ?? $this->policy->target(
-                is_string($info['original_url'] ?? null) ? $info['original_url'] : $this->resolve['url'],
-                $this->resolve['clientId'],
-                $this->resolve['clientProvider'],
-                $this->resolve['requestProvider'],
-            );
+            $target = $this->targetFor($info);
             if (!$target instanceof OutboundTarget) {
                 return; // unmapped host with record_unmapped: false
             }
@@ -206,6 +260,7 @@ final class OutboundCall
                 messengerMessageId: $this->frame->messengerMessageId,
                 row: $row,
                 rollup: $target->rollup,
+                errorCode: $this->errorCode($target, $status),
             );
 
             // @igor-ignore - per-call state owned by the response passthru closure; OutboundCall is never a container service
@@ -213,6 +268,15 @@ final class OutboundCall
         } catch (Throwable $exception) {
             $this->logger->warning('HTTP log outbound capture dropped.', ['exception_class' => $exception::class]);
         }
+    }
+
+    private function errorCode(OutboundTarget $target, ?int $status): ?string
+    {
+        if (!$target->errorCode instanceof OutboundErrorCodeSpec || $status === null || $status < 400 || $this->errorBodySkipped || $this->errorBody === '') {
+            return null;
+        }
+
+        return OutboundErrorCodeExtractor::extract($this->errorBody, $target->errorCode);
     }
 
     /**

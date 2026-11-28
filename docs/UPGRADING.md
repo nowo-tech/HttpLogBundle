@@ -83,6 +83,27 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+From **1.25.0**: the usage columns gain a nullable `error_code` column and the index `idx_http_log_errcode_created`
+(only hosts with `outbound`, `mailer` or a named channel enabled). Generate and run the migration, or apply the SQL
+(default names; add your `doctrine.table_prefix` / `table_name_prefix`):
+
+```bash
+composer update nowo-tech/http-log-bundle
+php bin/console doctrine:migrations:diff
+php bin/console doctrine:migrations:migrate
+```
+
+<!-- error-code-ddl -->
+```sql
+-- MySQL / MariaDB / PostgreSQL / SQLite
+ALTER TABLE nowo_http_log_entry ADD error_code VARCHAR(128) DEFAULT NULL;
+CREATE INDEX idx_http_log_errcode_created ON nowo_http_log_entry (error_code, created_at);
+```
+
+Deploy the migration before the new code: it writes `error_code` on every usage row. Nothing is stored in the column
+until a provider sets `outbound.providers.<key>.error_code` (optional, see [CONFIGURATION](CONFIGURATION.md#outbound)).
+The index name is 28 characters: with a `table_prefix`, keep the full prefixed name within your database's limit.
+
 ## To 1.25.0
 
 From **1.24.0**:

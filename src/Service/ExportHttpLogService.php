@@ -33,7 +33,7 @@ final readonly class ExportHttpLogService
     /** HL-1 usage columns, appended (CSV and JSON) only while they are mapped: 1.14 exports keep their column set. */
     public const USAGE_FIELDS = [
         'channel', 'provider', 'credentialKind', 'credentialId', 'tenantKey', 'projectKey',
-        'responseBytes', 'retryCount', 'errorKind', 'messengerMessageId', 'externalMessageId',
+        'responseBytes', 'retryCount', 'errorKind', 'errorCode', 'messengerMessageId', 'externalMessageId',
     ];
 
     public function __construct(
@@ -234,6 +234,7 @@ final readonly class ExportHttpLogService
             'responseBytes'      => $entry->getResponseBytes(),
             'retryCount'         => $entry->getRetryCount(),
             'errorKind'          => $entry->getErrorKind(),
+            'errorCode'          => $entry->getErrorCode(),
             'messengerMessageId' => $entry->getMessengerMessageId(),
             'externalMessageId'  => $entry->getExternalMessageId(),
         ];

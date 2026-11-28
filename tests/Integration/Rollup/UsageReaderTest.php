@@ -83,6 +83,7 @@ final class UsageReaderTest extends TestCase
                 credentialId: $credential,
                 row: $row,
                 rollup: true,
+                errorCode: $status === 503 ? 'upstream_down' : null,
             ));
         }
     }
@@ -177,6 +178,10 @@ final class UsageReaderTest extends TestCase
         self::assertCount(2, $this->reader->calls(CallQuery::forTenant('org-a')->withCredential('personal_token', 'tok-1'))->items);
         self::assertCount(1, $this->reader->calls(CallQuery::forTenant('org-a')->withProviders('clickup'))->items);
         self::assertCount(0, $this->reader->calls(CallQuery::forTenant('org-a')->withErrorKind('timeout'))->items);
+        $coded = $this->reader->calls(CallQuery::forTenant('org-a')->withErrorCode('upstream_down'))->items;
+        self::assertCount(1, $coded);
+        self::assertSame('upstream_down', $coded[0]->errorCode);
+        self::assertCount(0, $this->reader->calls(CallQuery::forTenant('org-a')->withErrorCode('other_code'))->items);
         self::assertCount(1, $this->reader->calls(CallQuery::forTenant('org-a')->between(new DateTimeImmutable('2026-11-08 09:30:00+00:00'), new DateTimeImmutable('2026-11-08 23:00:00+00:00')))->items);
         self::assertCount(1, $this->reader->calls(CallQuery::forTenant('ORG-A'))->items);
         self::assertCount(6, $this->reader->calls(CallQuery::platform())->items);

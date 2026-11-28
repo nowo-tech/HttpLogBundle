@@ -6,6 +6,8 @@ namespace Nowo\HttpLogBundle\Usage;
 
 use Nowo\HttpLogBundle\Enum\OutboundErrorKind;
 
+use function count;
+use function explode;
 use function filter_var;
 use function is_finite;
 use function is_float;
@@ -50,6 +52,18 @@ final class UsageFieldGuard
     private const MESSAGE_ID = '/^[A-Za-z0-9._:-]{1,64}\z/';
 
     private const EXTERNAL_ID = '/^[\x21-\x7E]{1,255}\z/';
+
+    /** One provider error code (`outbound.providers.<name>.error_code`). */
+    private const ERROR_CODE_PART = '/^[A-Za-z0-9_.:-]{1,64}\z/';
+
+    /** Shapes that look like an identifier or a credential, not a code: JWT, UUID, long hex string. */
+    private const ERROR_CODE_OPAQUE = '/^(?:eyJ|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z|[0-9a-f]{24,}\z|[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*\z)/i';
+
+    /** Stored in place of a provider code that fails {@see self::errorCodePart()}. */
+    public const UNKNOWN_ERROR_CODE = 'unknown';
+
+    /** Longest stored `error_code` (bytes). */
+    public const MAX_ERROR_CODE_LENGTH = 128;
 
     private const EVENT_ID = '/^[0-9a-f]{32}\z/';
 
@@ -136,6 +150,41 @@ final class UsageFieldGuard
         }
 
         return is_string($value) ? OutboundErrorKind::tryFrom($value)?->value : null;
+    }
+
+    /**
+     * One provider error code: `A-Z a-z 0-9 _ . : -`, 1..64 characters, and not shaped like a JWT, a UUID or a long hex
+     * string (an identifier or a credential is not a code). Anything else is `unknown`; the original is never kept.
+     */
+    public static function errorCodePart(mixed $value): string
+    {
+        if (is_string($value) && preg_match(self::ERROR_CODE_PART, $value) === 1 && preg_match(self::ERROR_CODE_OPAQUE, $value) !== 1) {
+            return $value;
+        }
+
+        return self::UNKNOWN_ERROR_CODE;
+    }
+
+    /**
+     * The stored error code: 1..8 parts of {@see self::errorCodePart()} joined by ",", at most 128 bytes. Anything
+     * else is NULL (a payload read back from a transport is validated again, never repaired).
+     */
+    public static function errorCode(mixed $value): ?string
+    {
+        if (!is_string($value) || $value === '' || strlen($value) > self::MAX_ERROR_CODE_LENGTH) {
+            return null;
+        }
+        $parts = explode(',', $value);
+        if (count($parts) > 8) {
+            return null;
+        }
+        foreach ($parts as $part) {
+            if (preg_match(self::ERROR_CODE_PART, $part) !== 1 || preg_match(self::ERROR_CODE_OPAQUE, $part) === 1) {
+                return null;
+            }
+        }
+
+        return $value;
     }
 
     public static function statusCode(mixed $value): ?int

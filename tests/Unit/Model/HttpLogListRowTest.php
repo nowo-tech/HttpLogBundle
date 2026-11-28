@@ -30,7 +30,9 @@ final class HttpLogListRowTest extends TestCase
             'scheme'         => 'https',
             'userIdentifier' => 'user-1',
             'requestId'      => 'req-1',
+            'errorCode'      => 'card_declined',
         ]);
+        self::assertSame('card_declined', $row->errorCode);
 
         self::assertSame(12, $row->getId());
         self::assertSame('2026-08-03 10:00:00', $row->createdAt->format('Y-m-d H:i:s'));

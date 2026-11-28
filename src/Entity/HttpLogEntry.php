@@ -134,6 +134,9 @@ class HttpLogEntry
     private ?string $errorKind = null;
 
     /** @phpstan-ignore property.unusedType (hydrated by Doctrine once UsageColumnsListener maps it) */
+    private ?string $errorCode = null;
+
+    /** @phpstan-ignore property.unusedType (hydrated by Doctrine once UsageColumnsListener maps it) */
     private ?string $messengerMessageId = null;
 
     /** @phpstan-ignore property.unusedType (hydrated by Doctrine once UsageColumnsListener maps it) */
@@ -486,6 +489,12 @@ class HttpLogEntry
     public function getErrorKind(): ?string
     {
         return $this->errorKind;
+    }
+
+    /** Provider error code of an outbound call with status >= 400 (allowlisted, never free text), or null. */
+    public function getErrorCode(): ?string
+    {
+        return $this->errorCode;
     }
 
     public function getMessengerMessageId(): ?string

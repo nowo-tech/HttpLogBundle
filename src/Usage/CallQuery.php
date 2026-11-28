@@ -32,6 +32,7 @@ final readonly class CallQuery
         public ?DateTimeImmutable $to = null,
         public ?int $statusClass = null,
         public ?string $errorKind = null,
+        public ?string $errorCode = null,
     ) {
     }
 
@@ -48,23 +49,23 @@ final readonly class CallQuery
 
     public function withChannels(string ...$channels): self
     {
-        return new self($this->scope, array_values($channels), $this->providers, $this->credentialKind, $this->credentialIds, $this->from, $this->to, $this->statusClass, $this->errorKind);
+        return new self($this->scope, array_values($channels), $this->providers, $this->credentialKind, $this->credentialIds, $this->from, $this->to, $this->statusClass, $this->errorKind, $this->errorCode);
     }
 
     public function withProviders(string ...$providers): self
     {
-        return new self($this->scope, $this->channels, array_values($providers), $this->credentialKind, $this->credentialIds, $this->from, $this->to, $this->statusClass, $this->errorKind);
+        return new self($this->scope, $this->channels, array_values($providers), $this->credentialKind, $this->credentialIds, $this->from, $this->to, $this->statusClass, $this->errorKind, $this->errorCode);
     }
 
     public function withCredential(string $kind, string ...$ids): self
     {
-        return new self($this->scope, $this->channels, $this->providers, $kind, array_values($ids), $this->from, $this->to, $this->statusClass, $this->errorKind);
+        return new self($this->scope, $this->channels, $this->providers, $kind, array_values($ids), $this->from, $this->to, $this->statusClass, $this->errorKind, $this->errorCode);
     }
 
     /** Rows created at or after `$from` and before or at `$to` (stored wall-clock time, as the admin filters). */
     public function between(?DateTimeInterface $from, ?DateTimeInterface $to): self
     {
-        return new self($this->scope, $this->channels, $this->providers, $this->credentialKind, $this->credentialIds, $from instanceof DateTimeInterface ? DateTimeImmutable::createFromInterface($from) : null, $to instanceof DateTimeInterface ? DateTimeImmutable::createFromInterface($to) : null, $this->statusClass, $this->errorKind);
+        return new self($this->scope, $this->channels, $this->providers, $this->credentialKind, $this->credentialIds, $from instanceof DateTimeInterface ? DateTimeImmutable::createFromInterface($from) : null, $to instanceof DateTimeInterface ? DateTimeImmutable::createFromInterface($to) : null, $this->statusClass, $this->errorKind, $this->errorCode);
     }
 
     /**
@@ -78,11 +79,25 @@ final readonly class CallQuery
             throw new InvalidArgumentException(sprintf('Status class must be 1..5, got %d.', $class));
         }
 
-        return new self($this->scope, $this->channels, $this->providers, $this->credentialKind, $this->credentialIds, $this->from, $this->to, $class, $this->errorKind);
+        return new self($this->scope, $this->channels, $this->providers, $this->credentialKind, $this->credentialIds, $this->from, $this->to, $class, $this->errorKind, $this->errorCode);
     }
 
     public function withErrorKind(string $errorKind): self
     {
-        return new self($this->scope, $this->channels, $this->providers, $this->credentialKind, $this->credentialIds, $this->from, $this->to, $this->statusClass, $errorKind);
+        return new self($this->scope, $this->channels, $this->providers, $this->credentialKind, $this->credentialIds, $this->from, $this->to, $this->statusClass, $errorKind, $this->errorCode);
+    }
+
+    /**
+     * Only calls whose provider error code is exactly `$errorCode` (the value stored by `outbound.providers.<name>.error_code`).
+     *
+     * @throws InvalidArgumentException on a value the column cannot hold
+     */
+    public function withErrorCode(string $errorCode): self
+    {
+        if (UsageFieldGuard::errorCode($errorCode) !== $errorCode) {
+            throw new InvalidArgumentException('Invalid error code.');
+        }
+
+        return new self($this->scope, $this->channels, $this->providers, $this->credentialKind, $this->credentialIds, $this->from, $this->to, $this->statusClass, $this->errorKind, $errorCode);
     }
 }

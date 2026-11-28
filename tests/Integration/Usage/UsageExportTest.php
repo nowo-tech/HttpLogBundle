@@ -59,6 +59,6 @@ final class UsageExportTest extends TestCase
         self::assertIsArray($json);
         self::assertSame('clickup', $json[0]['provider']);
         self::assertSame(2, $json[0]['retryCount']);
-        self::assertSame(ExportHttpLogService::USAGE_FIELDS, array_slice(array_keys($json[0]), -11));
+        self::assertSame(ExportHttpLogService::USAGE_FIELDS, array_slice(array_keys($json[0]), -12));
     }
 }

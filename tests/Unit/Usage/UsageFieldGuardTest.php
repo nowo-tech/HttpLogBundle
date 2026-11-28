@@ -82,6 +82,29 @@ final class UsageFieldGuardTest extends TestCase
     }
 
     #[Test]
+    public function errorCodesAreAllowlistedTokens(): void
+    {
+        self::assertSame('invalid_client', UsageFieldGuard::errorCodePart('invalid_client'));
+        self::assertSame('unknown', UsageFieldGuard::errorCodePart('jane@example.com'));
+        self::assertSame('unknown', UsageFieldGuard::errorCodePart(null));
+        self::assertSame('unknown', UsageFieldGuard::errorCodePart(42));
+        self::assertSame('unknown', UsageFieldGuard::errorCodePart(''));
+
+        self::assertSame('invalid_client,AADSTS7000215', UsageFieldGuard::errorCode('invalid_client,AADSTS7000215'));
+        self::assertSame('unknown', UsageFieldGuard::errorCode('unknown'));
+        self::assertNull(UsageFieldGuard::errorCode(''));
+        self::assertNull(UsageFieldGuard::errorCode(null));
+        self::assertNull(UsageFieldGuard::errorCode(['a']));
+        self::assertNull(UsageFieldGuard::errorCode('a,,b'));
+        self::assertNull(UsageFieldGuard::errorCode('The client secret is wrong'));
+        self::assertNull(UsageFieldGuard::errorCode('jane@example.com'));
+        self::assertNull(UsageFieldGuard::errorCode('eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2ln'));
+        self::assertNull(UsageFieldGuard::errorCode('0f6c2a1e-1111-2222-3333-444455556666'));
+        self::assertNull(UsageFieldGuard::errorCode(str_repeat('a,', 8) . 'a'));
+        self::assertNull(UsageFieldGuard::errorCode(str_repeat('a', 60) . ',' . str_repeat('b', 60) . ',c'));
+    }
+
+    #[Test]
     public function numbersAndKinds(): void
     {
         self::assertSame('timeout', UsageFieldGuard::errorKind(OutboundErrorKind::Timeout));
