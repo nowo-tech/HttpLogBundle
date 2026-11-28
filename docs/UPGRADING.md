@@ -121,9 +121,11 @@ HttpLog does not add or echo any response header (it owns none); send `X-Request
 Nothing changes until you set `nowo_http_log.correlation.columns: true`: without it the columns are not mapped and no
 migration is needed. When you do, the entry table gains two nullable `VARCHAR(64)` columns and two indexes:
 
-- `correlation_id`: the id of the request or message every row belongs to: a web row's `request_id`, a named inbound
-  channel row's request id, and for outbound and mailer rows the provider's current id, else the `request_id` of the
-  web request they were made in (null in a console command or a message handler without a provider).
+- `correlation_id`: the id of the request or message every row belongs to, so everything of one id is a single
+  indexed lookup on `(correlation_id, created_at)`. Web rows store the same value as their `request_id`; named inbound
+  channel rows the `request_id` of their request (their own `request_id` stays a unique event id); outbound and mailer
+  rows the provider's current id, else the `request_id` of the web request they were made in (null in a console
+  command or a message handler without a provider).
 - `upstream_id`: the id an upstream system sent (`X-Request-Id`, then `X-Correlation-Id`, then the trace-id of a W3C
   `traceparent`; see `correlation.upstream_headers`), kept only when the request comes from a trusted proxy
   (`framework.trusted_proxies`, `Request::isFromTrustedProxy()`) and the value is a valid correlation id. It never
