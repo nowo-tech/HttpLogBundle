@@ -88,6 +88,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- PHP 8.6: `composer.json` allows PHP below 8.7 (was below 8.6). CI adds a forward-compatibility workflow with a
+  PHP 8.6 cell and a Symfony 8.2 cell (stable Symfony 8.2.0).
 - Igor 0.11: the `buffer` collaborator of `MailerCaptureListener` is marked `#[WorkerSafe]` with the reason (a documented false positive: the buffer is its own `kernel.reset` service and `reset()` flushes it). No behaviour change.
 
 ### Fixed
