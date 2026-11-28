@@ -161,7 +161,10 @@ final class InboundRequestSubscriberTest extends TestCase
         self::assertFileExists($dir . '/' . RouteTemplateMap::RELATIVE_PATH);
 
         // a routing file changed since the warm-up: debug rebuilds the map (the router's own rule)
+        // (Symfony 8.2 compares the routing file with the time of the cache's meta file, earlier versions with the cache file's)
+        self::assertFileExists($dir . '/' . RouteTemplateMap::RELATIVE_PATH . '.meta');
         touch($dir . '/' . RouteTemplateMap::RELATIVE_PATH, time() - 10);
+        touch($dir . '/' . RouteTemplateMap::RELATIVE_PATH . '.meta', time() - 10);
         clearstatcache();
         $debug = new RouteTemplateMap($router, $matcher, new ConfigCacheFactory(true), $dir, true);
         self::assertSame('/api/tasks/{id}', $debug->template('api_task'));
