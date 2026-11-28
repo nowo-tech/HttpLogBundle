@@ -107,6 +107,11 @@ final class HttpLogFilterTypeTest extends TestCase
         self::assertSame(['web' => 'web', 'outbound' => 'outbound'], $form->get('channel')->getConfig()->getOption('choices'));
         self::assertFalse($form->has('errorCode'), 'only while a provider configures error_code');
         self::assertTrue($factory->create(HttpLogFilterType::class, null, ['usage_channels' => ['web', 'outbound'], 'error_code' => true])->has('errorCode'));
+        self::assertFalse($form->has('correlationId'), 'only with correlation.columns');
+        $correlation = $factory->create(HttpLogFilterType::class, null, ['correlation' => true]);
+        self::assertTrue($correlation->has('correlationId'));
+        self::assertTrue($correlation->has('upstreamId'));
+        self::assertFalse($correlation->has('channel'), 'independent of the usage columns');
 
         $form->submit(['channel' => 'outbound', 'tenantKey' => 'org-1']);
         self::assertTrue($form->isValid());

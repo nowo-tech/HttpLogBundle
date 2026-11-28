@@ -17,6 +17,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
 
+use function array_keys;
 use function array_map;
 use function count;
 
@@ -82,6 +83,38 @@ final class UsageAdminPagesRenderTest extends TestCase
         self::assertStringNotContainsString('invalid_client', $html);
         self::assertSame(9, $columns);
         self::assertNotContains('invalid_client', $values);
+    }
+
+    #[Test]
+    public function correlationFiltersAndFieldsExistOnlyWhileTheColumnsAreMapped(): void
+    {
+        $entry   = AdminTwigHarness::entry(71)->setCorrelationId('req-71')->setUpstreamId('up-71');
+        $harness = new AdminTwigHarness();
+        $forms   = $harness->formFactory();
+        $render  = static function (bool $correlation) use ($harness, $forms, $entry): array {
+            $pages = new AdminPages($harness->router(), [], false, false, $correlation);
+            $list  = $pages->listPage([$entry], 1, 1, 10, $forms->create(HttpLogFilterType::class, null, ['correlation' => $correlation])->createView(), [], $forms->create(HttpLogPurgeType::class, null, ['action' => '/x'])->createView());
+            $show  = $pages->showPage($entry, $forms->create(HttpLogDeleteType::class, null, ['action' => '/x'])->createView());
+            $items = [];
+            foreach ($show->sections[0]->items as $item) {
+                self::assertInstanceOf(Label::class, $item->label);
+                $items[$item->label->key] = $item->value;
+            }
+
+            return [array_keys($list->filterFields), $items, $harness->createEnvironment()->render('@NowoHttpLogBundle/admin/index.html.twig', ['page' => $list, 'criteria' => []])];
+        };
+
+        [$filters, $items, $html] = $render(true);
+        self::assertContains('correlationId', $filters);
+        self::assertContains('upstreamId', $filters);
+        self::assertSame('req-71', $items['admin.field.correlation_id']);
+        self::assertSame('up-71', $items['admin.field.upstream_id']);
+        self::assertStringContainsString('correlationId', $html);
+
+        [$filters, $items, $html] = $render(false);
+        self::assertNotContains('correlationId', $filters);
+        self::assertArrayNotHasKey('admin.field.correlation_id', $items);
+        self::assertStringNotContainsString('correlationId', $html);
     }
 
     #[Test]

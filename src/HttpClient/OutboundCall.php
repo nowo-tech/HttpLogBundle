@@ -263,6 +263,7 @@ final class OutboundCall
                 row: $row,
                 rollup: $target->rollup,
                 errorCode: $this->errorCode($target, $status),
+                correlationId: $this->frame->correlationId,
             );
 
             // @igor-ignore - per-call state owned by the response passthru closure; OutboundCall is never a container service

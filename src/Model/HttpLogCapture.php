@@ -6,6 +6,7 @@ namespace Nowo\HttpLogBundle\Model;
 
 use DateTimeImmutable;
 use DateTimeInterface;
+use Nowo\CorrelationContract\CorrelationId;
 
 use function is_array;
 use function is_string;
@@ -42,13 +43,15 @@ final readonly class HttpLogCapture
         public bool $responseBodyTruncated,
         public bool $responseBodyStored,
         public DateTimeImmutable $createdAt,
+        // 1.27: id sent by a trusted upstream proxy (correlation.columns), already validated
+        public ?string $upstreamId = null,
     ) {
     }
 
     /** @return array<string, mixed> */
     public function toArray(): array
     {
-        return [
+        $payload = [
             'requestId'             => $this->requestId,
             'method'                => $this->method,
             'scheme'                => $this->scheme,
@@ -71,6 +74,12 @@ final readonly class HttpLogCapture
             'responseBodyStored'    => $this->responseBodyStored,
             'createdAt'             => $this->createdAt->format(DateTimeInterface::ATOM),
         ];
+        if ($this->upstreamId !== null) {
+            // 1.27: only when set, so a 1.26 payload stays a 1.26 payload
+            $payload['upstreamId'] = $this->upstreamId;
+        }
+
+        return $payload;
     }
 
     /** @param array<string, mixed> $data */
@@ -102,6 +111,8 @@ final readonly class HttpLogCapture
             responseBodyTruncated: (bool) ($data['responseBodyTruncated'] ?? false),
             responseBodyStored: (bool) ($data['responseBodyStored'] ?? false),
             createdAt: $createdAt,
+            // a payload is data from a transport: validated again
+            upstreamId: CorrelationId::tryFromString(isset($data['upstreamId']) && is_string($data['upstreamId']) ? $data['upstreamId'] : null)?->value,
         );
     }
 }

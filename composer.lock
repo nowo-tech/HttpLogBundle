@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "0077187ace1381548e0633e09edfe513",
+    "content-hash": "a8d65f10f31969d4c1da2390c7681c3d",
     "packages": [
         {
             "name": "doctrine/collections",
@@ -937,6 +937,95 @@
                 "source": "https://github.com/doctrine/sql-formatter/tree/1.5.4"
             },
             "time": "2026-02-08T16:21:46+00:00"
+        },
+        {
+            "name": "nowo-tech/correlation-contract",
+            "version": "v0.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/nowo-tech/correlation-contract.git",
+                "reference": "b21e9b2452e25395346992f6f0a4fa31fa26a002"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/nowo-tech/correlation-contract/zipball/b21e9b2452e25395346992f6f0a4fa31fa26a002",
+                "reference": "b21e9b2452e25395346992f6f0a4fa31fa26a002",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.2 <8.6"
+            },
+            "conflict": {
+                "symfony/messenger": "<7.4"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.64",
+                "igor-php/igor-php": "^0.10.0 || ^0.11.0",
+                "nowo-tech/phpstan-frankenphp": "^1.4",
+                "phpstan/phpstan": "^2.0",
+                "phpstan/phpstan-phpunit": "^2.0",
+                "phpunit/phpunit": "^11.0",
+                "rector/rector": "^2.0",
+                "symfony/messenger": "^7.4 || ^8.0"
+            },
+            "suggest": {
+                "symfony/messenger": "For Messenger\\CorrelationIdStamp (carry the correlation id across message buses); ^7.4 || ^8.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Nowo\\CorrelationContract\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Héctor Franco Aceituno",
+                    "email": "hectorfranco@nowo.tech",
+                    "homepage": "https://github.com/HecFranco",
+                    "role": "Developer"
+                },
+                {
+                    "name": "Nowo.tech",
+                    "homepage": "https://nowo.tech"
+                }
+            ],
+            "description": "Framework-free correlation id contract: the CorrelationId value object, CorrelationIdProviderInterface (current id per request, message or command, FrankenPHP worker safe), a Null provider, header names (X-Correlation-Id, W3C traceparent) and an optional Symfony Messenger stamp. No dependencies beyond PHP.",
+            "homepage": "https://github.com/nowo-tech/correlation-contract",
+            "keywords": [
+                "contracts",
+                "correlation-id",
+                "ddd",
+                "frankenphp",
+                "hexagonal",
+                "observability",
+                "port",
+                "request-id",
+                "traceparent",
+                "tracing"
+            ],
+            "support": {
+                "changelog": "https://github.com/nowo-tech/correlation-contract/blob/main/docs/CHANGELOG.md",
+                "docs": "https://github.com/nowo-tech/correlation-contract/tree/main/docs",
+                "issues": "https://github.com/nowo-tech/correlation-contract/issues",
+                "source": "https://github.com/nowo-tech/correlation-contract"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/HecFranco",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-11-28T07:10:35+00:00",
+            "published-time": "2026-11-28T07:43:57+00:00"
         },
         {
             "name": "nowo-tech/form-kit-bundle",
@@ -10488,5 +10577,5 @@
     "platform-overrides": {
         "php": "8.2.0"
     },
-    "plugin-api-version": "2.9.0"
+    "plugin-api-version": "2.11.0"
 }

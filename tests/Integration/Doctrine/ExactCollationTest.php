@@ -196,7 +196,7 @@ final class ExactCollationTest extends TestCase
             $params = ['serverVersion' => $serverVersion] + RollupTestPlatforms::params('HTTPLOG_TEST_MYSQL_URL');
         }
         $logger = $this->logger();
-        $db     = new UsageTestDatabase(true, connectionParams: $params, createSchema: false, rollup: true, logger: $logger, errorCode: true);
+        $db     = new UsageTestDatabase(true, connectionParams: $params, createSchema: false, rollup: true, logger: $logger, errorCode: true, correlation: true);
         $sql    = implode("\n", (new SchemaTool($db->entityManager))->getCreateSchemaSql([$db->entityManager->getClassMetadata(HttpLogEntry::class)]));
 
         foreach ([...ExactColumnsCollationListener::COLUMNS, 'channel'] as $column) {

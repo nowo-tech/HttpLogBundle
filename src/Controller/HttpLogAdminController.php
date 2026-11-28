@@ -80,6 +80,9 @@ final class HttpLogAdminController extends AbstractController
         'projectKey',
         'credentialKind',
         'errorCode',
+        // 1.27 correlation filters (ignored by the repository while correlation.columns is off).
+        'correlationId',
+        'upstreamId',
     ];
 
     public function __construct(
@@ -110,10 +113,12 @@ final class HttpLogAdminController extends AbstractController
     {
         $this->denyUnlessGrantedAdmin();
 
-        $filterForm = $this->createForm(HttpLogFilterType::class, null, $this->usageChannels === [] ? [] : [
+        $filterOptions = $this->usageChannels === [] ? [] : [
             // only the channels this user may see (IX-I5)
             'usage_channels' => $this->allowedChannels() ?? [HttpLogChannel::WEB, ...$this->usageChannels],
-        ] + ($this->hasErrorCode() ? ['error_code' => true] : []));
+        ] + ($this->hasErrorCode() ? ['error_code' => true] : []);
+        // 1.27: correlation.columns maps correlation_id / upstream_id (independent of the usage columns)
+        $filterForm = $this->createForm(HttpLogFilterType::class, null, $filterOptions + ($this->repository->hasCorrelationColumns() ? ['correlation' => true] : []));
         $filterForm->handleRequest($request);
 
         $criteria = $filterForm->isSubmitted() && $filterForm->isValid()
@@ -203,7 +208,7 @@ final class HttpLogAdminController extends AbstractController
             throw new LogicException('HttpLogAdminController needs a UrlGeneratorInterface (autowired from the router).');
         }
 
-        return new AdminPages($this->urlGenerator, $this->webUi, $this->usageChannels !== [], $this->hasErrorCode());
+        return new AdminPages($this->urlGenerator, $this->webUi, $this->usageChannels !== [], $this->hasErrorCode(), $this->repository->hasCorrelationColumns());
     }
 
     /** A provider configures outbound `error_code`: the column is mapped (and so is the list column, filter and field). */

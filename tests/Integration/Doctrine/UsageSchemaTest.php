@@ -222,6 +222,46 @@ final class UsageSchemaTest extends TestCase
     }
 
     /**
+     * 1.27: the documented `correlation_id` / `upstream_id` DDL (docs/UPGRADING.md, `correlation-ddl`) on a 1.26 table
+     * leaves no schema diff once `correlation.columns` maps them.
+     */
+    #[Test]
+    #[DataProvider('platforms')]
+    public function documentedCorrelationDdlLeavesNoSchemaDiff(string $platform, string $source, string $prefixes): void
+    {
+        [$tablePrefix, $tableNamePrefix] = explode('|', $prefixes);
+        $file                            = sys_get_temp_dir() . '/http-log-correlation-schema-' . bin2hex(random_bytes(6)) . '.sqlite';
+        $params                          = ['driver' => 'pdo_sqlite', 'path' => $file];
+        if ($platform !== 'sqlite') {
+            $url = getenv($source);
+            if (!is_string($url) || $url === '') {
+                self::markTestSkipped($source . ' is not set.');
+            }
+            $params = (new DsnParser(['mysql' => 'pdo_mysql', 'postgresql' => 'pdo_pgsql', 'pgsql' => 'pdo_pgsql']))->parse($url);
+            RollupTestPlatforms::dropTables($params);
+        }
+
+        $old       = new UsageTestDatabase(true, $tablePrefix, $tableNamePrefix, $params);
+        $collation = ExactCollation::forConnection($old->connection());
+        foreach ($this->ddl($platform, $old->table(), $tablePrefix, 'correlation-ddl') as $statement) {
+            $old->connection()->executeStatement($collation === null ? $statement : str_replace(ExactCollation::MYSQL_NOPAD, $collation, $statement));
+        }
+        $old->connection()->close();
+
+        $new  = new UsageTestDatabase(true, $tablePrefix, $tableNamePrefix, $params, false, correlation: true);
+        $diff = (new SchemaTool($new->entityManager))->getUpdateSchemaSql([$new->entityManager->getClassMetadata(HttpLogEntry::class)]);
+        $new->connection()->close();
+
+        if ($platform === 'sqlite') {
+            @unlink($file);
+        } else {
+            RollupTestPlatforms::dropTables($params);
+        }
+
+        self::assertSame([], $diff);
+    }
+
+    /**
      * Statements of the `<block>:<platform>` block (`hl1-ddl`, `error-code-ddl`) of docs/UPGRADING.md, renamed for the variant.
      *
      * @return list<string>

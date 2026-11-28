@@ -142,6 +142,15 @@ class HttpLogEntry
     /** @phpstan-ignore property.unusedType (hydrated by Doctrine once UsageColumnsListener maps it) */
     private ?string $externalMessageId = null;
 
+    // Correlation columns (1.27): NOT mapped by these attributes. CorrelationColumnsListener maps them only with
+    // `correlation.columns: true`, so other hosts keep their schema.
+
+    /** Id of the request / message the row belongs to (web rows: = request_id). */
+    private ?string $correlationId = null;
+
+    /** Id sent by a trusted upstream proxy (X-Request-Id, traceparent trace-id...), never the row's own id. */
+    private ?string $upstreamId = null;
+
     public function __construct()
     {
         $this->createdAt = new DateTimeImmutable();
@@ -505,5 +514,31 @@ class HttpLogEntry
     public function getExternalMessageId(): ?string
     {
         return $this->externalMessageId;
+    }
+
+    public function getCorrelationId(): ?string
+    {
+        return $this->correlationId;
+    }
+
+    public function setCorrelationId(?string $correlationId): self
+    {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
+        $this->correlationId = $correlationId;
+
+        return $this;
+    }
+
+    public function getUpstreamId(): ?string
+    {
+        return $this->upstreamId;
+    }
+
+    public function setUpstreamId(?string $upstreamId): self
+    {
+        // @igor-ignore - Doctrine entity instance state; not a FrankenPHP shared service
+        $this->upstreamId = $upstreamId;
+
+        return $this;
     }
 }

@@ -394,6 +394,7 @@ final class Configuration implements ConfigurationInterface
                 ->append($this->outboundNode())
                 ->append($this->mailerNode())
                 ->append($this->rollupNode())
+                ->append($this->correlationNode())
                 ->arrayNode('messenger')
                     ->info('Context propagation for outbound and mailer rows (HL-1 §6.4).')
                     ->addDefaultsIfNotSet()
@@ -462,6 +463,14 @@ final class Configuration implements ConfigurationInterface
 
     /** Segments kept at most by a path template or a path depth. */
     public const MAX_PATH_SEGMENTS = 16;
+
+    /** `correlation.upstream_headers` entry. */
+    public const HEADER_NAME_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9-]{0,63}\z/';
+
+    public const MAX_UPSTREAM_HEADERS = 4;
+
+    /** @var list<string> */
+    public const DEFAULT_UPSTREAM_HEADERS = ['X-Request-Id', 'X-Correlation-Id', 'traceparent'];
 
     /** `outbound.providers.<name>.error_code.paths` entry: a dotted path or a JSON pointer. */
     public const ERROR_CODE_PATH_PATTERN = '/^(?:[A-Za-z0-9_-]{1,64}(?:\.[A-Za-z0-9_-]{1,64}){0,7}|(?:\/[A-Za-z0-9_-]{1,64}){1,8})\z/';
@@ -767,6 +776,44 @@ final class Configuration implements ConfigurationInterface
                         ->end()
                     ->end()
                     ->defaultValue([])
+                ->end()
+            ->end();
+
+        return $node;
+    }
+
+    /**
+     * 1.27 (Beacon spec 235): correlation ids from the host's `Nowo\CorrelationContract\CorrelationIdProviderInterface`
+     * and the trusted upstream id.
+     */
+    private function correlationNode(): ArrayNodeDefinition
+    {
+        $node = (new TreeBuilder('correlation'))->getRootNode();
+        $node
+            ->info('1.27: correlation ids (nowo-tech/correlation-contract). Nothing changes for a host that registers no CorrelationIdProviderInterface service and keeps columns: false.')
+            ->addDefaultsIfNotSet()
+            ->children()
+                ->booleanNode('use_provider')
+                    ->info('Take request_id of the web rows from the host\'s Nowo\CorrelationContract\CorrelationIdProviderInterface service (main request), when the host registers one and it has a current id; otherwise HttpLog generates it as before.')
+                    ->defaultTrue()
+                ->end()
+                ->booleanNode('columns')
+                    ->info('Map and fill the nullable correlation_id and upstream_id columns (+ indexes): a migration is needed. correlation_id = the id of the request / message on every row (web, named channel, outbound, mailer); upstream_id = the inbound id of a trusted proxy. Literal boolean (decides the Doctrine mapping).')
+                    ->defaultFalse()
+                ->end()
+                ->arrayNode('upstream_headers')
+                    ->info('Request headers read, in order, for upstream_id (columns: true), only when the request comes from a trusted proxy (framework.trusted_proxies). "traceparent" gives its W3C trace-id; any other header must hold a valid correlation id (1 to 64 of A-Z a-z 0-9 . _ : -). Invalid values are dropped silently.')
+                    ->scalarPrototype()
+                        ->validate()
+                            ->ifTrue(static fn (mixed $h): bool => !is_string($h) || preg_match(self::HEADER_NAME_PATTERN, $h) !== 1)
+                            ->thenInvalid('Invalid correlation.upstream_headers entry %s: an HTTP header name of letters, digits and "-".')
+                        ->end()
+                    ->end()
+                    ->validate()
+                        ->ifTrue(static fn (array $headers): bool => count($headers) > self::MAX_UPSTREAM_HEADERS)
+                        ->thenInvalid('At most 4 correlation.upstream_headers.')
+                    ->end()
+                    ->defaultValue(self::DEFAULT_UPSTREAM_HEADERS)
                 ->end()
             ->end();
 

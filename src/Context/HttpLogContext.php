@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\Context;
 
+use Nowo\HttpLogBundle\Correlation\CorrelationIds;
 use Symfony\Contracts\Service\ResetInterface;
 
 use function array_slice;
@@ -24,6 +25,14 @@ final class HttpLogContext implements HttpLogContextInterface, ResetInterface
 {
     /** @var list<HttpLogFrame> */
     private array $frames = [];
+
+    /**
+     * @param CorrelationIds|null $correlation 1.27: fills the correlation id of {@see current()} at call time (never stored)
+     */
+    public function __construct(
+        private readonly ?CorrelationIds $correlation = null,
+    ) {
+    }
 
     /**
      * Runs `$fn` with a frame for the tenant (and project); the current Messenger message id is kept.
@@ -80,10 +89,20 @@ final class HttpLogContext implements HttpLogContextInterface, ResetInterface
         $this->frames = array_slice($this->frames, 0, max(0, $depth));
     }
 
-    /** The innermost frame, or an empty one outside any `run()`. */
+    /**
+     * The innermost frame, or an empty one outside any `run()`. 1.27: a frame without a correlation id gets the current
+     * one (host provider, else the main request's id), read now: outbound calls and mails keep the frame of their start.
+     */
     public function current(): HttpLogFrame
     {
-        return $this->frames[count($this->frames) - 1] ?? new HttpLogFrame();
+        $frame = $this->frames[count($this->frames) - 1] ?? new HttpLogFrame();
+        if ($frame->correlationId !== null || !$this->correlation instanceof CorrelationIds) {
+            return $frame;
+        }
+
+        $id = $this->correlation->current();
+
+        return $id === null ? $frame : new HttpLogFrame($frame->tenantKey, $frame->projectKey, $frame->messengerMessageId, $id);
     }
 
     public function depth(): int

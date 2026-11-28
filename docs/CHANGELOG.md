@@ -60,6 +60,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Correlation ids (Beacon spec 235 FR-002 / FR-005)** with the new light dependency `nowo-tech/correlation-contract` ^0.1. When the host registers a `Nowo\CorrelationContract\CorrelationIdProviderInterface` service, the main request's `request_id` (request attribute `HttpLogSubscriber::ATTR_REQUEST_ID`, `HttpLogEntryRecordedEvent::$requestId`) is the provider's current id, read at `kernel.request` and again at `kernel.response` (a provider that sets its id later still wins); without a provider, or without a current id, HttpLog generates it as before. `correlation.use_provider: false` keeps HttpLog's own ids. Nothing is read from the client: `request_id` stays the row's unique dedupe key.
+- `correlation.columns` (opt-in, migration in UPGRADING): nullable `correlation_id` and `upstream_id` columns with the indexes `idx_http_log_corr_id` / `idx_http_log_upstream` (exact-match collation on MySQL / MariaDB). `correlation_id` is the id of the request or message of every row: web and named inbound channel rows carry the request's id, outbound and mailer rows the provider's current id, else the `request_id` of the web request they were made in, so one filter shows a request with its outbound calls and mails. `upstream_id` is the `X-Request-Id` / `X-Correlation-Id` / `traceparent` trace-id of the request (`correlation.upstream_headers`), accepted only from a trusted proxy (`Request::isFromTrustedProxy()`) and only when it parses as a correlation id; it never replaces `request_id`, and untrusted or invalid values are dropped without logging them. Exact-match `correlationId` / `upstreamId` filters in the admin list (kept by the export), both ids on the entry page, and `correlationId` / `upstreamId` as the last CSV / JSON export columns (CSV cells formula-neutralised). Hosts that keep the option off need no migration.
+- `HttpLogEntryRecordedEvent::$correlationId` and `$upstreamId` (optional constructor arguments at the end), `UsageCapture::$correlationId` / `$upstreamId`, `HttpLogFrame::$correlationId` (filled by `HttpLogContext::current()` at call time), `HttpLogCapture::$upstreamId`, `HttpLogEntry::getCorrelationId()` / `getUpstreamId()`.
+
+### Changed
+
+- `HttpLogSubscriber` also listens to `kernel.response` (priority -1024) to read the host provider's id; it never changes the response. HttpLog still sends no response header.
+
 ## [1.26.0] - 2026-11-28
 
 ### Security

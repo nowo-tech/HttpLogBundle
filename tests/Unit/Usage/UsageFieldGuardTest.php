@@ -72,6 +72,18 @@ final class UsageFieldGuardTest extends TestCase
     }
 
     #[Test]
+    public function correlationIdsFollowTheContractFormat(): void
+    {
+        self::assertSame('req-1:a.b_c', UsageFieldGuard::correlationId('req-1:a.b_c'));
+        self::assertSame(str_repeat('a', 64), UsageFieldGuard::correlationId(str_repeat('a', 64)));
+        self::assertNull(UsageFieldGuard::correlationId(str_repeat('a', 65)));
+        self::assertNull(UsageFieldGuard::correlationId('a b'));
+        self::assertNull(UsageFieldGuard::correlationId(''));
+        self::assertNull(UsageFieldGuard::correlationId(12));
+        self::assertNull(UsageFieldGuard::correlationId(null));
+    }
+
+    #[Test]
     public function contentTypeLosesItsParameters(): void
     {
         self::assertSame('application/json', UsageFieldGuard::contentType('Application/JSON; charset=utf-8'));

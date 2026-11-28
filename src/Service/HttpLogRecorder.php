@@ -60,13 +60,16 @@ final readonly class HttpLogRecorder
     ) {
     }
 
-    public function record(Request $request, Response $response, float $durationMs, ?string $requestId): void
+    /**
+     * @param string|null $upstreamId 1.27: id of a trusted upstream proxy (validated by the subscriber), stored in `upstream_id` while `correlation.columns` maps it
+     */
+    public function record(Request $request, Response $response, float $durationMs, ?string $requestId, ?string $upstreamId = null): void
     {
         try {
             if ($this->erased?->dropsCurrentRequest() === true) {
                 return;
             }
-            $capture = $this->buildCapture($request, $response, $durationMs, $requestId);
+            $capture = $this->buildCapture($request, $response, $durationMs, $requestId, $upstreamId);
             if ($this->erased?->matches($capture->userIdentifier, $capture->clientIp) === true) {
                 return;
             }
@@ -89,7 +92,7 @@ final readonly class HttpLogRecorder
         }
     }
 
-    private function buildCapture(Request $request, Response $response, float $durationMs, ?string $requestId): HttpLogCapture
+    private function buildCapture(Request $request, Response $response, float $durationMs, ?string $requestId, ?string $upstreamId): HttpLogCapture
     {
         $responseContentType = $response->headers->get('Content-Type');
         $bodyContentType     = $this->contentTypeClassifier->classify(
@@ -143,6 +146,7 @@ final readonly class HttpLogRecorder
             responseBodyTruncated: $responseBodyResult['truncated'],
             responseBodyStored: $responseBodyResult['stored'],
             createdAt: DateTimeImmutable::createFromInterface($this->clock->now()),
+            upstreamId: $upstreamId,
         );
     }
 
@@ -212,6 +216,8 @@ final readonly class HttpLogRecorder
                 statusCode: $capture->statusCode,
                 durationMs: $capture->durationMs,
                 recordedAt: $capture->createdAt,
+                correlationId: $capture->requestId,
+                upstreamId: $capture->upstreamId,
             ));
         } catch (Throwable $exception) {
             $this->logger->warning('HTTP log entry-recorded listener failed.', ['exception_class' => $exception::class]);
@@ -242,7 +248,10 @@ final readonly class HttpLogRecorder
             ->setRequestBodyTruncated($capture->requestBodyTruncated)
             ->setResponseBodyTruncated($capture->responseBodyTruncated)
             ->setResponseBodyStored($capture->responseBodyStored)
-            ->setCreatedAt($capture->createdAt);
+            ->setCreatedAt($capture->createdAt)
+            // 1.27: written only while correlation.columns maps the columns; a web row's correlation id is its request id
+            ->setCorrelationId($capture->requestId)
+            ->setUpstreamId($capture->upstreamId);
 
         return $entry;
     }

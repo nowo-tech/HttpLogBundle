@@ -21,6 +21,7 @@ All options live under the root key `nowo_http_log` (alias `nowo_http_log`).
 - [outbound](#outbound)
 - [mailer](#mailer)
 - [rollup](#rollup)
+- [correlation](#correlation)
 - [messenger](#messenger)
 - [conflict_response](#conflict_response)
 - [Messenger retry and failure transport](#messenger-retry-and-failure-transport)
@@ -147,6 +148,10 @@ nowo_http_log:
         retention_months: 13              # calendar months, the current one included; null = forever
         dedupe_days: 7                    # life of the exactly-once ledger
         web: false                        # also count the web channel
+    correlation:                          # 1.27: correlation ids, see "correlation"
+        use_provider: true                # request_id from the host's CorrelationIdProviderInterface service, if any
+        columns: false                    # correlation_id + upstream_id columns (migration)
+        upstream_headers: [X-Request-Id, X-Correlation-Id, traceparent]   # trusted proxies only
     messenger:                            # Context propagation, see "messenger"
         middleware: true                  # Registers nowo_http_log.messenger.context_middleware
         propagate_tenant: true
@@ -551,6 +556,40 @@ nowo_http_log:
                 clients: [uptime.http_client]
                 per_call: false           # counted in the rollup only
 ```
+
+## correlation
+
+1.27 (Beacon spec 235), [nowo-tech/correlation-contract](https://github.com/nowo-tech/correlation-contract). Nothing
+changes for a host that registers no `Nowo\CorrelationContract\CorrelationIdProviderInterface` service and keeps
+`columns: false`.
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `use_provider` | `true` | The main request's `request_id` is the current id of the host's `CorrelationIdProviderInterface` service (read at `kernel.request` and again at `kernel.response`, the provider's id wins). Without such a service, or while it has no current id, HttpLog generates the id as before. HttpLog registers no provider itself. |
+| `columns` | `false` | Maps and fills the nullable `correlation_id` and `upstream_id` columns (indexes `idx_http_log_corr_id`, `idx_http_log_upstream`): **migration needed**, see [UPGRADING](UPGRADING.md#correlation_id-and-upstream_id-columns-opt-in). Adds the `correlationId` / `upstreamId` filters, entry fields and export columns. Literal boolean (no `%env()%`). |
+| `upstream_headers` | `['X-Request-Id', 'X-Correlation-Id', 'traceparent']` | Headers read in order for `upstream_id` (with `columns: true`), only when the request comes from a trusted proxy (`framework.trusted_proxies`). `traceparent` gives its W3C trace-id; any other header must hold a valid correlation id (1 to 64 of `A-Z a-z 0-9 . _ : -`). Untrusted or invalid values are dropped silently. At most 4. |
+
+```yaml
+# config/packages/nowo_http_log.yaml
+nowo_http_log:
+    correlation:
+        columns: true
+
+# config/services.yaml (the host's provider, e.g. Beacon's or AuditKit's)
+services:
+    Nowo\CorrelationContract\CorrelationIdProviderInterface: '@App\Correlation\RequestCorrelationProvider'
+```
+
+What lands where:
+
+| Row | `request_id` | `correlation_id` | `upstream_id` |
+| --- | --- | --- | --- |
+| web | provider id, else generated | = `request_id` | trusted proxy id or `NULL` |
+| named inbound channel | own event id (unique) | the request's id | trusted proxy id or `NULL` |
+| outbound / mailer | own event id (unique) | provider id, else the web request's `request_id`, else `NULL` | `NULL` |
+
+`request_id` stays the unique dedupe key of a row, which is why outbound and mailer rows (several per request) carry
+the shared id in `correlation_id`. HttpLog adds no response header: echo `X-Request-Id` from your provider integration.
 
 ## messenger
 

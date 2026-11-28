@@ -50,6 +50,8 @@ final readonly class UsageCapture
     public ?string $userIdentifier;
     public ?string $credentialKind;
     public ?string $credentialId;
+    public ?string $correlationId;
+    public ?string $upstreamId;
 
     /**
      * @param string $channel `outbound`, `mailer` or a named inbound channel (lower-case, at most 16 characters);
@@ -57,6 +59,8 @@ final readonly class UsageCapture
      * @param string|null $eventId 32 hex characters; null (or an invalid id) generates one
      * @param bool $row true = a per-call row; false = a count-only rollup event (unsampled success, `per_call: false`)
      * @param bool $rollup counted in the daily rollup (HL-1 §9) when the rollup is enabled
+     * @param string|null $correlationId 1.27: id of the request / message the call belongs to (an invalid id is dropped)
+     * @param string|null $upstreamId 1.27: id sent by a trusted upstream proxy (named inbound channels; an invalid id is dropped)
      *
      * @throws InvalidArgumentException when the channel name is invalid
      */
@@ -87,6 +91,8 @@ final readonly class UsageCapture
         public bool $row = true,
         public bool $rollup = false,
         ?string $errorCode = null,
+        ?string $correlationId = null,
+        ?string $upstreamId = null,
     ) {
         $validChannel = UsageFieldGuard::channel($channel);
         if ($validChannel === null || ($validChannel === HttpLogChannel::WEB && $row)) {
@@ -116,6 +122,8 @@ final readonly class UsageCapture
         $this->userIdentifier     = UsageFieldGuard::userIdentifier($userIdentifier);
         $this->credentialKind     = UsageFieldGuard::token($credentialKind, 32);
         $this->credentialId       = UsageFieldGuard::token($credentialId);
+        $this->correlationId      = UsageFieldGuard::correlationId($correlationId);
+        $this->upstreamId         = UsageFieldGuard::correlationId($upstreamId);
     }
 
     /** Server-generated event id (32 hex): the `request_id` of the row and its dedupe key. */
@@ -168,6 +176,8 @@ final readonly class UsageCapture
             'credentialKind' => $this->credentialKind,
             'credentialId'   => $this->credentialId,
             'errorCode'      => $this->errorCode,
+            'correlationId'  => $this->correlationId,
+            'upstreamId'     => $this->upstreamId,
         ];
         foreach ($optional as $key => $value) {
             if ($value !== null) {
@@ -232,6 +242,8 @@ final readonly class UsageCapture
             row: ($data['row'] ?? true) !== false,
             rollup: ($data['rollup'] ?? false) === true,
             errorCode: self::string($data['errorCode'] ?? null),
+            correlationId: self::string($data['correlationId'] ?? null),
+            upstreamId: self::string($data['upstreamId'] ?? null),
         );
     }
 

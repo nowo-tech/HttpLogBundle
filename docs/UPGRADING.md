@@ -5,6 +5,9 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.27.0](#to-1270)
+  - [Correlation ids (nowo-tech/correlation-contract)](#correlation-ids-nowo-techcorrelation-contract)
+  - [`correlation_id` and `upstream_id` columns (opt-in)](#correlation_id-and-upstream_id-columns-opt-in)
 - [To 1.26.0](#to-1260)
   - [`error_code` column (opt-in)](#error_code-column-opt-in)
 - [To 1.25.0](#to-1250)
@@ -84,6 +87,83 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.27.0
+
+From **1.26.0**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
+
+The update installs the new dependency `nowo-tech/correlation-contract` (^0.1: interfaces and a value object, no
+dependency beyond PHP).
+
+### Correlation ids (nowo-tech/correlation-contract)
+
+Nothing changes for a host that registers no `Nowo\CorrelationContract\CorrelationIdProviderInterface` service: the
+`request_id` of a web row is generated as before. When the host registers one (an alias of that interface to its
+provider), the main request's `request_id` (the `_nowo_http_log_request_id` request attribute and
+`HttpLogEntryRecordedEvent::$requestId`) is the provider's current id, read at `kernel.request` and again at
+`kernel.response`; HttpLog still generates it when the provider has no current id. Set
+`nowo_http_log.correlation.use_provider: false` to keep HttpLog's own ids anyway.
+
+`request_id` stays the unique dedupe key of a row: the provider must return one id per request (the contract's unit of
+work), never a value a client chose. Outbound and mailer rows keep their own unique `request_id` (event id); the id they
+share with the request is in `correlation_id` (next section) and in `HttpLogEntryRecordedEvent::$correlationId` (new,
+always filled when known). `HttpLogEntryRecordedEvent` gains the optional `$correlationId` and `$upstreamId` arguments
+at the end of its constructor.
+
+HttpLog does not add or echo any response header (it owns none); send `X-Request-Id` from your provider's integration.
+
+### `correlation_id` and `upstream_id` columns (opt-in)
+
+Nothing changes until you set `nowo_http_log.correlation.columns: true`: without it the columns are not mapped and no
+migration is needed. When you do, the entry table gains two nullable `VARCHAR(64)` columns and two indexes:
+
+- `correlation_id`: the id of the request or message every row belongs to: a web row's `request_id`, a named inbound
+  channel row's request id, and for outbound and mailer rows the provider's current id, else the `request_id` of the
+  web request they were made in (null in a console command or a message handler without a provider).
+- `upstream_id`: the id an upstream system sent (`X-Request-Id`, then `X-Correlation-Id`, then the trace-id of a W3C
+  `traceparent`; see `correlation.upstream_headers`), kept only when the request comes from a trusted proxy
+  (`framework.trusted_proxies`, `Request::isFromTrustedProxy()`) and the value is a valid correlation id. It never
+  replaces `request_id`; untrusted or invalid values are dropped silently.
+
+Deploy the migration **before** the configuration (with the columns mapped and not migrated, every write and read of
+the log fails). Generate it with `php bin/console doctrine:migrations:diff`, or apply the SQL (default names; add your
+`doctrine.table_prefix` / `table_name_prefix`; the MySQL / MariaDB variant gives the columns the exact-match collation of
+the identifier columns, on MariaDB use `utf8mb4_nopad_bin` instead of `utf8mb4_0900_bin`):
+
+<!-- correlation-ddl:mysql -->
+```sql
+ALTER TABLE nowo_http_log_entry ADD correlation_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE `utf8mb4_0900_bin` DEFAULT NULL, ADD upstream_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE `utf8mb4_0900_bin` DEFAULT NULL;
+CREATE INDEX idx_http_log_corr_id ON nowo_http_log_entry (correlation_id, created_at);
+CREATE INDEX idx_http_log_upstream ON nowo_http_log_entry (upstream_id, created_at);
+```
+
+PostgreSQL (on a large table, run `CREATE INDEX CONCURRENTLY` outside a transaction):
+
+<!-- correlation-ddl:postgresql -->
+```sql
+ALTER TABLE nowo_http_log_entry ADD correlation_id VARCHAR(64) DEFAULT NULL;
+ALTER TABLE nowo_http_log_entry ADD upstream_id VARCHAR(64) DEFAULT NULL;
+CREATE INDEX idx_http_log_corr_id ON nowo_http_log_entry (correlation_id, created_at);
+CREATE INDEX idx_http_log_upstream ON nowo_http_log_entry (upstream_id, created_at);
+```
+
+SQLite:
+
+<!-- correlation-ddl:sqlite -->
+```sql
+ALTER TABLE nowo_http_log_entry ADD COLUMN correlation_id VARCHAR(64) DEFAULT NULL;
+ALTER TABLE nowo_http_log_entry ADD COLUMN upstream_id VARCHAR(64) DEFAULT NULL;
+CREATE INDEX idx_http_log_corr_id ON nowo_http_log_entry (correlation_id, created_at);
+CREATE INDEX idx_http_log_upstream ON nowo_http_log_entry (upstream_id, created_at);
+```
+
+Existing rows keep `NULL`. Once mapped, the admin list gains exact-match `correlationId` / `upstreamId` filters, the
+entry page shows both, and the CSV / JSON exports append `correlationId` and `upstreamId` as their last columns (CSV
+cells go through the spreadsheet-formula neutralisation like every other cell).
 
 ## To 1.26.0
 
