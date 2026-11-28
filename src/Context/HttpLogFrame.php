@@ -17,6 +17,8 @@ final readonly class HttpLogFrame
         public ?string $messengerMessageId = null,
         // 1.27: correlation id of the call / mail (filled by HttpLogContext::current() when the frame has none)
         public ?string $correlationId = null,
+        // 1.27: true when $correlationId is the host provider's id (false: the request's fallback id, re-read at capture)
+        public bool $providerCorrelation = false,
     ) {
     }
 }

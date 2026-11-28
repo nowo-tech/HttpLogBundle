@@ -101,18 +101,24 @@ dependency beyond PHP).
 
 ### Correlation ids (nowo-tech/correlation-contract)
 
-Nothing changes for a host that registers no `Nowo\CorrelationContract\CorrelationIdProviderInterface` service: the
-`request_id` of a web row is generated as before. When the host registers one (an alias of that interface to its
-provider), the main request's `request_id` (the `_nowo_http_log_request_id` request attribute and
-`HttpLogEntryRecordedEvent::$requestId`) is the provider's current id, read at `kernel.request` and again at
-`kernel.response`; HttpLog still generates it when the provider has no current id. Set
-`nowo_http_log.correlation.use_provider: false` to keep HttpLog's own ids anyway.
+`request_id` does not change: it stays HttpLog's own generated unique id (the row's dedupe key) for every row, whatever
+the host registers.
 
-`request_id` stays the unique dedupe key of a row: the provider must return one id per request (the contract's unit of
-work), never a value a client chose. Outbound and mailer rows keep their own unique `request_id` (event id); the id they
-share with the request is in `correlation_id` (next section) and in `HttpLogEntryRecordedEvent::$correlationId` (new,
-always filled when known). `HttpLogEntryRecordedEvent` gains the optional `$correlationId` and `$upstreamId` arguments
-at the end of its constructor.
+When the host registers a `Nowo\CorrelationContract\CorrelationIdProviderInterface` service (an alias of that
+interface to its provider), its current id becomes the correlation id of the rows: `HttpLogEntryRecordedEvent` gains
+the optional `$correlationId` (and `$upstreamId`) arguments at the end of its constructor, and with `columns: true` the
+id is stored in `correlation_id` (next section). Set `nowo_http_log.correlation.use_provider: false` to ignore the
+provider. When the id is read:
+
+- web and named inbound channel rows: on the main request at `kernel.request` (priority 1024), `kernel.response`
+  (-1024) and `kernel.terminate` (-1024); the latest id the provider gave wins, a cleared id keeps the earlier one;
+- outbound calls and mails: when the call or the send starts, and again when it is recorded if the provider had no id
+  at the start (a provider that sets its id late is still picked up). Without a provider id they take the request's
+  correlation id; a call or mail recorded at `kernel.terminate` (or later) takes only the provider's id, since the main
+  request is no longer on the request stack.
+
+For a complete correlation, let the provider set its id before HttpLog's `kernel.request` listener (priority above
+1024, or a request-start hook).
 
 HttpLog does not add or echo any response header (it owns none); send `X-Request-Id` from your provider's integration.
 
@@ -121,15 +127,18 @@ HttpLog does not add or echo any response header (it owns none); send `X-Request
 Nothing changes until you set `nowo_http_log.correlation.columns: true`: without it the columns are not mapped and no
 migration is needed. When you do, the entry table gains two nullable `VARCHAR(64)` columns and two indexes:
 
-- `correlation_id`: the id of the request or message every row belongs to, so everything of one id is a single
-  indexed lookup on `(correlation_id, created_at)`. Web rows store the same value as their `request_id`; named inbound
-  channel rows the `request_id` of their request (their own `request_id` stays a unique event id); outbound and mailer
-  rows the provider's current id, else the `request_id` of the web request they were made in (null in a console
-  command or a message handler without a provider).
+- `correlation_id`: the correlation id of every row, so everything of one id is a single indexed lookup on
+  `(correlation_id, created_at)`: the provider's id when the host registers a provider (several requests may share
+  it, `request_id` stays unique), else the `request_id` of the web request (a web row: the same value as its own
+  `request_id`; a named inbound channel row keeps a unique event id as `request_id`). Outbound and mailer rows outside
+  a web request without a provider id (console command, message handler) store `NULL`.
 - `upstream_id`: the id an upstream system sent (`X-Request-Id`, then `X-Correlation-Id`, then the trace-id of a W3C
-  `traceparent`; see `correlation.upstream_headers`), kept only when the request comes from a trusted proxy
-  (`framework.trusted_proxies`, `Request::isFromTrustedProxy()`) and the value is a valid correlation id. It never
-  replaces `request_id`; untrusted or invalid values are dropped silently.
+  `traceparent`; see `correlation.upstream_headers`), kept only when the request's `REMOTE_ADDR` is a trusted proxy
+  (`framework.trusted_proxies`, `Request::isFromTrustedProxy()`) and the value is a valid correlation id. A trusted
+  proxy does not make the header trustworthy: most proxies forward client headers unchanged. The proxy **must
+  overwrite** the configured headers (for example nginx `proxy_set_header X-Request-Id $request_id;`) if `upstream_id`
+  matters; otherwise treat it as a client-supplied, validated hint and configure only the header your proxy sets. It
+  never replaces `request_id`; invalid values are dropped silently.
 
 Deploy the migration **before** the configuration (with the columns mapped and not migrated, every write and read of
 the log fails). Generate it with `php bin/console doctrine:migrations:diff`, or apply the SQL (default names; add your

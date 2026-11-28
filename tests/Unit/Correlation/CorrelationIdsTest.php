@@ -63,6 +63,9 @@ final class CorrelationIdsTest extends TestCase
         $stack->push($request);
 
         self::assertSame('abc123', (new CorrelationIds(null, $stack))->current());
+        $request->attributes->set(HttpLogSubscriber::ATTR_CORRELATION_ID, 'kept-provider-id');
+        self::assertSame('kept-provider-id', (new CorrelationIds(null, $stack))->current(), 'the provider id kept for the request first');
+        $request->attributes->remove(HttpLogSubscriber::ATTR_CORRELATION_ID);
         self::assertSame('from-provider', (new CorrelationIds(new MutableCorrelationIdProvider('from-provider'), $stack))->current());
 
         $request->attributes->set(HttpLogSubscriber::ATTR_REQUEST_ID, 'not valid!');

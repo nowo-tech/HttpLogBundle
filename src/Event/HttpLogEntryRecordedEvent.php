@@ -32,8 +32,8 @@ final readonly class HttpLogEntryRecordedEvent
      * @param string|null $credentialKind opaque credential kind (named inbound channels only)
      * @param string|null $credentialId credential database id (named inbound channels only), never the credential
      * @param string|null $provider outbound / mailer provider key
-     * @param string|null $correlationId 1.27: id of the request / message the row belongs to (web rows: = `$requestId`; outbound and
-     *                                   mailer rows: the host provider's id, else the request id of the web request they were made in)
+     * @param string|null $correlationId 1.27: id of the request / message the row belongs to: the host provider's id, else (web rows) the
+     *                                   row's own `$requestId` or (other rows) the id of the web request they were made in
      * @param string|null $upstreamId 1.27: id sent by a trusted upstream proxy (web and named inbound channel rows, `correlation.columns`)
      */
     public function __construct(

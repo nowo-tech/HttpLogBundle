@@ -45,6 +45,8 @@ final readonly class HttpLogCapture
         public DateTimeImmutable $createdAt,
         // 1.27: id sent by a trusted upstream proxy (correlation.columns), already validated
         public ?string $upstreamId = null,
+        // 1.27: the host correlation provider's id of the request, already validated (null: the request id)
+        public ?string $correlationId = null,
     ) {
     }
 
@@ -74,9 +76,12 @@ final readonly class HttpLogCapture
             'responseBodyStored'    => $this->responseBodyStored,
             'createdAt'             => $this->createdAt->format(DateTimeInterface::ATOM),
         ];
+        // 1.27: only when set, so a 1.26 payload stays a 1.26 payload
         if ($this->upstreamId !== null) {
-            // 1.27: only when set, so a 1.26 payload stays a 1.26 payload
             $payload['upstreamId'] = $this->upstreamId;
+        }
+        if ($this->correlationId !== null) {
+            $payload['correlationId'] = $this->correlationId;
         }
 
         return $payload;
@@ -113,6 +118,7 @@ final readonly class HttpLogCapture
             createdAt: $createdAt,
             // a payload is data from a transport: validated again
             upstreamId: CorrelationId::tryFromString(isset($data['upstreamId']) && is_string($data['upstreamId']) ? $data['upstreamId'] : null)?->value,
+            correlationId: CorrelationId::tryFromString(isset($data['correlationId']) && is_string($data['correlationId']) ? $data['correlationId'] : null)?->value,
         );
     }
 }

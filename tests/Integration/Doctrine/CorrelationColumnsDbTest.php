@@ -12,6 +12,7 @@ use Nowo\HttpLogBundle\Service\ContentTypeClassifier;
 use Nowo\HttpLogBundle\Service\HttpLogRecorder;
 use Nowo\HttpLogBundle\Service\HttpLogRedactor;
 use Nowo\HttpLogBundle\Tests\Support\CollectingLogger;
+use Nowo\HttpLogBundle\Tests\Support\RepeatedProviderIdScenario;
 use Nowo\HttpLogBundle\Tests\Support\RollupTestPlatforms;
 use Nowo\HttpLogBundle\Tests\Support\UsageTestDatabase;
 use Nowo\HttpLogBundle\Usage\UsageCapture;
@@ -23,6 +24,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Clock\MockClock;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\Messenger\MessageBusInterface;
 
 use function array_map;
@@ -102,6 +104,32 @@ final class CorrelationColumnsDbTest extends TestCase
             self::assertSame(3, $db->repository()->countFiltered(['correlationId' => 'beacon-req-7']));
         } finally {
             $this->drop($db);
+        }
+    }
+
+    /** ZDW-HL-M1 on real servers: a repeated provider id gives two rows, sync and async. */
+    #[Test]
+    #[DataProvider('serversAndModes')]
+    public function twoRequestsWithTheSameProviderIdAreTwoRows(string $source, bool $async): void
+    {
+        $db = RollupTestPlatforms::open($source, correlation: true);
+
+        try {
+            $rows = RepeatedProviderIdScenario::run($db, $async, $this->createStub(HttpKernelInterface::class));
+            self::assertCount(2, $rows);
+            self::assertNotSame($rows[0]['request_id'], $rows[1]['request_id']);
+            self::assertSame(['chain-1', 'chain-1'], [$rows[0]['correlation_id'], $rows[1]['correlation_id']]);
+        } finally {
+            $this->drop($db);
+        }
+    }
+
+    /** @return iterable<string, array{0: string, 1: bool}> */
+    public static function serversAndModes(): iterable
+    {
+        foreach (self::servers() as $name => [$source]) {
+            yield $name . ' sync' => [$source, false];
+            yield $name . ' async' => [$source, true];
         }
     }
 

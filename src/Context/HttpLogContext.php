@@ -100,9 +100,24 @@ final class HttpLogContext implements HttpLogContextInterface, ResetInterface
             return $frame;
         }
 
-        $id = $this->correlation->current();
+        $provider = $this->correlation->fromProvider();
+        $id       = $provider ?? $this->correlation->requestCorrelationId();
 
-        return $id === null ? $frame : new HttpLogFrame($frame->tenantKey, $frame->projectKey, $frame->messengerMessageId, $id);
+        return $id === null ? $frame : new HttpLogFrame($frame->tenantKey, $frame->projectKey, $frame->messengerMessageId, $id, $provider !== null);
+    }
+
+    /**
+     * 1.27: the correlation id of a call or mail recorded now that started with `$start`: the provider's id of the start
+     * when it had one, else the provider's current id (a provider that set its id after the start), else the start's
+     * fallback.
+     */
+    public function correlationIdAtCapture(HttpLogFrame $start): ?string
+    {
+        if ($start->providerCorrelation) {
+            return $start->correlationId;
+        }
+
+        return $this->correlation?->fromProvider() ?? $start->correlationId;
     }
 
     public function depth(): int

@@ -103,4 +103,22 @@ final class HttpLogContextTest extends TestCase
         });
         self::assertNull((new HttpLogContext())->current()->correlationId);
     }
+
+    #[Test]
+    public function correlationAtCaptureKeepsAProviderIdAndPicksUpALateOne(): void
+    {
+        $provider = new MutableCorrelationIdProvider('at-start');
+        $context  = new HttpLogContext(new CorrelationIds($provider));
+        $started  = $context->current();
+        self::assertTrue($started->providerCorrelation);
+
+        $provider->id = 'next';
+        self::assertSame('at-start', $context->correlationIdAtCapture($started), 'an id the provider gave at the start is kept');
+
+        $fallback = new HttpLogFrame(correlationId: 'request-id');
+        self::assertSame('next', $context->correlationIdAtCapture($fallback), 'a late provider id is picked up');
+        $provider->id = null;
+        self::assertSame('request-id', $context->correlationIdAtCapture($fallback));
+        self::assertSame('request-id', (new HttpLogContext())->correlationIdAtCapture($fallback));
+    }
 }

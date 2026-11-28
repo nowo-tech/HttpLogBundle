@@ -23,7 +23,7 @@ use function strcasecmp;
  * - {@see fromProvider()}: the current id of the host's `CorrelationIdProviderInterface` (null without a provider,
  *   outside a unit of work, or when the provider fails).
  * - {@see current()}: the id an outbound call or a mail made right now belongs to: the provider's id, else the
- *   `request_id` HttpLog gave the main request being handled, else null.
+ *   correlation id HttpLog kept for the main request being handled ({@see requestCorrelationId()}), else null.
  * - {@see upstream()}: the id an upstream system sent, accepted only from a trusted proxy and only when it parses.
  */
 final readonly class CorrelationIds
@@ -53,14 +53,28 @@ final readonly class CorrelationIds
 
     public function current(): ?string
     {
-        $id = $this->fromProvider();
-        if ($id !== null) {
-            return $id;
+        return $this->fromProvider() ?? $this->requestCorrelationId();
+    }
+
+    /**
+     * The main request's correlation id kept by HttpLog: the provider's id it saw for that request, else the request's
+     * own `request_id`; null outside a request (also at `kernel.terminate`, when the main request is already popped).
+     */
+    public function requestCorrelationId(): ?string
+    {
+        $attributes = $this->requestStack?->getMainRequest()?->attributes;
+        if ($attributes === null) {
+            return null;
         }
 
-        $requestId = $this->requestStack?->getMainRequest()?->attributes->get(HttpLogSubscriber::ATTR_REQUEST_ID);
+        foreach ([HttpLogSubscriber::ATTR_CORRELATION_ID, HttpLogSubscriber::ATTR_REQUEST_ID] as $name) {
+            $id = $attributes->get($name);
+            if (is_string($id) && CorrelationId::tryFromString($id) instanceof CorrelationId) {
+                return $id;
+            }
+        }
 
-        return is_string($requestId) ? CorrelationId::tryFromString($requestId)?->value : null;
+        return null;
     }
 
     /**

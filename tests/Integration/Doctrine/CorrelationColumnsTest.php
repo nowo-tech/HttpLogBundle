@@ -17,12 +17,15 @@ use Nowo\HttpLogBundle\Service\HttpLogRecorder;
 use Nowo\HttpLogBundle\Service\HttpLogRedactor;
 use Nowo\HttpLogBundle\Tests\Support\CollectingLogger;
 use Nowo\HttpLogBundle\Tests\Support\RecordedEventSpy;
+use Nowo\HttpLogBundle\Tests\Support\RepeatedProviderIdScenario;
 use Nowo\HttpLogBundle\Tests\Support\UsageTestDatabase;
 use Nowo\HttpLogBundle\Usage\UsageCapture;
 use Nowo\HttpLogBundle\Usage\UsageEntryWriter;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Clock\MockClock;
+use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\Messenger\MessageBusInterface;
 
 use function array_filter;
@@ -154,6 +157,25 @@ final class CorrelationColumnsTest extends TestCase
         self::assertIsArray($json[0]);
         self::assertArrayNotHasKey('channel', $json[0]);
         self::assertNull($json[0]['upstreamId']);
+    }
+
+    /** ZDW-HL-M1: a repeated provider id never collapses rows (sync and async). */
+    #[Test]
+    #[DataProvider('modes')]
+    public function twoRequestsWithTheSameProviderIdAreTwoRows(bool $async): void
+    {
+        $rows = RepeatedProviderIdScenario::run(new UsageTestDatabase(usageColumns: false, correlation: true), $async, $this->createStub(HttpKernelInterface::class));
+
+        self::assertCount(2, $rows);
+        self::assertNotSame($rows[0]['request_id'], $rows[1]['request_id']);
+        self::assertSame(['chain-1', 'chain-1'], [$rows[0]['correlation_id'], $rows[1]['correlation_id']]);
+    }
+
+    /** @return iterable<string, array{0: bool}> */
+    public static function modes(): iterable
+    {
+        yield 'sync' => [false];
+        yield 'async' => [true];
     }
 
     private function recorder(UsageTestDatabase $db, ?RecordedEventSpy $events = null): HttpLogRecorder

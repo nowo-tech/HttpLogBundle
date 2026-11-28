@@ -149,7 +149,7 @@ nowo_http_log:
         dedupe_days: 7                    # life of the exactly-once ledger
         web: false                        # also count the web channel
     correlation:                          # 1.27: correlation ids, see "correlation"
-        use_provider: true                # request_id from the host's CorrelationIdProviderInterface service, if any
+        use_provider: true                # correlation id from the host's CorrelationIdProviderInterface service, if any
         columns: false                    # correlation_id + upstream_id columns (migration)
         upstream_headers: [X-Request-Id, X-Correlation-Id, traceparent]   # trusted proxies only
     messenger:                            # Context propagation, see "messenger"
@@ -565,9 +565,9 @@ changes for a host that registers no `Nowo\CorrelationContract\CorrelationIdProv
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `use_provider` | `true` | The main request's `request_id` is the current id of the host's `CorrelationIdProviderInterface` service (read at `kernel.request` and again at `kernel.response`, the provider's id wins). Without such a service, or while it has no current id, HttpLog generates the id as before. HttpLog registers no provider itself. |
+| `use_provider` | `true` | The current id of the host's `CorrelationIdProviderInterface` service (when one is registered; HttpLog registers none) is the correlation id of the rows: `correlation_id` (with `columns`) and `HttpLogEntryRecordedEvent::$correlationId`. Read on the main request at `kernel.request`, `kernel.response` and `kernel.terminate` (the latest id wins), and for outbound calls and mails at their start and again when recorded. `request_id` is never taken from it: it stays HttpLog's own unique id. |
 | `columns` | `false` | Maps and fills the nullable `correlation_id` and `upstream_id` columns (indexes `idx_http_log_corr_id`, `idx_http_log_upstream`): **migration needed**, see [UPGRADING](UPGRADING.md#correlation_id-and-upstream_id-columns-opt-in). Adds the `correlationId` / `upstreamId` filters, entry fields and export columns. Literal boolean (no `%env()%`). |
-| `upstream_headers` | `['X-Request-Id', 'X-Correlation-Id', 'traceparent']` | Headers read in order for `upstream_id` (with `columns: true`), only when the request comes from a trusted proxy (`framework.trusted_proxies`). `traceparent` gives its W3C trace-id; any other header must hold a valid correlation id (1 to 64 of `A-Z a-z 0-9 . _ : -`). Untrusted or invalid values are dropped silently. At most 4. |
+| `upstream_headers` | `['X-Request-Id', 'X-Correlation-Id', 'traceparent']` | Headers read in order for `upstream_id` (with `columns: true`), only when the request's `REMOTE_ADDR` is a trusted proxy (`framework.trusted_proxies`). The proxy **must overwrite** these headers (e.g. nginx `proxy_set_header X-Request-Id $request_id;`), otherwise they are client-supplied hints: configure only the header your proxy sets. `traceparent` gives its W3C trace-id; any other header must hold a valid correlation id (1 to 64 of `A-Z a-z 0-9 . _ : -`). Untrusted or invalid values are dropped silently. At most 4; a later config file replaces the list. |
 
 ```yaml
 # config/packages/nowo_http_log.yaml
@@ -584,12 +584,14 @@ What lands where:
 
 | Row | `request_id` | `correlation_id` | `upstream_id` |
 | --- | --- | --- | --- |
-| web | provider id, else generated | = `request_id` | trusted proxy id or `NULL` |
-| named inbound channel | own event id (unique) | the request's id | trusted proxy id or `NULL` |
-| outbound / mailer | own event id (unique) | provider id, else the web request's `request_id`, else `NULL` | `NULL` |
+| web | generated (unique) | provider id, else = `request_id` | trusted proxy id or `NULL` |
+| named inbound channel | own event id (unique) | provider id, else the request's `request_id` | trusted proxy id or `NULL` |
+| outbound / mailer | own event id (unique) | provider id (at start, or when recorded), else the web request's correlation id, else `NULL` | `NULL` |
+| outbound / mailer at `kernel.terminate` or later | own event id (unique) | provider id, else `NULL` (the main request is off the stack) | `NULL` |
 
-`request_id` stays the unique dedupe key of a row, which is why outbound and mailer rows (several per request) carry
-the shared id in `correlation_id`. HttpLog adds no response header: echo `X-Request-Id` from your provider integration.
+`request_id` stays the unique dedupe key of every row and is never taken from the provider, so a provider id shared by
+several requests never collapses rows; the shared id lives in `correlation_id`. For a complete correlation, let the
+provider set its id before HttpLog's `kernel.request` listener (priority above 1024). HttpLog adds no response header: echo `X-Request-Id` from your provider integration.
 
 ## messenger
 

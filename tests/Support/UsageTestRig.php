@@ -6,6 +6,7 @@ namespace Nowo\HttpLogBundle\Tests\Support;
 
 use DateTimeImmutable;
 use Nowo\HttpLogBundle\Context\HttpLogContext;
+use Nowo\HttpLogBundle\Correlation\CorrelationIds;
 use Nowo\HttpLogBundle\HttpClient\LoggingHttpClient;
 use Nowo\HttpLogBundle\HttpClient\OutboundCapturePolicy;
 use Nowo\HttpLogBundle\HttpClient\OutboundClientFactory;
@@ -47,10 +48,10 @@ final class UsageTestRig
 
     public readonly AbstractLogger $logger;
 
-    public function __construct(bool $errorCode = false)
+    public function __construct(bool $errorCode = false, ?CorrelationIds $correlation = null, bool $correlationColumns = false)
     {
-        $this->db      = new UsageTestDatabase(errorCode: $errorCode);
-        $this->context = new HttpLogContext();
+        $this->db      = new UsageTestDatabase(errorCode: $errorCode, correlation: $correlationColumns);
+        $this->context = new HttpLogContext($correlation);
         $this->clock   = new MockClock(new DateTimeImmutable('2026-11-08T10:00:00+00:00'));
         $messages      = &$this->messages;
         $bus           = new class($messages) implements MessageBusInterface {

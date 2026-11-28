@@ -62,14 +62,15 @@ final readonly class HttpLogRecorder
 
     /**
      * @param string|null $upstreamId 1.27: id of a trusted upstream proxy (validated by the subscriber), stored in `upstream_id` while `correlation.columns` maps it
+     * @param string|null $correlationId 1.27: the host correlation provider's id of the request (null: the row's own `request_id` is its correlation id)
      */
-    public function record(Request $request, Response $response, float $durationMs, ?string $requestId, ?string $upstreamId = null): void
+    public function record(Request $request, Response $response, float $durationMs, ?string $requestId, ?string $upstreamId = null, ?string $correlationId = null): void
     {
         try {
             if ($this->erased?->dropsCurrentRequest() === true) {
                 return;
             }
-            $capture = $this->buildCapture($request, $response, $durationMs, $requestId, $upstreamId);
+            $capture = $this->buildCapture($request, $response, $durationMs, $requestId, $upstreamId, $correlationId);
             if ($this->erased?->matches($capture->userIdentifier, $capture->clientIp) === true) {
                 return;
             }
@@ -92,7 +93,7 @@ final readonly class HttpLogRecorder
         }
     }
 
-    private function buildCapture(Request $request, Response $response, float $durationMs, ?string $requestId, ?string $upstreamId): HttpLogCapture
+    private function buildCapture(Request $request, Response $response, float $durationMs, ?string $requestId, ?string $upstreamId, ?string $correlationId): HttpLogCapture
     {
         $responseContentType = $response->headers->get('Content-Type');
         $bodyContentType     = $this->contentTypeClassifier->classify(
@@ -147,6 +148,7 @@ final readonly class HttpLogRecorder
             responseBodyStored: $responseBodyResult['stored'],
             createdAt: DateTimeImmutable::createFromInterface($this->clock->now()),
             upstreamId: $upstreamId,
+            correlationId: $correlationId,
         );
     }
 
@@ -216,7 +218,7 @@ final readonly class HttpLogRecorder
                 statusCode: $capture->statusCode,
                 durationMs: $capture->durationMs,
                 recordedAt: $capture->createdAt,
-                correlationId: $capture->requestId,
+                correlationId: $capture->correlationId ?? $capture->requestId,
                 upstreamId: $capture->upstreamId,
             ));
         } catch (Throwable $exception) {
@@ -249,8 +251,8 @@ final readonly class HttpLogRecorder
             ->setResponseBodyTruncated($capture->responseBodyTruncated)
             ->setResponseBodyStored($capture->responseBodyStored)
             ->setCreatedAt($capture->createdAt)
-            // 1.27: written only while correlation.columns maps the columns; a web row's correlation id is its request id
-            ->setCorrelationId($capture->requestId)
+            // 1.27: written only while correlation.columns maps the columns; the provider's id, else the row's own request id
+            ->setCorrelationId($capture->correlationId ?? $capture->requestId)
             ->setUpstreamId($capture->upstreamId);
 
         return $entry;

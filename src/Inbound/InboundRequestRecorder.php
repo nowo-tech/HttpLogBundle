@@ -116,8 +116,8 @@ final readonly class InboundRequestRecorder
                 credentialId: $context->credentialId,
                 row: $row,
                 rollup: $count,
-                // 1.27: the request's id (host provider or generated) and the trusted upstream id
-                correlationId: $row ? $this->attribute($request, HttpLogSubscriber::ATTR_REQUEST_ID) : null,
+                // 1.27: the host provider's id of the request, else the request's own id; and the trusted upstream id
+                correlationId: $row ? $this->attribute($request, HttpLogSubscriber::ATTR_CORRELATION_ID) ?? $this->attribute($request, HttpLogSubscriber::ATTR_REQUEST_ID) : null,
                 upstreamId: $row ? $this->attribute($request, HttpLogSubscriber::ATTR_UPSTREAM_ID) : null,
             ));
         } catch (Throwable $exception) {
