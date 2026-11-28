@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\Usage;
 
+use Nowo\CorrelationContract\CorrelationId;
 use Nowo\HttpLogBundle\Enum\OutboundErrorKind;
 
 use function count;
@@ -272,6 +273,12 @@ final class UsageFieldGuard
     public static function userIdentifier(mixed $value): ?string
     {
         return is_string($value) && $value !== '' && mb_strlen($value) <= 255 && preg_match('/^[^\x00-\x1F\x7F]+\z/u', $value) === 1 ? $value : null;
+    }
+
+    /** 1.27: a correlation id ({@see CorrelationId::PATTERN}: 1 to 64 of A-Z a-z 0-9 . _ : -), else null. */
+    public static function correlationId(mixed $value): ?string
+    {
+        return is_string($value) ? CorrelationId::tryFromString($value)?->value : null;
     }
 
     public static function eventId(mixed $value): ?string

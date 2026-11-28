@@ -5,6 +5,9 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.27.0](#to-1270)
+  - [Correlation ids (nowo-tech/correlation-contract)](#correlation-ids-nowo-techcorrelation-contract)
+  - [`correlation_id` and `upstream_id` columns (opt-in)](#correlation_id-and-upstream_id-columns-opt-in)
 - [To 1.26.0](#to-1260)
   - [`error_code` column (opt-in)](#error_code-column-opt-in)
 - [To 1.25.0](#to-1250)
@@ -84,6 +87,94 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.27.0
+
+From **1.26.0**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
+
+The update installs the new dependency `nowo-tech/correlation-contract` (^0.1: interfaces and a value object, no
+dependency beyond PHP).
+
+### Correlation ids (nowo-tech/correlation-contract)
+
+`request_id` does not change: it stays HttpLog's own generated unique id (the row's dedupe key) for every row, whatever
+the host registers.
+
+When the host registers a `Nowo\CorrelationContract\CorrelationIdProviderInterface` service (an alias of that
+interface to its provider), its current id becomes the correlation id of the rows: `HttpLogEntryRecordedEvent` gains
+the optional `$correlationId` (and `$upstreamId`) arguments at the end of its constructor, and with `columns: true` the
+id is stored in `correlation_id` (next section). Set `nowo_http_log.correlation.use_provider: false` to ignore the
+provider. When the id is read:
+
+- web and named inbound channel rows: on the main request at `kernel.request` (priority 1024), `kernel.response`
+  (-1024) and `kernel.terminate` (-1024); the latest id the provider gave wins, a cleared id keeps the earlier one;
+- outbound calls and mails: when the call or the send starts, and again when it is recorded if the provider had no id
+  at the start (a provider that sets its id late is still picked up). Without a provider id they take the request's
+  correlation id; a call or mail recorded at `kernel.terminate` (or later) takes only the provider's id, since the main
+  request is no longer on the request stack.
+
+For a complete correlation, let the provider set its id before HttpLog's `kernel.request` listener (priority above
+1024, or a request-start hook).
+
+HttpLog does not add or echo any response header (it owns none); send `X-Request-Id` from your provider's integration.
+
+### `correlation_id` and `upstream_id` columns (opt-in)
+
+Nothing changes until you set `nowo_http_log.correlation.columns: true`: without it the columns are not mapped and no
+migration is needed. When you do, the entry table gains two nullable `VARCHAR(64)` columns and two indexes:
+
+- `correlation_id`: the correlation id of every row, so everything of one id is a single indexed lookup on
+  `(correlation_id, created_at)`: the provider's id when the host registers a provider (several requests may share
+  it, `request_id` stays unique), else the `request_id` of the web request (a web row: the same value as its own
+  `request_id`; a named inbound channel row keeps a unique event id as `request_id`). Outbound and mailer rows outside
+  a web request without a provider id (console command, message handler) store `NULL`.
+- `upstream_id`: the id an upstream system sent (`X-Request-Id`, then `X-Correlation-Id`, then the trace-id of a W3C
+  `traceparent`; see `correlation.upstream_headers`), kept only when the request's `REMOTE_ADDR` is a trusted proxy
+  (`framework.trusted_proxies`, `Request::isFromTrustedProxy()`) and the value is a valid correlation id. A trusted
+  proxy does not make the header trustworthy: most proxies forward client headers unchanged. The proxy **must
+  overwrite** the configured headers (for example nginx `proxy_set_header X-Request-Id $request_id;`) if `upstream_id`
+  matters; otherwise treat it as a client-supplied, validated hint and configure only the header your proxy sets. It
+  never replaces `request_id`; invalid values are dropped silently.
+
+Deploy the migration **before** the configuration (with the columns mapped and not migrated, every write and read of
+the log fails). Generate it with `php bin/console doctrine:migrations:diff`, or apply the SQL (default names; add your
+`doctrine.table_prefix` / `table_name_prefix`; the MySQL / MariaDB variant gives the columns the exact-match collation of
+the identifier columns, on MariaDB use `utf8mb4_nopad_bin` instead of `utf8mb4_0900_bin`):
+
+<!-- correlation-ddl:mysql -->
+```sql
+ALTER TABLE nowo_http_log_entry ADD correlation_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE `utf8mb4_0900_bin` DEFAULT NULL, ADD upstream_id VARCHAR(64) CHARACTER SET utf8mb4 COLLATE `utf8mb4_0900_bin` DEFAULT NULL;
+CREATE INDEX idx_http_log_corr_id ON nowo_http_log_entry (correlation_id, created_at);
+CREATE INDEX idx_http_log_upstream ON nowo_http_log_entry (upstream_id, created_at);
+```
+
+PostgreSQL (on a large table, run `CREATE INDEX CONCURRENTLY` outside a transaction):
+
+<!-- correlation-ddl:postgresql -->
+```sql
+ALTER TABLE nowo_http_log_entry ADD correlation_id VARCHAR(64) DEFAULT NULL;
+ALTER TABLE nowo_http_log_entry ADD upstream_id VARCHAR(64) DEFAULT NULL;
+CREATE INDEX idx_http_log_corr_id ON nowo_http_log_entry (correlation_id, created_at);
+CREATE INDEX idx_http_log_upstream ON nowo_http_log_entry (upstream_id, created_at);
+```
+
+SQLite:
+
+<!-- correlation-ddl:sqlite -->
+```sql
+ALTER TABLE nowo_http_log_entry ADD COLUMN correlation_id VARCHAR(64) DEFAULT NULL;
+ALTER TABLE nowo_http_log_entry ADD COLUMN upstream_id VARCHAR(64) DEFAULT NULL;
+CREATE INDEX idx_http_log_corr_id ON nowo_http_log_entry (correlation_id, created_at);
+CREATE INDEX idx_http_log_upstream ON nowo_http_log_entry (upstream_id, created_at);
+```
+
+Existing rows keep `NULL`. Once mapped, the admin list gains exact-match `correlationId` / `upstreamId` filters, the
+entry page shows both, and the CSV / JSON exports append `correlationId` and `upstreamId` as their last columns (CSV
+cells go through the spreadsheet-formula neutralisation like every other cell).
 
 ## To 1.26.0
 

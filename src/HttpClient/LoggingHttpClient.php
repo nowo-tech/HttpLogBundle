@@ -184,6 +184,7 @@ final class LoggingHttpClient implements HttpClientInterface, ResetInterface
                 $this->policy,
                 $this->buffer,
                 $this->logger,
+                $this->context,
             );
         } catch (Throwable $exception) {
             $this->logger->warning('HTTP log outbound capture dropped.', ['exception_class' => $exception::class]);

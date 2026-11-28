@@ -46,6 +46,7 @@ Http Log Bundle captures each HTTP exchange on kernel terminate, classifies resp
 - ✅ Ignore routes (`fnmatch`) and path prefixes (admin UI excluded by default)
 - ✅ Symfony Flex recipe and FrankenPHP demo (`demo/symfony8`)
 - ✅ Standard Symfony hosts zero-config; DDD / hexagonal hosts through framework-free ports and value objects ([Standard host](docs/USAGE.md#standard-symfony-host), [DDD host](docs/USAGE.md#ddd--hexagonal-host))
+- ✅ Correlation ids (1.27, [nowo-tech/correlation-contract](https://github.com/nowo-tech/correlation-contract)): correlation id from the host's `CorrelationIdProviderInterface` (`request_id` stays HttpLog's own unique id); opt-in `correlation_id` / `upstream_id` columns (trusted proxies only) to find a request with its outbound calls and mails ([CONFIGURATION](docs/CONFIGURATION.md#correlation))
 - ✅ GitHub Spec Kit baseline and 100% coverage target on `src/`
 
 
@@ -72,6 +73,18 @@ php bin/console doctrine:schema:update --force
 ```
 
 Admin UI: **`/admin/http-log`** (requires `ROLE_ADMIN` by default).
+
+Correlation (1.27, optional): register your `Nowo\CorrelationContract\CorrelationIdProviderInterface` service and
+HttpLog uses its id as the correlation id of the rows (`request_id` stays HttpLog's own unique id); add
+`correlation.columns: true` (and its migration, see [UPGRADING](docs/UPGRADING.md#to-1270)) to store and filter
+`correlation_id` / `upstream_id`:
+
+```yaml
+nowo_http_log:
+    correlation:
+        use_provider: true   # default
+        columns: true        # opt-in, needs the migration
+```
 
 ## Development
 

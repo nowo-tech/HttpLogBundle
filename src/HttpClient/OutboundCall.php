@@ -7,6 +7,7 @@ namespace Nowo\HttpLogBundle\HttpClient;
 use Closure;
 use DateTimeImmutable;
 use Generator;
+use Nowo\HttpLogBundle\Context\HttpLogContext;
 use Nowo\HttpLogBundle\Context\HttpLogFrame;
 use Nowo\HttpLogBundle\Enum\OutboundErrorKind;
 use Nowo\HttpLogBundle\Usage\HttpLogBuffer;
@@ -78,6 +79,8 @@ final class OutboundCall
         private readonly OutboundCapturePolicy $policy,
         private readonly HttpLogBuffer $buffer,
         private readonly LoggerInterface $logger,
+        // 1.27: re-reads the provider's correlation id when the call is recorded
+        private readonly ?HttpLogContext $context = null,
     ) {
         $this->startedAt = hrtime(true);
     }
@@ -263,6 +266,7 @@ final class OutboundCall
                 row: $row,
                 rollup: $target->rollup,
                 errorCode: $this->errorCode($target, $status),
+                correlationId: $this->context?->correlationIdAtCapture($this->frame) ?? $this->frame->correlationId,
             );
 
             // @igor-ignore - per-call state owned by the response passthru closure; OutboundCall is never a container service

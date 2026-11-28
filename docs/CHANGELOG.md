@@ -60,6 +60,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Correlation ids (Beacon spec 235 FR-002 / FR-005)** with the new light dependency `nowo-tech/correlation-contract` ^0.1. When the host registers a `Nowo\CorrelationContract\CorrelationIdProviderInterface` service (`correlation.use_provider`, default `true`), its current id becomes the **correlation id** of the rows: `HttpLogEntryRecordedEvent::$correlationId` and, with `correlation.columns`, the `correlation_id` column. It is read on the main request at `kernel.request`, `kernel.response` and `kernel.terminate` (the latest id wins), and again when an outbound call or a mail is recorded (a provider that sets its id late is still picked up). `request_id` is **not** affected: it stays HttpLog's own generated unique id for every row, so a provider id that repeats (a retried chain, a header adopted from a client) never collapses rows.
+- `correlation.columns` (opt-in, migration in UPGRADING): nullable `correlation_id` and `upstream_id` columns with the indexes `idx_http_log_corr_id` / `idx_http_log_upstream` (exact-match collation on MySQL / MariaDB). `correlation_id` is filled on every row (web, named inbound channel, outbound, mailer) with the provider's id, else the `request_id` of the web request (a web row: its own), so everything of one id is a single indexed lookup on `(correlation_id, created_at)`. `upstream_id` is the `X-Request-Id` / `X-Correlation-Id` / `traceparent` trace-id of a request whose `REMOTE_ADDR` is a trusted proxy (`Request::isFromTrustedProxy()`), kept only when it parses as a correlation id; it never replaces `request_id`, invalid values are dropped without logging them. A trusted proxy that forwards these headers unchanged makes `upstream_id` a client-supplied (validated) hint: configure the proxy to overwrite them. Exact-match `correlationId` / `upstreamId` filters in the admin list (kept by the export), both ids on the entry page, and `correlationId` / `upstreamId` as the last CSV / JSON export columns (CSV cells formula-neutralised). Hosts that keep the option off need no migration.
+- `correlation.upstream_headers` (default `X-Request-Id`, `X-Correlation-Id`, `traceparent`; at most 4); a later config file replaces the list instead of appending to it.
+- `HttpLogEntryRecordedEvent::$correlationId` and `$upstreamId`, `UsageCapture::$correlationId` / `$upstreamId`, `HttpLogCapture::$upstreamId` / `$correlationId`, `HttpLogFrame::$correlationId` / `$providerCorrelation`, `HttpLogContext::correlationIdAtCapture()`, `HttpLogEntry::getCorrelationId()` / `getUpstreamId()` (optional constructor arguments at the end), request attributes `HttpLogSubscriber::ATTR_CORRELATION_ID` / `ATTR_UPSTREAM_ID`.
+
+### Changed
+
+- `HttpLogSubscriber` also listens to `kernel.response` (priority -1024) to re-read the host provider's id for the correlation id; it never changes the response or `request_id`. HttpLog still sends no response header.
+
 ## [1.26.0] - 2026-11-28
 
 ### Security

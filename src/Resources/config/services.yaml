@@ -23,6 +23,9 @@ services:
             - '../../Doctrine/UsageColumnsListener.php'
             - '../../Doctrine/PathPrefixColumnListener.php'
             - '../../Doctrine/ErrorCodeColumnListener.php'
+            # 1.27 correlation: registered by the extension (provider reference, columns only when enabled).
+            - '../../Correlation/'
+            - '../../Doctrine/CorrelationColumnsListener.php'
             - '../../Doctrine/ExactCollation.php'
             # 1.22 (REQ-RUNTIME-003): a static helper, and the conflict answer registered by the extension with the web UI.
             - '../../Doctrine/LogWriteUnit.php'

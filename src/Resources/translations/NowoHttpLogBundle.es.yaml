@@ -11,6 +11,8 @@ admin.column.status: Estado
 admin.column.duration: Duración
 admin.column.client_ip: IP del cliente
 admin.field.request_id: ID de petición
+admin.field.correlation_id: 'ID de correlación'
+admin.field.upstream_id: 'ID de origen'
 admin.field.url: URL
 admin.field.route: Ruta
 admin.field.user: Usuario
@@ -65,6 +67,8 @@ admin.field.external_message_id: 'Message-ID'
 filter.channel: 'Canal'
 filter.provider: 'Proveedor'
 filter.error_code: 'Código de error'
+filter.correlation_id: 'ID de correlación'
+filter.upstream_id: 'ID de origen'
 filter.tenant_key: 'Organización'
 filter.project_key: 'Proyecto'
 filter.credential_kind: 'Tipo de credencial'

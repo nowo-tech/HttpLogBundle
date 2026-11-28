@@ -31,6 +31,9 @@ final class HttpLogExportType extends AbstractHttpLogActionType
         'tenantKey',
         'projectKey',
         'credentialKind',
+        // 1.27 correlation filters (ignored by the repository while correlation.columns is off).
+        'correlationId',
+        'upstreamId',
     ];
 
     /**

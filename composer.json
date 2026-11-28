@@ -36,6 +36,7 @@
         "php": ">=8.2 <8.6",
         "doctrine/doctrine-bundle": "^2.10 || ^3.0",
         "doctrine/orm": "^3.7",
+        "nowo-tech/correlation-contract": "^0.1",
         "nowo-tech/form-kit-bundle": "^2.10",
         "nowo-tech/transaction-contract": "^1.0",
         "nowo-tech/transaction-doctrine": "^1.8.1",
