@@ -12,14 +12,17 @@ use Nowo\HttpLogBundle\Enum\ExportFormat;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use RuntimeException;
 
+use function array_map;
 use function array_values;
 use function chmod;
 use function fclose;
 use function fputcsv;
 use function fwrite;
 use function is_resource;
+use function is_string;
 use function json_encode;
 use function sprintf;
+use function strpbrk;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -133,7 +136,7 @@ final readonly class ExportHttpLogService
         do {
             $result = $this->repository->findFiltered($criteria, $page, self::BATCH_SIZE, withTotal: false);
             foreach ($result['items'] as $entry) {
-                fputcsv($resource, $usage ? [...$this->entryToCsvRow($entry), ...array_values($this->usageValues($entry))] : $this->entryToCsvRow($entry));
+                fputcsv($resource, array_map(self::csvCell(...), $usage ? [...$this->entryToCsvRow($entry), ...array_values($this->usageValues($entry))] : $this->entryToCsvRow($entry)));
                 ++$total;
             }
             $this->repository->detachAll($result['items']);
@@ -141,6 +144,15 @@ final readonly class ExportHttpLogService
         } while ($result['items'] !== []);
 
         return $total;
+    }
+
+    /**
+     * CSV formula neutralisation (OWASP): a text cell starting with `=`, `+`, `-`, `@`, TAB or CR is prefixed with `'`, so a
+     * spreadsheet shows it as text instead of evaluating it (user identifiers, route names and paths are request data).
+     */
+    private static function csvCell(mixed $value): mixed
+    {
+        return is_string($value) && $value !== '' && strpbrk($value[0], "=+-@\t\r") !== false ? "'" . $value : $value;
     }
 
     /** @param array<string, mixed> $criteria */

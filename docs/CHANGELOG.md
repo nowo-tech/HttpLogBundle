@@ -59,6 +59,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **CSV export neutralises spreadsheet formulas.** Before, a text cell of the CSV export was written as is, so a value starting with `=`, `+`, `-` or `@` (a self-chosen user identifier, a route name, a path) was evaluated by a spreadsheet that opened the file. Every text cell starting with `=`, `+`, `-`, `@`, TAB or CR is now prefixed with `'` (OWASP). It affects the released versions that export CSV (the JSON export is unchanged and keeps the raw values).
+
 ### Added
 
 - `outbound.providers.<key>.error_code` (`paths`, `prefix`): the machine code a provider returns with a failed call (status >= 400, JSON body of at most 16 KiB) is stored in a new nullable `error_code` column of the usage rows. Only values read at the configured JSON paths are kept, each an allowlisted token (`A-Z a-z 0-9 _ . : -`, 1..64 characters, not JWT-, UUID- or long-hex-shaped), anything else as `unknown`; at most 8 values / 128 bytes, joined by `,`; the body, descriptions and ids are never stored. Shown in the admin list and entry page, filterable (`errorCode`, index `idx_http_log_errcode_created`), exported (`errorCode`), and available as `CallQuery::withErrorCode()` and `UsageCall::$errorCode`. A provider without `error_code` is unchanged and its body is never read.
