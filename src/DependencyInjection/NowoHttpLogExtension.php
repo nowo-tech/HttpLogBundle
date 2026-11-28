@@ -6,11 +6,15 @@ namespace Nowo\HttpLogBundle\DependencyInjection;
 
 use InvalidArgumentException;
 use LogicException;
+use Nowo\CorrelationContract\CorrelationIdProviderInterface;
 use Nowo\HttpLogBundle\Command\RollupBackfillCommand;
 use Nowo\HttpLogBundle\Context\HttpLogContext;
 use Nowo\HttpLogBundle\Context\HttpLogContextInterface;
 use Nowo\HttpLogBundle\Controller\HttpLogAdminController;
+use Nowo\HttpLogBundle\Correlation\CorrelationIds;
 use Nowo\HttpLogBundle\DependencyInjection\Compiler\HttpLogCommitTrackingPass;
+use Nowo\HttpLogBundle\Doctrine\CorrelationColumnsListener;
+use Nowo\HttpLogBundle\Doctrine\ErrorCodeColumnListener;
 use Nowo\HttpLogBundle\Doctrine\PathPrefixColumnListener;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
 use Nowo\HttpLogBundle\Doctrine\UsageColumnsListener;
@@ -509,6 +513,7 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
             $container->setDefinition(PathPrefixColumnListener::class, (new Definition(PathPrefixColumnListener::class))
                 ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata', 'priority' => 100]));
         }
+        $this->registerCorrelation($container, $config['correlation']);
         [$usageColumns, $rollup] = $this->registerUsage($container, $config);
         $this->registerTableName($container, $config['doctrine']['table_prefix'], $config['doctrine']['table_name_prefix'], $usageColumns, $rollup);
         if ($config['doctrine']['table_prefix'] === '' && $config['doctrine']['table_name_prefix'] === TablePrefixListener::DEFAULT_TABLE_NAME_PREFIX) {
@@ -518,6 +523,36 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         $this->registerAccessChecker($container, $config['security']);
         $this->registerPersonalData($container, $config['personal_data']);
         $this->registerConflictAnswer($container, $config['conflict_response'], $config['web_ui']['enabled']);
+    }
+
+    /**
+     * 1.27 (Beacon spec 235): {@see CorrelationIds} reads the host's `CorrelationIdProviderInterface` service when one is
+     * registered (`use_provider`; HttpLog registers none itself, so a host without one keeps the 1.26 ids), and
+     * `columns` maps `correlation_id` / `upstream_id` (no migration while it is off).
+     *
+     * @param array{use_provider: bool, columns: mixed, upstream_headers: list<string>} $correlation
+     */
+    private function registerCorrelation(ContainerBuilder $container, array $correlation): void
+    {
+        if (!is_bool($correlation['columns'])) {
+            throw new InvalidConfigurationException('nowo_http_log.correlation.columns must be a literal boolean: it decides the Doctrine mapping at compile time (no %env()%).');
+        }
+
+        $container->setDefinition(CorrelationIds::class, (new Definition(CorrelationIds::class))
+            ->setArguments([
+                $correlation['use_provider'] ? new Reference(CorrelationIdProviderInterface::class, ContainerInterface::NULL_ON_INVALID_REFERENCE) : null,
+                new Reference('request_stack', ContainerInterface::NULL_ON_INVALID_REFERENCE),
+                $correlation['upstream_headers'],
+            ]));
+        $container->getDefinition(HttpLogSubscriber::class)
+            ->setArgument('$correlation', new Reference(CorrelationIds::class))
+            ->setArgument('$captureUpstream', $correlation['columns']);
+
+        if ($correlation['columns']) {
+            // Before TablePrefixListener (priority 0), which then prefixes the index names too.
+            $container->setDefinition(CorrelationColumnsListener::class, (new Definition(CorrelationColumnsListener::class))
+                ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata', 'priority' => 100]));
+        }
     }
 
     /**
@@ -688,6 +723,8 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
         $logger = new Reference('logger', ContainerInterface::NULL_ON_INVALID_REFERENCE);
 
         $container->setDefinition(HttpLogContext::class, (new Definition(HttpLogContext::class))
+            // 1.27: frames carry the correlation id of the call / mail
+            ->setArguments([new Reference(CorrelationIds::class)])
             ->setPublic(true)
             ->addTag('kernel.reset', ['method' => 'reset']));
         $container->setAlias(HttpLogContextInterface::class, HttpLogContext::class)->setPublic(true);
@@ -706,6 +743,11 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
             $container->setDefinition(UsageColumnsListener::class, (new Definition(UsageColumnsListener::class))
                 // Before TablePrefixListener (priority 0), which then prefixes the usage index names too.
                 ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata', 'priority' => 100]));
+            if ($outboundEnabled && array_filter($config['outbound']['providers'], static fn (array $provider): bool => $provider['error_code']['paths'] !== []) !== []) {
+                // error_code: mapped only while a provider reads it (no migration for hosts that do not)
+                $container->setDefinition(ErrorCodeColumnListener::class, (new Definition(ErrorCodeColumnListener::class))
+                    ->addTag('doctrine.event_listener', ['event' => 'loadClassMetadata', 'priority' => 100]));
+            }
         }
 
         if ($usageColumns || $rollupEnabled) {
@@ -764,6 +806,9 @@ final class NowoHttpLogExtension extends Extension implements PrependExtensionIn
                 ];
                 if ($rollupEnabled) {
                     $providers[$key]['rollup'] = $provider['rollup'];
+                }
+                if ($provider['error_code']['paths'] !== []) {
+                    $providers[$key]['error_code'] = $provider['error_code'];
                 }
             }
             $container->setDefinition(OutboundCapturePolicy::class, (new Definition(OutboundCapturePolicy::class))

@@ -6,6 +6,8 @@ namespace Nowo\HttpLogBundle\Tests\Unit\Context;
 
 use Nowo\HttpLogBundle\Context\HttpLogContext;
 use Nowo\HttpLogBundle\Context\HttpLogFrame;
+use Nowo\HttpLogBundle\Correlation\CorrelationIds;
+use Nowo\HttpLogBundle\Tests\Support\MutableCorrelationIdProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use ReflectionProperty;
@@ -79,5 +81,44 @@ final class HttpLogContextTest extends TestCase
 
         $context->reset();
         self::assertSame(0, $context->depth());
+    }
+
+    #[Test]
+    public function currentCarriesTheCorrelationIdReadAtCallTime(): void
+    {
+        $provider = new MutableCorrelationIdProvider('req-1');
+        $context  = new HttpLogContext(new CorrelationIds($provider));
+
+        self::assertSame('req-1', $context->current()->correlationId);
+        $context->runFrame(new HttpLogFrame('org-1', 'p-1', 'msg-1'), static function () use ($context, $provider): void {
+            $provider->id = 'msg-corr';
+            $frame        = $context->current();
+            self::assertSame(['org-1', 'p-1', 'msg-1', 'msg-corr'], [$frame->tenantKey, $frame->projectKey, $frame->messengerMessageId, $frame->correlationId]);
+        });
+
+        $provider->id = null;
+        self::assertNull($context->current()->correlationId, 'no id: none');
+        $context->runFrame(new HttpLogFrame(correlationId: 'explicit'), static function () use ($context): void {
+            self::assertSame('explicit', $context->current()->correlationId, 'a frame with an id keeps it');
+        });
+        self::assertNull((new HttpLogContext())->current()->correlationId);
+    }
+
+    #[Test]
+    public function correlationAtCaptureKeepsAProviderIdAndPicksUpALateOne(): void
+    {
+        $provider = new MutableCorrelationIdProvider('at-start');
+        $context  = new HttpLogContext(new CorrelationIds($provider));
+        $started  = $context->current();
+        self::assertTrue($started->providerCorrelation);
+
+        $provider->id = 'next';
+        self::assertSame('at-start', $context->correlationIdAtCapture($started), 'an id the provider gave at the start is kept');
+
+        $fallback = new HttpLogFrame(correlationId: 'request-id');
+        self::assertSame('next', $context->correlationIdAtCapture($fallback), 'a late provider id is picked up');
+        $provider->id = null;
+        self::assertSame('request-id', $context->correlationIdAtCapture($fallback));
+        self::assertSame('request-id', (new HttpLogContext())->correlationIdAtCapture($fallback));
     }
 }

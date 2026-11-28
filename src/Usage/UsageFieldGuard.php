@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\Usage;
 
+use Nowo\CorrelationContract\CorrelationId;
 use Nowo\HttpLogBundle\Enum\OutboundErrorKind;
 
+use function count;
+use function explode;
 use function filter_var;
 use function is_finite;
 use function is_float;
@@ -18,6 +21,7 @@ use function sprintf;
 use function strlen;
 use function strtolower;
 use function strtoupper;
+use function substr_count;
 use function trim;
 
 use const FILTER_VALIDATE_IP;
@@ -50,6 +54,18 @@ final class UsageFieldGuard
     private const MESSAGE_ID = '/^[A-Za-z0-9._:-]{1,64}\z/';
 
     private const EXTERNAL_ID = '/^[\x21-\x7E]{1,255}\z/';
+
+    /** One provider error code (`outbound.providers.<name>.error_code`). */
+    private const ERROR_CODE_PART = '/^[A-Za-z0-9_.:-]{1,64}\z/';
+
+    /** A UUID, or a value that starts like a well-known credential (JWT, Stripe, GitHub, Slack, AWS, Google keys). */
+    private const ERROR_CODE_OPAQUE = '/^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z|(?:eyJ|sk_|rk_|pk_live|pk_test|ghp_|gho_|ghs_|ghu_|ghr_|xox|AKIA|AIza))/i';
+
+    /** Stored in place of a provider code that fails {@see self::errorCodePart()}. */
+    public const UNKNOWN_ERROR_CODE = 'unknown';
+
+    /** Longest stored `error_code` (bytes). */
+    public const MAX_ERROR_CODE_LENGTH = 128;
 
     private const EVENT_ID = '/^[0-9a-f]{32}\z/';
 
@@ -138,6 +154,67 @@ final class UsageFieldGuard
         return is_string($value) ? OutboundErrorKind::tryFrom($value)?->value : null;
     }
 
+    /**
+     * One provider error code: `A-Z a-z 0-9 _ . : -`, 1..64 characters, and not shaped like a JWT, a UUID or a long hex
+     * string (an identifier or a credential is not a code). Anything else is `unknown`; the original is never kept.
+     */
+    public static function errorCodePart(mixed $value): string
+    {
+        if (is_string($value) && self::isCode($value)) {
+            return $value;
+        }
+
+        return self::UNKNOWN_ERROR_CODE;
+    }
+
+    /**
+     * The shape of a machine code: the charset, and none of the shapes of an identifier, a person or a credential. A
+     * guard, not a proof: hosts point `paths` at fields the provider documents as codes.
+     */
+    private static function isCode(string $value): bool
+    {
+        if (preg_match(self::ERROR_CODE_PART, $value) !== 1
+            || preg_match(self::ERROR_CODE_OPAQUE, $value) === 1
+            || preg_match('/[0-9]{10}|[0-9a-f]{16}/i', $value) === 1 // account / card / phone numbers, hex ids
+            || substr_count($value, '.') >= 2 // host names, JWT-like tokens
+            || filter_var($value, FILTER_VALIDATE_IP) !== false
+        ) {
+            return false;
+        }
+        // a long run that mixes upper case, lower case and digits is a key or a token, not a word
+        if (preg_match_all('/[A-Za-z0-9]{20,}/', $value, $runs) > 0) {
+            foreach ($runs[0] as $run) {
+                if (preg_match('/[a-z]/', $run) === 1 && preg_match('/[A-Z]/', $run) === 1 && preg_match('/[0-9]/', $run) === 1) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * The stored error code: 1..8 parts of {@see self::errorCodePart()} joined by ",", at most 128 bytes. Anything
+     * else is NULL (a payload read back from a transport is validated again, never repaired).
+     */
+    public static function errorCode(mixed $value): ?string
+    {
+        if (!is_string($value) || $value === '' || strlen($value) > self::MAX_ERROR_CODE_LENGTH) {
+            return null;
+        }
+        $parts = explode(',', $value);
+        if (count($parts) > 8) {
+            return null;
+        }
+        foreach ($parts as $part) {
+            if (!self::isCode($part)) {
+                return null;
+            }
+        }
+
+        return $value;
+    }
+
     public static function statusCode(mixed $value): ?int
     {
         $value = self::integer($value);
@@ -196,6 +273,12 @@ final class UsageFieldGuard
     public static function userIdentifier(mixed $value): ?string
     {
         return is_string($value) && $value !== '' && mb_strlen($value) <= 255 && preg_match('/^[^\x00-\x1F\x7F]+\z/u', $value) === 1 ? $value : null;
+    }
+
+    /** 1.27: a correlation id ({@see CorrelationId::PATTERN}: 1 to 64 of A-Z a-z 0-9 . _ : -), else null. */
+    public static function correlationId(mixed $value): ?string
+    {
+        return is_string($value) ? CorrelationId::tryFromString($value)?->value : null;
     }
 
     public static function eventId(mixed $value): ?string

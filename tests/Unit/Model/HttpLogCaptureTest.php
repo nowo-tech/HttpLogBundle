@@ -77,4 +77,16 @@ final class HttpLogCaptureTest extends TestCase
         self::assertFalse($capture->requestBodyTruncated);
         self::assertInstanceOf(DateTimeImmutable::class, $capture->createdAt);
     }
+
+    #[Test]
+    public function theUpstreamIdTravelsOnlyWhenSetAndIsValidatedAgain(): void
+    {
+        $capture = HttpLogCapture::fromArray(['requestId' => 'r', 'upstreamId' => 'up-1']);
+        self::assertSame('up-1', $capture->upstreamId);
+        self::assertSame('up-1', $capture->toArray()['upstreamId']);
+
+        self::assertArrayNotHasKey('upstreamId', HttpLogCapture::fromArray(['requestId' => 'r'])->toArray(), 'a 1.26 payload stays a 1.26 payload');
+        self::assertNull(HttpLogCapture::fromArray(['upstreamId' => 'not valid'])->upstreamId);
+        self::assertNull(HttpLogCapture::fromArray(['upstreamId' => ['x']])->upstreamId);
+    }
 }

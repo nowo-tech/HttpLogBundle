@@ -163,6 +163,7 @@ final class MailerCaptureListener implements EventSubscriberInterface, ResetInte
             messengerMessageId: $start['frame']->messengerMessageId,
             externalMessageId: $messageId,
             rollup: $this->rollup,
+            correlationId: $this->context->correlationIdAtCapture($start['frame']),
         ));
     }
 

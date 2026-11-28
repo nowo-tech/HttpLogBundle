@@ -167,7 +167,7 @@ final class EntryRecordedEventTest extends TestCase
     {
         $names = array_map(static fn (ReflectionProperty $p): string => $p->getName(), (new ReflectionClass(HttpLogEntryRecordedEvent::class))->getProperties());
 
-        self::assertSame(['channel', 'requestId', 'method', 'routeName', 'statusCode', 'durationMs', 'recordedAt', 'tenantKey', 'projectKey', 'credentialKind', 'credentialId', 'provider'], $names);
+        self::assertSame(['channel', 'requestId', 'method', 'routeName', 'statusCode', 'durationMs', 'recordedAt', 'tenantKey', 'projectKey', 'credentialKind', 'credentialId', 'provider', 'correlationId', 'upstreamId'], $names, '1.27: two ids, still no personal data');
         self::assertNull((new ReflectionClass(HttpLogEntryRecordedEvent::class))->getParentClass() ?: null, 'no Symfony component base class');
     }
 

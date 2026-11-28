@@ -8,12 +8,15 @@ use Closure;
 use DateTimeImmutable;
 use Generator;
 use Nowo\HttpLogBundle\Context\HttpLogFrame;
+use Nowo\HttpLogBundle\Correlation\CorrelationIds;
+use Nowo\HttpLogBundle\EventSubscriber\HttpLogSubscriber;
 use Nowo\HttpLogBundle\HttpClient\HttpLogHttpClientWrapper;
 use Nowo\HttpLogBundle\HttpClient\LoggingHttpClient;
 use Nowo\HttpLogBundle\HttpClient\OutboundCall;
 use Nowo\HttpLogBundle\HttpClient\OutboundCapturePolicy;
 use Nowo\HttpLogBundle\HttpClient\OutboundTarget;
 use Nowo\HttpLogBundle\Message\PersistHttpLogMessage;
+use Nowo\HttpLogBundle\Tests\Support\MutableCorrelationIdProvider;
 use Nowo\HttpLogBundle\Tests\Support\UsageTestRig;
 use Nowo\HttpLogBundle\Usage\HttpLogBuffer;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -28,6 +31,8 @@ use Symfony\Component\HttpClient\Response\AsyncResponse;
 use Symfony\Component\HttpClient\Response\MockResponse;
 use Symfony\Component\HttpClient\Retry\GenericRetryStrategy;
 use Symfony\Component\HttpClient\RetryableHttpClient;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Contracts\HttpClient\ChunkInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
@@ -161,6 +166,33 @@ final class LoggingHttpClientTest extends TestCase
         self::assertSame('/v2/items/{…}', $rows[0]['path']);
         self::assertSame('api.example.com', $rows[0]['host']);
         self::assertNull($rows[0]['query_params']);
+    }
+
+    /** ZDW-HL-L1: a provider that sets its id after the call started is picked up when the call is recorded. */
+    #[Test]
+    public function theCorrelationIdIsReadAgainWhenTheCallIsRecorded(): void
+    {
+        $provider = new MutableCorrelationIdProvider();
+        $stack    = new RequestStack();
+        $request  = Request::create('/');
+        $request->attributes->set(HttpLogSubscriber::ATTR_REQUEST_ID, 'generated-1');
+        $stack->push($request);
+        $rig    = new UsageTestRig(correlation: new CorrelationIds($provider, $stack), correlationColumns: true);
+        $client = $rig->client(new MockHttpClient([new MockResponse('late'), new MockResponse('early'), new MockResponse('none')]));
+
+        $late         = $client->request('GET', self::URL);
+        $provider->id = 'provider-late';
+        $late->getContent();
+
+        $early        = $client->request('GET', self::URL);
+        $provider->id = 'next-unit';
+        $early->getContent();
+
+        $provider->id = null;
+        $client->request('GET', self::URL)->getContent();
+
+        $rig->persist();
+        self::assertSame(['provider-late', 'provider-late', 'generated-1'], array_column($rig->rows(), 'correlation_id'), 'late id picked up; an id from the start is kept; else the request\'s id');
     }
 
     #[Test]

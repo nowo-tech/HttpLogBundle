@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\EventSubscriber;
 
+use Nowo\HttpLogBundle\Correlation\CorrelationIds;
 use Nowo\HttpLogBundle\Inbound\InboundChannel;
 use Nowo\HttpLogBundle\Inbound\InboundRequestRecorder;
 use Nowo\HttpLogBundle\Service\HttpLogRecorder;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
+use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\Event\TerminateEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 
@@ -32,11 +34,23 @@ use const PHP_INT_MAX;
  * With named channels (HL-1 §3) a request is matched against them first, after the admin UI prefix: a request a
  * named channel records never reaches the web channel's ignores or sampling. Without named channels and without
  * `rollup.web`, the 1.14 flow runs unchanged.
+ *
+ * 1.27 (correlation): `request_id` is always generated here, as in 1.26 (the unique dedupe key of the row). The host
+ * `CorrelationIdProviderInterface`'s current id is kept in {@see ATTR_CORRELATION_ID} (read at `kernel.request`, again
+ * at `kernel.response` and at `kernel.terminate`, the latest id wins); it only ever reaches `correlation_id`. With
+ * `correlation.columns`, the id of a trusted upstream proxy is kept in {@see ATTR_UPSTREAM_ID}. Both live on the
+ * request only (worker safe).
  */
 final readonly class HttpLogSubscriber implements EventSubscriberInterface
 {
     public const ATTR_START_TIME = '_nowo_http_log_start_time';
     public const ATTR_REQUEST_ID = '_nowo_http_log_request_id';
+
+    /** 1.27: current id of the host's correlation provider for the main request (only ever stored as `correlation_id`). */
+    public const ATTR_CORRELATION_ID = '_nowo_http_log_correlation_id';
+
+    /** 1.27: id sent by a trusted upstream proxy (only with `correlation.columns`). */
+    public const ATTR_UPSTREAM_ID = '_nowo_http_log_upstream_id';
 
     /**
      * @param list<string> $environments
@@ -57,6 +71,10 @@ final readonly class HttpLogSubscriber implements EventSubscriberInterface
         private ?string $webUiPathPrefix = null,
         // HL-1: set while a named channel or rollup.web is configured
         private ?InboundRequestRecorder $inbound = null,
+        // 1.27: correlation ids (host provider, trusted upstream id); null = the 1.26 behaviour
+        private ?CorrelationIds $correlation = null,
+        // 1.27: correlation.columns maps upstream_id
+        private bool $captureUpstream = false,
     ) {
     }
 
@@ -64,6 +82,7 @@ final readonly class HttpLogSubscriber implements EventSubscriberInterface
     {
         return [
             KernelEvents::REQUEST   => ['onKernelRequest', 1024],
+            KernelEvents::RESPONSE  => ['onKernelResponse', -1024],
             KernelEvents::TERMINATE => ['onKernelTerminate', -1024],
         ];
     }
@@ -75,12 +94,37 @@ final readonly class HttpLogSubscriber implements EventSubscriberInterface
         }
 
         $request = $event->getRequest();
+        $main    = $event->isMainRequest();
         $request->attributes->set(self::ATTR_START_TIME, microtime(true));
         $request->attributes->set(self::ATTR_REQUEST_ID, $this->generateRequestId());
+        if ($main) {
+            $this->refreshCorrelation($request);
+        }
+
+        if ($main && $this->captureUpstream && $this->correlation instanceof CorrelationIds) {
+            $upstream = $this->correlation->upstream($request);
+            if ($upstream !== null) {
+                $request->attributes->set(self::ATTR_UPSTREAM_ID, $upstream);
+            }
+        }
+    }
+
+    /**
+     * 1.27: a host provider that sets its id after this subscriber's `kernel.request` listener (priority 1024) still
+     * gives the main request its correlation id. Never touches `request_id`.
+     */
+    public function onKernelResponse(ResponseEvent $event): void
+    {
+        if ($event->isMainRequest()) {
+            $this->refreshCorrelation($event->getRequest());
+        }
     }
 
     public function onKernelTerminate(TerminateEvent $event): void
     {
+        // 1.27: last read of the provider (it may already have cleared its id: the earlier value is kept)
+        $this->refreshCorrelation($event->getRequest());
+
         if (!$this->enabled || !$this->matchesEnvironment()) {
             return;
         }
@@ -110,7 +154,7 @@ final readonly class HttpLogSubscriber implements EventSubscriberInterface
         $requestId  = $request->attributes->get(self::ATTR_REQUEST_ID);
         $requestId  = is_string($requestId) ? $requestId : null;
 
-        $this->recorder->record($request, $event->getResponse(), $durationMs, $requestId);
+        $this->recorder->record($request, $event->getResponse(), $durationMs, $requestId, $this->upstreamId($request), $this->correlationId($request));
     }
 
     /**
@@ -146,7 +190,30 @@ final readonly class HttpLogSubscriber implements EventSubscriberInterface
         }
 
         $requestId = $request->attributes->get(self::ATTR_REQUEST_ID);
-        $this->recorder->record($request, $event->getResponse(), $durationMs, is_string($requestId) ? $requestId : null);
+        $this->recorder->record($request, $event->getResponse(), $durationMs, is_string($requestId) ? $requestId : null, $this->upstreamId($request), $this->correlationId($request));
+    }
+
+    /** Keeps the provider's current id on the request when it has one (a null keeps the earlier value). */
+    private function refreshCorrelation(Request $request): void
+    {
+        $id = $this->correlation?->fromProvider();
+        if ($id !== null) {
+            $request->attributes->set(self::ATTR_CORRELATION_ID, $id);
+        }
+    }
+
+    private function correlationId(Request $request): ?string
+    {
+        $id = $request->attributes->get(self::ATTR_CORRELATION_ID);
+
+        return is_string($id) ? $id : null;
+    }
+
+    private function upstreamId(Request $request): ?string
+    {
+        $upstream = $request->attributes->get(self::ATTR_UPSTREAM_ID);
+
+        return is_string($upstream) ? $upstream : null;
     }
 
     private function matchesEnvironment(): bool
@@ -226,9 +293,9 @@ final readonly class HttpLogSubscriber implements EventSubscriberInterface
 
     /**
      * The stored request id is the dedupe key of the log row (unique column, async retry guard), so it is
-     * always generated here and never taken from the client: a client-supplied X-Request-Id repeated on
-     * many requests would otherwise collapse them into one row. The client's header, when sent, stays in
-     * the captured request headers for correlation only.
+     * always generated here and never taken from the client or the host's correlation provider (1.27: a repeated
+     * id would otherwise collapse many requests into one row). The provider's id goes to `correlation_id`, a
+     * trusted proxy's id to `upstream_id` (correlation.columns).
      */
     private function generateRequestId(): string
     {

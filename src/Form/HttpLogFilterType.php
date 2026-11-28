@@ -77,6 +77,14 @@ final class HttpLogFilterType extends AbstractType
             ]);
         });
 
+        if ($options['correlation'] === true) {
+            // 1.27: correlation.columns maps correlation_id / upstream_id (exact match)
+            $this->withBuilder($builder, function (): void {
+                $this->addTextField('correlationId', ['required' => false, 'label' => 'filter.correlation_id']);
+                $this->addTextField('upstreamId', ['required' => false, 'label' => 'filter.upstream_id']);
+            });
+        }
+
         /** @var list<string> $channels */
         $channels = $options['usage_channels'];
         if ($channels === []) {
@@ -98,6 +106,13 @@ final class HttpLogFilterType extends AbstractType
             $this->addTextField('projectKey', ['required' => false, 'label' => 'filter.project_key']);
             $this->addTextField('credentialKind', ['required' => false, 'label' => 'filter.credential_kind']);
         });
+
+        if ($options['error_code'] === true) {
+            // a provider configures outbound error_code (the column is mapped)
+            $this->withBuilder($builder, function (): void {
+                $this->addTextField('errorCode', ['required' => false, 'label' => 'filter.error_code']);
+            });
+        }
     }
 
     public function configureOptions(OptionsResolver $resolver): void
@@ -110,5 +125,11 @@ final class HttpLogFilterType extends AbstractType
             'usage_channels' => [],
         ]);
         $resolver->setAllowedTypes('usage_channels', 'string[]');
+        // error_code is mapped (needs usage_channels)
+        $resolver->setDefault('error_code', false);
+        $resolver->setAllowedTypes('error_code', 'bool');
+        // 1.27: correlation_id / upstream_id are mapped
+        $resolver->setDefault('correlation', false);
+        $resolver->setAllowedTypes('correlation', 'bool');
     }
 }

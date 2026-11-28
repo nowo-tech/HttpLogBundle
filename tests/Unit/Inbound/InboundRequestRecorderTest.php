@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\HttpLogBundle\Tests\Unit\Inbound;
 
+use Nowo\HttpLogBundle\EventSubscriber\HttpLogSubscriber;
 use Nowo\HttpLogBundle\Inbound\HttpLogRequestContext;
 use Nowo\HttpLogBundle\Inbound\HttpLogRequestContextResolution;
 use Nowo\HttpLogBundle\Inbound\HttpLogRequestContextResolverInterface;
@@ -116,6 +117,29 @@ final class InboundRequestRecorderTest extends TestCase
         self::assertArrayNotHasKey('userIdentifier', $payloads[2], 'user: false');
         self::assertNotSame('SEED24placeholder', $first['eventId']);
         self::assertStringNotContainsString('SEED', json_encode($payloads, JSON_THROW_ON_ERROR));
+    }
+
+    #[Test]
+    public function aRowCarriesTheRequestCorrelationAndUpstreamIdsACountNone(): void
+    {
+        $recorder = $this->recorder(rollup: true);
+        $channel  = $recorder->match($this->request());
+        self::assertInstanceOf(InboundChannel::class, $channel);
+
+        $request = $this->request();
+        $request->attributes->set(HttpLogSubscriber::ATTR_REQUEST_ID, 'req-1');
+        $request->attributes->set(HttpLogSubscriber::ATTR_UPSTREAM_ID, 'up-1');
+        $recorder->record($channel, $request, new Response('', 503), 1.0);
+        $recorder->record($channel, $request, new Response('', 200), 1.0);
+        $bare = $this->request();
+        $bare->attributes->set(HttpLogSubscriber::ATTR_REQUEST_ID, 42);
+        $recorder->record($channel, $bare, new Response('', 503), 1.0);
+
+        $payloads = $this->payloads();
+        self::assertSame(['req-1', 'up-1'], [$payloads[0]['correlationId'], $payloads[0]['upstreamId']]);
+        self::assertNotSame('req-1', $payloads[0]['eventId'], 'the row keeps its own unique event id');
+        self::assertArrayNotHasKey('correlationId', $payloads[1], 'a count-only event');
+        self::assertArrayNotHasKey('correlationId', $payloads[2]);
     }
 
     #[Test]

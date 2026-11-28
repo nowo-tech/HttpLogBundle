@@ -16,6 +16,7 @@ use Doctrine\Persistence\ManagerRegistry;
 use Generator;
 use InvalidArgumentException;
 use LogicException;
+use Nowo\HttpLogBundle\Doctrine\ErrorCodeColumnListener;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
 use Nowo\HttpLogBundle\Rollup\RollupSql;
 use Nowo\HttpLogBundle\Rollup\RollupTables;
@@ -94,11 +95,16 @@ final readonly class HttpLogUsageReader implements HttpLogUsageReaderInterface
             throw new LogicException('No HttpLog usage channel is enabled: the usage columns are not mapped.');
         }
 
-        $connection = $manager->getConnection();
-        $platform   = $connection->getDatabasePlatform();
-        $column     = $metadata->getColumnName(...);
-        $qb         = $connection->createQueryBuilder()
-            ->select(...array_map($column, self::CALL_FIELDS))
+        $connection   = $manager->getConnection();
+        $platform     = $connection->getDatabasePlatform();
+        $column       = $metadata->getColumnName(...);
+        $hasErrorCode = $metadata->hasField(ErrorCodeColumnListener::FIELD);
+        if ($query->errorCode !== null && !$hasErrorCode) {
+            throw new LogicException('The error_code column is not mapped: configure nowo_http_log.outbound.providers.<key>.error_code.');
+        }
+        $fields = $hasErrorCode ? [...self::CALL_FIELDS, ErrorCodeColumnListener::FIELD] : self::CALL_FIELDS;
+        $qb     = $connection->createQueryBuilder()
+            ->select(...array_map($column, $fields))
             ->from($metadata->getTableName())
             ->where($column('channel') . ' IS NOT NULL')
             ->orderBy($column('id'), 'DESC')
@@ -119,6 +125,9 @@ final readonly class HttpLogUsageReader implements HttpLogUsageReaderInterface
         if ($query->errorKind !== null) {
             $qb->andWhere($column('errorKind') . ' = :errorKind')->setParameter('errorKind', $query->errorKind);
         }
+        if ($query->errorCode !== null) {
+            $qb->andWhere(RollupSql::exact($platform, $column(ErrorCodeColumnListener::FIELD), ':errorCode'))->setParameter('errorCode', $query->errorCode);
+        }
         if ($cursor !== null) {
             $qb->andWhere($column('id') . ' < :cursor')->setParameter('cursor', (int) $cursor);
         }
@@ -126,7 +135,7 @@ final readonly class HttpLogUsageReader implements HttpLogUsageReaderInterface
         $items = [];
         foreach ($qb->executeQuery()->fetchAllAssociative() as $row) {
             $values = [];
-            foreach (self::CALL_FIELDS as $field) {
+            foreach ($fields as $field) {
                 $values[$field] = $row[$column($field)] ?? null;
             }
             $items[] = $this->usageCall($values);
@@ -332,6 +341,7 @@ final readonly class HttpLogUsageReader implements HttpLogUsageReaderInterface
             $this->str($row['messengerMessageId']),
             $this->str($row['externalMessageId']),
             new DateTimeImmutable((string) $row['createdAt']),
+            $this->str($row['errorCode'] ?? null),
         );
     }
 

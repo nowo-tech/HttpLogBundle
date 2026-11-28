@@ -81,6 +81,10 @@ final readonly class AdminPages
         private array $webUi = [],
         // HL-1: the usage columns are mapped (outbound or mailer capture enabled)
         private bool $usageColumns = false,
+        // a provider configures outbound error_code (the error_code column is mapped)
+        private bool $errorCodeColumn = false,
+        // 1.27: correlation.columns maps correlation_id and upstream_id
+        private bool $correlationColumns = false,
     ) {
     }
 
@@ -130,6 +134,12 @@ final readonly class AdminPages
             'createdFrom'     => new FilterField('createdFrom', width: 'md'),
             'createdTo'       => new FilterField('createdTo', width: 'md'),
         ];
+        if ($this->correlationColumns) {
+            $filterFields += [
+                'correlationId' => new FilterField('correlationId', width: 'md'),
+                'upstreamId'    => new FilterField('upstreamId', width: 'md'),
+            ];
+        }
         if ($this->usageColumns) {
             $columns[] = new Column('channel', $this->label('admin.column.channel'), priority: 2);
             $columns[] = new Column('provider', $this->label('admin.column.provider'), priority: 2);
@@ -140,6 +150,10 @@ final readonly class AdminPages
                 'projectKey'     => new FilterField('projectKey', width: 'md'),
                 'credentialKind' => new FilterField('credentialKind', width: 'sm'),
             ];
+            if ($this->errorCodeColumn) {
+                $columns[]                 = new Column('errorCode', $this->label('admin.column.error_code'), priority: 2);
+                $filterFields['errorCode'] = new FilterField('errorCode', width: 'md');
+            }
         }
 
         return new ListPage(
@@ -275,6 +289,10 @@ final readonly class AdminPages
         $items = [
             new DetailItem($this->label('admin.column.id'), $entry->getId()),
             new DetailItem($this->label('admin.field.request_id'), $entry->getRequestId()),
+            ...($this->correlationColumns ? [
+                new DetailItem($this->label('admin.field.correlation_id'), $entry->getCorrelationId()),
+                new DetailItem($this->label('admin.field.upstream_id'), $entry->getUpstreamId()),
+            ] : []),
             new DetailItem($this->label('admin.column.created_at'), $entry->getCreatedAt()->format('Y-m-d H:i:s')),
             new DetailItem($this->label('admin.column.method'), $entry->getMethod()),
             new DetailItem($this->label('admin.field.url'), $this->entryUrl($entry)),
@@ -292,11 +310,14 @@ final readonly class AdminPages
         // HL-1 allowlisted usage fields (outbound / mailer rows have no headers, bodies or query string).
         $credential = $entry->getCredentialKind() === null ? null : $entry->getCredentialKind() . ($entry->getCredentialId() === null ? '' : ':' . $entry->getCredentialId());
 
+        $errorCode = $this->errorCodeColumn ? [new DetailItem($this->label('admin.column.error_code'), $entry->getErrorCode())] : [];
+
         return [
             ...$items,
             new DetailItem($this->label('admin.column.channel'), $entry->getChannel() ?? 'web'),
             new DetailItem($this->label('admin.column.provider'), $entry->getProvider()),
             new DetailItem($this->label('admin.field.error_kind'), $entry->getErrorKind()),
+            ...$errorCode,
             new DetailItem($this->label('admin.field.retry_count'), $entry->getRetryCount()),
             new DetailItem($this->label('admin.field.response_bytes'), $entry->getResponseBytes()),
             new DetailItem($this->label('admin.field.tenant_key'), $entry->getTenantKey()),

@@ -12,14 +12,17 @@ use Nowo\HttpLogBundle\Enum\ExportFormat;
 use Nowo\HttpLogBundle\Repository\HttpLogEntryRepository;
 use RuntimeException;
 
+use function array_map;
 use function array_values;
 use function chmod;
 use function fclose;
 use function fputcsv;
 use function fwrite;
 use function is_resource;
+use function is_string;
 use function json_encode;
 use function sprintf;
+use function strpbrk;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -35,6 +38,9 @@ final readonly class ExportHttpLogService
         'channel', 'provider', 'credentialKind', 'credentialId', 'tenantKey', 'projectKey',
         'responseBytes', 'retryCount', 'errorKind', 'messengerMessageId', 'externalMessageId',
     ];
+
+    /** 1.27: exported last while `correlation.columns` maps them. */
+    public const CORRELATION_FIELDS = ['correlationId', 'upstreamId'];
 
     public function __construct(
         private HttpLogEntryRepository $repository,
@@ -121,9 +127,15 @@ final readonly class ExportHttpLogService
             'statusCode', 'clientIp', 'contentType', 'bodyContentType', 'durationMs',
             'userIdentifier', 'createdAt',
         ];
-        $usage = $this->repository->hasUsageColumns();
+        $usage     = $this->repository->hasUsageColumns();
+        $errorCode = $usage && $this->repository->hasErrorCodeColumn();
         if ($usage) {
-            $headers = [...$headers, ...self::USAGE_FIELDS];
+            $headers = [...$headers, ...self::USAGE_FIELDS, ...($errorCode ? ['errorCode'] : [])];
+        }
+        // 1.27: appended last, so the earlier columns keep their position
+        $correlation = $this->repository->hasCorrelationColumns();
+        if ($correlation) {
+            $headers = [...$headers, ...self::CORRELATION_FIELDS];
         }
         fputcsv($resource, $headers);
 
@@ -133,7 +145,9 @@ final readonly class ExportHttpLogService
         do {
             $result = $this->repository->findFiltered($criteria, $page, self::BATCH_SIZE, withTotal: false);
             foreach ($result['items'] as $entry) {
-                fputcsv($resource, $usage ? [...$this->entryToCsvRow($entry), ...array_values($this->usageValues($entry))] : $this->entryToCsvRow($entry));
+                $row = $usage ? [...$this->entryToCsvRow($entry), ...array_values($this->usageValues($entry, $errorCode))] : $this->entryToCsvRow($entry);
+                // every cell, the correlation ids too, goes through the formula neutralisation
+                fputcsv($resource, array_map($this->csvCell(...), $correlation ? [...$row, ...array_values($this->correlationValues($entry))] : $row));
                 ++$total;
             }
             $this->repository->detachAll($result['items']);
@@ -143,14 +157,25 @@ final readonly class ExportHttpLogService
         return $total;
     }
 
+    /**
+     * CSV formula neutralisation (OWASP): a text cell starting with `=`, `+`, `-`, `@`, TAB or CR is prefixed with `'`, so a
+     * spreadsheet shows it as text instead of evaluating it (user identifiers, route names and paths are request data).
+     */
+    private function csvCell(mixed $value): mixed
+    {
+        return is_string($value) && $value !== '' && strpbrk($value[0], "=+-@\t\r") !== false ? "'" . $value : $value;
+    }
+
     /** @param array<string, mixed> $criteria */
     private function exportJson(array $criteria, mixed $resource): int
     {
         fwrite($resource, '[');
-        $usage = $this->repository->hasUsageColumns();
-        $page  = 1;
-        $total = 0;
-        $first = true;
+        $usage       = $this->repository->hasUsageColumns();
+        $errorCode   = $usage && $this->repository->hasErrorCodeColumn();
+        $correlation = $this->repository->hasCorrelationColumns();
+        $page        = 1;
+        $total       = 0;
+        $first       = true;
 
         do {
             $result = $this->repository->findFiltered($criteria, $page, self::BATCH_SIZE, withTotal: false);
@@ -158,7 +183,8 @@ final readonly class ExportHttpLogService
                 if (!$first) {
                     fwrite($resource, ',');
                 }
-                fwrite($resource, json_encode($usage ? $this->entryToArray($entry) + $this->usageValues($entry) : $this->entryToArray($entry), JSON_THROW_ON_ERROR));
+                $values = $usage ? $this->entryToArray($entry) + $this->usageValues($entry, $errorCode) : $this->entryToArray($entry);
+                fwrite($resource, json_encode($correlation ? $values + $this->correlationValues($entry) : $values, JSON_THROW_ON_ERROR));
                 $first = false;
                 ++$total;
             }
@@ -221,10 +247,16 @@ final readonly class ExportHttpLogService
         ];
     }
 
-    /** @return array<string, int|string|null> */
-    private function usageValues(HttpLogEntry $entry): array
+    /** @return array{correlationId: string|null, upstreamId: string|null} */
+    private function correlationValues(HttpLogEntry $entry): array
     {
-        return [
+        return ['correlationId' => $entry->getCorrelationId(), 'upstreamId' => $entry->getUpstreamId()];
+    }
+
+    /** @return array<string, int|string|null> */
+    private function usageValues(HttpLogEntry $entry, bool $errorCode): array
+    {
+        $values = [
             'channel'            => $entry->getChannel(),
             'provider'           => $entry->getProvider(),
             'credentialKind'     => $entry->getCredentialKind(),
@@ -237,5 +269,8 @@ final readonly class ExportHttpLogService
             'messengerMessageId' => $entry->getMessengerMessageId(),
             'externalMessageId'  => $entry->getExternalMessageId(),
         ];
+
+        // appended last: the 1.25 usage columns keep their position
+        return $errorCode ? $values + ['errorCode' => $entry->getErrorCode()] : $values;
     }
 }

@@ -11,6 +11,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 use function array_keys;
+use function str_repeat;
 
 final class UsageCaptureTest extends TestCase
 {
@@ -48,6 +49,45 @@ final class UsageCaptureTest extends TestCase
 
         $copy = UsageCapture::fromArray($payload);
         self::assertSame($payload, $copy->toArray());
+    }
+
+    #[Test]
+    public function theErrorCodeTravelsInThePayloadOnlyWhenPresentAndIsValidatedAgain(): void
+    {
+        $now     = new DateTimeImmutable('2026-11-08T10:00:00+00:00');
+        $capture = new UsageCapture('outbound', $now, 'POST', statusCode: 401, errorCode: 'invalid_client,ERR7000215');
+        self::assertSame('invalid_client,ERR7000215', $capture->toArray()['errorCode']);
+        self::assertSame('invalid_client,ERR7000215', UsageCapture::fromArray($capture->toArray())->errorCode);
+
+        self::assertArrayNotHasKey('errorCode', (new UsageCapture('outbound', $now, 'GET'))->toArray());
+        self::assertNull((new UsageCapture('outbound', $now, 'GET', errorCode: 'ERR7000215: wrong secret for jane@example.com'))->errorCode);
+
+        $payload              = $capture->toArray();
+        $payload['errorCode'] = 'free text with spaces';
+        self::assertNull(UsageCapture::fromArray($payload)->errorCode);
+    }
+
+    #[Test]
+    public function correlationIdsTravelInThePayloadOnlyWhenPresentAndAreValidatedAgain(): void
+    {
+        $now     = new DateTimeImmutable('2026-11-28T10:00:00+00:00');
+        $capture = new UsageCapture('outbound', $now, 'GET', correlationId: 'req-1', upstreamId: '4bf92f3577b34da6a3ce929d0e0e4736');
+        self::assertSame('req-1', $capture->toArray()['correlationId']);
+        $copy = UsageCapture::fromArray($capture->toArray());
+        self::assertSame('req-1', $copy->correlationId);
+        self::assertSame('4bf92f3577b34da6a3ce929d0e0e4736', $copy->upstreamId);
+
+        $plain = (new UsageCapture('outbound', $now, 'GET'))->toArray();
+        self::assertArrayNotHasKey('correlationId', $plain, 'a 1.26 capture keeps its 1.26 payload');
+        self::assertArrayNotHasKey('upstreamId', $plain);
+        self::assertNull((new UsageCapture('outbound', $now, 'GET', correlationId: 'has space', upstreamId: str_repeat('a', 65)))->correlationId);
+
+        $payload                  = $capture->toArray();
+        $payload['correlationId'] = "req-1\nX-Injected: 1";
+        $payload['upstreamId']    = 42;
+        $tampered                 = UsageCapture::fromArray($payload);
+        self::assertNull($tampered->correlationId);
+        self::assertNull($tampered->upstreamId);
     }
 
     #[Test]

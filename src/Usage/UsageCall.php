@@ -36,6 +36,7 @@ final readonly class UsageCall
         public ?string $messengerMessageId,
         public ?string $externalMessageId,
         public DateTimeImmutable $createdAt,
+        public ?string $errorCode = null,
     ) {
     }
 }

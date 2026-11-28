@@ -7,6 +7,7 @@ namespace Nowo\HttpLogBundle\Tests\Unit\HttpClient;
 use Nowo\HttpLogBundle\Enum\OutboundErrorKind;
 use Nowo\HttpLogBundle\HttpClient\OutboundCapturePolicy;
 use Nowo\HttpLogBundle\HttpClient\OutboundErrorClassifier;
+use Nowo\HttpLogBundle\HttpClient\OutboundErrorCodeSpec;
 use Nowo\HttpLogBundle\HttpClient\OutboundTarget;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -53,6 +54,22 @@ final class OutboundCapturePolicyTest extends TestCase
         self::assertSame('/{…}', $policy->target('https://x.example/a/b/c', 'uptime.http_client')?->path);
         self::assertFalse($policy->target('https://x.example/', 'uptime.http_client')?->perCall);
         self::assertEquals(new OutboundTarget('other', null, 'invalid', '/{…}'), $policy->target('::not a url::'));
+    }
+
+    #[Test]
+    public function targetCarriesTheProviderErrorCodeSpecOnlyWhenConfigured(): void
+    {
+        $policy = new OutboundCapturePolicy([
+            'login' => ['clients' => [], 'hosts' => ['login.example'], 'path_templates' => [], 'path_depth' => null, 'per_call' => true, 'error_code' => ['paths' => ['error', 'error_codes'], 'prefix' => 'ERR']],
+            'empty' => ['clients' => [], 'hosts' => ['empty.example'], 'path_templates' => [], 'path_depth' => null, 'per_call' => true, 'error_code' => ['paths' => [], 'prefix' => '']],
+            'plain' => ['clients' => [], 'hosts' => ['plain.example'], 'path_templates' => [], 'path_depth' => null, 'per_call' => true],
+        ]);
+
+        self::assertEquals(new OutboundErrorCodeSpec(['error', 'error_codes'], 'ERR'), $policy->target('https://login.example/token')?->errorCode);
+        self::assertNull($policy->target('https://empty.example/x')?->errorCode);
+        self::assertNull($policy->target('https://plain.example/x')?->errorCode);
+        self::assertNull($policy->target('https://unmapped.example/x')?->errorCode);
+        self::assertNull($policy->target('::not a url::')->errorCode);
     }
 
     #[Test]

@@ -72,6 +72,18 @@ final class UsageFieldGuardTest extends TestCase
     }
 
     #[Test]
+    public function correlationIdsFollowTheContractFormat(): void
+    {
+        self::assertSame('req-1:a.b_c', UsageFieldGuard::correlationId('req-1:a.b_c'));
+        self::assertSame(str_repeat('a', 64), UsageFieldGuard::correlationId(str_repeat('a', 64)));
+        self::assertNull(UsageFieldGuard::correlationId(str_repeat('a', 65)));
+        self::assertNull(UsageFieldGuard::correlationId('a b'));
+        self::assertNull(UsageFieldGuard::correlationId(''));
+        self::assertNull(UsageFieldGuard::correlationId(12));
+        self::assertNull(UsageFieldGuard::correlationId(null));
+    }
+
+    #[Test]
     public function contentTypeLosesItsParameters(): void
     {
         self::assertSame('application/json', UsageFieldGuard::contentType('Application/JSON; charset=utf-8'));
@@ -79,6 +91,36 @@ final class UsageFieldGuardTest extends TestCase
         self::assertNull(UsageFieldGuard::contentType('not a type'));
         self::assertNull(UsageFieldGuard::contentType('a/' . str_repeat('b', 130)));
         self::assertNull(UsageFieldGuard::contentType(null));
+    }
+
+    #[Test]
+    public function errorCodesAreAllowlistedTokens(): void
+    {
+        self::assertSame('invalid_client', UsageFieldGuard::errorCodePart('invalid_client'));
+        self::assertSame('unknown', UsageFieldGuard::errorCodePart('jane@example.com'));
+        self::assertSame('unknown', UsageFieldGuard::errorCodePart(null));
+        self::assertSame('unknown', UsageFieldGuard::errorCodePart(42));
+        self::assertSame('unknown', UsageFieldGuard::errorCodePart(''));
+
+        self::assertSame('invalid_client,ERR7000215', UsageFieldGuard::errorCode('invalid_client,ERR7000215'));
+        self::assertSame('unknown', UsageFieldGuard::errorCode('unknown'));
+        self::assertNull(UsageFieldGuard::errorCode(''));
+        self::assertNull(UsageFieldGuard::errorCode(null));
+        self::assertNull(UsageFieldGuard::errorCode(['a']));
+        self::assertNull(UsageFieldGuard::errorCode('a,,b'));
+        self::assertNull(UsageFieldGuard::errorCode('The client secret is wrong'));
+        self::assertNull(UsageFieldGuard::errorCode('jane@example.com'));
+        self::assertNull(UsageFieldGuard::errorCode('eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2ln'));
+        self::assertNull(UsageFieldGuard::errorCode('0f6c2a1e-1111-2222-3333-444455556666'));
+        foreach (['4111111111111111', 'E0123456789', 'deadBEEF01234567', 'dGhpc0lzQVNlY3JldDEyMw', '192.168.1.10', '2001:db8::1', 'bob.smith.example.com', 'sk_live_abc', 'rk_test_abc', 'pk_live_abc', 'ghp_abc', 'gho_abc', 'xoxb-1', 'AKIAIOSFODNN7EXAMPLE', 'AIzaSyA-abc'] as $shape) {
+            self::assertNull(UsageFieldGuard::errorCode($shape), $shape);
+            self::assertSame('unknown', UsageFieldGuard::errorCodePart($shape), $shape);
+        }
+        foreach (['invalid_client', 'ERR7000215', 'auth.invalid_token', 'InvalidAuthenticationTokenProvided', 'E012345678'] as $code) {
+            self::assertSame($code, UsageFieldGuard::errorCode($code), $code);
+        }
+        self::assertNull(UsageFieldGuard::errorCode(str_repeat('a,', 8) . 'a'));
+        self::assertNull(UsageFieldGuard::errorCode(str_repeat('a', 60) . ',' . str_repeat('b', 60) . ',c'));
     }
 
     #[Test]

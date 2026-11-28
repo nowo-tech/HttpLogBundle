@@ -11,6 +11,8 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
 use LogicException;
+use Nowo\HttpLogBundle\Doctrine\CorrelationColumnsListener;
+use Nowo\HttpLogBundle\Doctrine\ErrorCodeColumnListener;
 use Nowo\HttpLogBundle\Doctrine\LogWriteUnit;
 use Nowo\HttpLogBundle\Doctrine\PathPrefixColumnListener;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
@@ -114,6 +116,8 @@ final readonly class UsageEntryWriter
                 credentialKind: $capture->credentialKind,
                 credentialId: $capture->credentialId,
                 provider: $capture->provider,
+                correlationId: $capture->correlationId,
+                upstreamId: $capture->upstreamId,
             ));
         } catch (Throwable $exception) {
             $this->logger?->warning('HTTP log entry-recorded listener failed.', ['exception_class' => $exception::class]);
@@ -173,6 +177,17 @@ final readonly class UsageEntryWriter
         $idGenerator = $metadata->idGenerator;
         if (!$idGenerator->isPostInsertGenerator()) {
             $values[$metadata->getSingleIdentifierFieldName()] = [$idGenerator->generateId($manager, null), ParameterType::INTEGER];
+        }
+
+        if ($metadata->hasField(ErrorCodeColumnListener::FIELD)) {
+            // a provider configures outbound error_code
+            $values[ErrorCodeColumnListener::FIELD] = [$capture->errorCode, ParameterType::STRING];
+        }
+
+        if ($metadata->hasField(CorrelationColumnsListener::FIELD)) {
+            // correlation.columns (1.27)
+            $values[CorrelationColumnsListener::FIELD]          = [$capture->correlationId, ParameterType::STRING];
+            $values[CorrelationColumnsListener::UPSTREAM_FIELD] = [$capture->upstreamId, ParameterType::STRING];
         }
 
         if ($metadata->hasField(PathPrefixColumnListener::FIELD)) {

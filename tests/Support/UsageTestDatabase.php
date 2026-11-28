@@ -16,6 +16,8 @@ use Doctrine\ORM\Tools\ToolEvents;
 use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\Persistence\ObjectManager;
 use Doctrine\Persistence\ObjectRepository;
+use Nowo\HttpLogBundle\Doctrine\CorrelationColumnsListener;
+use Nowo\HttpLogBundle\Doctrine\ErrorCodeColumnListener;
 use Nowo\HttpLogBundle\Doctrine\ExactColumnsCollationListener;
 use Nowo\HttpLogBundle\Doctrine\PathPrefixColumnListener;
 use Nowo\HttpLogBundle\Doctrine\TablePrefixListener;
@@ -58,6 +60,10 @@ final readonly class UsageTestDatabase implements ManagerRegistry
         ?LoggerInterface $logger = null,
         // DBAL middlewares of the connection (REQ-RUNTIME-003 tests: commit tracking)
         array $middlewares = [],
+        // a provider configures outbound error_code (maps error_code)
+        bool $errorCode = false,
+        // 1.27 correlation.columns (maps correlation_id and upstream_id)
+        bool $correlation = false,
     ) {
         $events             = new EventManager();
         $this->rollupTables = RollupTables::fromPrefixes($tablePrefix, $tableNamePrefix);
@@ -69,6 +75,12 @@ final readonly class UsageTestDatabase implements ManagerRegistry
         }
         if ($usageColumns) {
             $events->addEventListener(Events::loadClassMetadata, new UsageColumnsListener());
+        }
+        if ($errorCode) {
+            $events->addEventListener(Events::loadClassMetadata, new ErrorCodeColumnListener());
+        }
+        if ($correlation) {
+            $events->addEventListener(Events::loadClassMetadata, new CorrelationColumnsListener());
         }
         if ($pathPrefix) {
             $events->addEventListener(Events::loadClassMetadata, new PathPrefixColumnListener());

@@ -16,6 +16,8 @@ use Doctrine\Persistence\Mapping\Driver\MappingDriver;
 use InvalidArgumentException;
 use LogicException;
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
+use Nowo\HttpLogBundle\Doctrine\CorrelationColumnsListener;
+use Nowo\HttpLogBundle\Doctrine\ErrorCodeColumnListener;
 use Nowo\HttpLogBundle\Doctrine\PathPrefixColumnListener;
 use Nowo\HttpLogBundle\Doctrine\PurgeConflict;
 use Nowo\HttpLogBundle\Entity\HttpLogEntry;
@@ -269,6 +271,9 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
         $fields = HttpLogListRow::FIELDS;
         if ($this->hasUsageColumns()) {
             $fields = array_merge($fields, HttpLogListRow::USAGE_FIELDS);
+            if ($this->hasErrorCodeColumn()) {
+                $fields[] = ErrorCodeColumnListener::FIELD;
+            }
         }
         $direction = $after !== null && $after[2] === '>' ? SortDirection::Ascending : SortDirection::Descending;
 
@@ -576,6 +581,7 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
         }
 
         $this->applyUsageCriteria($qb, $criteria);
+        $this->applyCorrelationCriteria($qb, $criteria);
 
         if (isset($criteria['q']) && is_string($criteria['q']) && $criteria['q'] !== '') {
             $qb->andWhere(
@@ -615,10 +621,41 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
         return ($prefix ? '' : '%') . $escaped . '%';
     }
 
+    /** True when a provider configures outbound `error_code`: the `error_code` column is mapped ({@see ErrorCodeColumnListener}). */
+    public function hasErrorCodeColumn(): bool
+    {
+        return $this->resolveEntityManager()->getClassMetadata(HttpLogEntry::class)->hasField(ErrorCodeColumnListener::FIELD);
+    }
+
+    /** 1.27: `correlation.columns` maps `correlation_id` and `upstream_id` ({@see CorrelationColumnsListener}). */
+    public function hasCorrelationColumns(): bool
+    {
+        return $this->resolveEntityManager()->getClassMetadata(HttpLogEntry::class)->hasField(CorrelationColumnsListener::FIELD);
+    }
+
     /** `web_ui.filter_match: prefix` maps the `path_prefix` column ({@see PathPrefixColumnListener}). */
     public function hasPathPrefixColumn(): bool
     {
         return $this->resolveEntityManager()->getClassMetadata(HttpLogEntry::class)->hasField(PathPrefixColumnListener::FIELD);
+    }
+
+    /**
+     * 1.27: exact `correlationId` / `upstreamId` filters, only while `correlation.columns` maps the columns (ids are
+     * compared exactly, case-sensitively).
+     *
+     * @param array<string, mixed> $criteria
+     */
+    private function applyCorrelationCriteria(QueryBuilder $qb, array $criteria): void
+    {
+        if (!$this->hasCorrelationColumns()) {
+            return;
+        }
+
+        foreach ([CorrelationColumnsListener::FIELD, CorrelationColumnsListener::UPSTREAM_FIELD] as $field) {
+            if (isset($criteria[$field]) && is_string($criteria[$field]) && $criteria[$field] !== '') {
+                $qb->andWhere(sprintf('e.%1$s = :%1$s', $field))->setParameter($field, $criteria[$field]);
+            }
+        }
     }
 
     /**
@@ -658,6 +695,10 @@ final class HttpLogEntryRepository extends ServiceEntityRepository
             } else {
                 $qb->andWhere('e.channel = :channel')->setParameter('channel', $criteria['channel']);
             }
+        }
+
+        if ($this->hasErrorCodeColumn() && isset($criteria[ErrorCodeColumnListener::FIELD]) && is_string($criteria[ErrorCodeColumnListener::FIELD]) && $criteria[ErrorCodeColumnListener::FIELD] !== '') {
+            $qb->andWhere('e.errorCode = :errorCode')->setParameter('errorCode', $criteria[ErrorCodeColumnListener::FIELD]);
         }
 
         foreach (self::USAGE_EXACT_FILTERS as $field) {

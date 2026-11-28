@@ -6,6 +6,7 @@ namespace Nowo\HttpLogBundle\Inbound;
 
 use DateTimeImmutable;
 use Nowo\HttpLogBundle\Enum\OutboundErrorKind;
+use Nowo\HttpLogBundle\EventSubscriber\HttpLogSubscriber;
 use Nowo\HttpLogBundle\Privacy\HttpLogErasedSubjects;
 use Nowo\HttpLogBundle\Usage\HttpLogBuffer;
 use Nowo\HttpLogBundle\Usage\HttpLogChannel;
@@ -115,6 +116,9 @@ final readonly class InboundRequestRecorder
                 credentialId: $context->credentialId,
                 row: $row,
                 rollup: $count,
+                // 1.27: the host provider's id of the request, else the request's own id; and the trusted upstream id
+                correlationId: $row ? $this->attribute($request, HttpLogSubscriber::ATTR_CORRELATION_ID) ?? $this->attribute($request, HttpLogSubscriber::ATTR_REQUEST_ID) : null,
+                upstreamId: $row ? $this->attribute($request, HttpLogSubscriber::ATTR_UPSTREAM_ID) : null,
             ));
         } catch (Throwable $exception) {
             $this->warn($exception);
@@ -140,6 +144,13 @@ final readonly class InboundRequestRecorder
         } catch (Throwable $exception) {
             $this->warn($exception);
         }
+    }
+
+    private function attribute(Request $request, string $name): ?string
+    {
+        $value = $request->attributes->get($name);
+
+        return is_string($value) ? $value : null;
     }
 
     /** Lower-cased host and port; NULL when `trusted_hosts` rejects the Host header, so that 400 is still recorded (JA-I4). */

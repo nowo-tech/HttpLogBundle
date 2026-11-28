@@ -21,6 +21,7 @@ use function array_filter;
 use function array_keys;
 use function array_map;
 use function array_unique;
+use function count;
 use function implode;
 use function in_array;
 use function is_array;
@@ -393,6 +394,7 @@ final class Configuration implements ConfigurationInterface
                 ->append($this->outboundNode())
                 ->append($this->mailerNode())
                 ->append($this->rollupNode())
+                ->append($this->correlationNode())
                 ->arrayNode('messenger')
                     ->info('Context propagation for outbound and mailer rows (HL-1 §6.4).')
                     ->addDefaultsIfNotSet()
@@ -461,6 +463,19 @@ final class Configuration implements ConfigurationInterface
 
     /** Segments kept at most by a path template or a path depth. */
     public const MAX_PATH_SEGMENTS = 16;
+
+    /** `correlation.upstream_headers` entry. */
+    public const HEADER_NAME_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9-]{0,63}\z/';
+
+    public const MAX_UPSTREAM_HEADERS = 4;
+
+    /** @var list<string> */
+    public const DEFAULT_UPSTREAM_HEADERS = ['X-Request-Id', 'X-Correlation-Id', 'traceparent'];
+
+    /** `outbound.providers.<name>.error_code.paths` entry: a dotted path or a JSON pointer. */
+    public const ERROR_CODE_PATH_PATTERN = '/^(?:[A-Za-z0-9_-]{1,64}(?:\.[A-Za-z0-9_-]{1,64}){0,7}|(?:\/[A-Za-z0-9_-]{1,64}){1,8})\z/';
+
+    public const MAX_ERROR_CODE_PATHS = 8;
 
     /** Named inbound channel (HL-1 §2): the `channel` column is 16 characters. */
     public const CHANNEL_NAME_PATTERN = '/^[a-z][a-z0-9_]{0,15}\z/';
@@ -726,6 +741,34 @@ final class Configuration implements ConfigurationInterface
                                 ->info('Counted in the daily rollup while rollup.enabled.')
                                 ->defaultTrue()
                             ->end()
+                            ->arrayNode('error_code')
+                                ->info('Where the provider keeps the machine code of a failed call (status >= 400, JSON body of at most 16 KiB). Only the allowlisted code is stored, never the body or any description.')
+                                ->addDefaultsIfNotSet()
+                                ->children()
+                                    ->arrayNode('paths')
+                                        ->info('JSON pointers ("/error/code") or dotted paths ("error.code"), read in order; the values are joined by ",".')
+                                        ->scalarPrototype()
+                                            ->validate()
+                                                ->ifTrue(static fn (mixed $p): bool => !is_string($p) || preg_match(self::ERROR_CODE_PATH_PATTERN, $p) !== 1)
+                                                ->thenInvalid('Invalid error_code path %s: a dotted path (error.code) or a JSON pointer (/error/code) of letters, digits, "_" and "-".')
+                                            ->end()
+                                        ->end()
+                                        ->validate()
+                                            ->ifTrue(static fn (array $paths): bool => count($paths) > self::MAX_ERROR_CODE_PATHS)
+                                            ->thenInvalid('At most 8 error_code paths per provider.')
+                                        ->end()
+                                        ->defaultValue([])
+                                    ->end()
+                                    ->scalarNode('prefix')
+                                        ->info('Prepended to integer values only (e.g. "ERR" for 7000215).')
+                                        ->defaultValue('')
+                                        ->validate()
+                                            ->ifTrue(static fn (mixed $p): bool => !is_string($p) || preg_match('/^[A-Za-z0-9_.:-]{0,16}\z/', $p) !== 1)
+                                            ->thenInvalid('Invalid error_code prefix %s: at most 16 characters of letters, digits, "_", ".", ":" or "-".')
+                                        ->end()
+                                    ->end()
+                                ->end()
+                            ->end()
                         ->end()
                         ->validate()
                             ->ifTrue(static fn (array $p): bool => $p['clients'] === [] && $p['hosts'] === [])
@@ -733,6 +776,45 @@ final class Configuration implements ConfigurationInterface
                         ->end()
                     ->end()
                     ->defaultValue([])
+                ->end()
+            ->end();
+
+        return $node;
+    }
+
+    /**
+     * 1.27 (Beacon spec 235): correlation ids from the host's `Nowo\CorrelationContract\CorrelationIdProviderInterface`
+     * and the trusted upstream id.
+     */
+    private function correlationNode(): ArrayNodeDefinition
+    {
+        $node = (new TreeBuilder('correlation'))->getRootNode();
+        $node
+            ->info('1.27: correlation ids (nowo-tech/correlation-contract). Nothing changes for a host that registers no CorrelationIdProviderInterface service and keeps columns: false.')
+            ->addDefaultsIfNotSet()
+            ->children()
+                ->booleanNode('use_provider')
+                    ->info('Read the current id of the host\'s Nowo\CorrelationContract\CorrelationIdProviderInterface service (when one is registered) as the correlation id of the rows (correlation_id with columns: true, HttpLogEntryRecordedEvent::$correlationId). request_id is never taken from it: it stays HttpLog\'s own unique id.')
+                    ->defaultTrue()
+                ->end()
+                ->booleanNode('columns')
+                    ->info('Map and fill the nullable correlation_id and upstream_id columns (+ indexes): a migration is needed. correlation_id = the provider\'s id of the request / message, else the request\'s own request_id, on every row (web, named channel, outbound, mailer); upstream_id = the inbound id of a request from a trusted proxy. Literal boolean (decides the Doctrine mapping).')
+                    ->defaultFalse()
+                ->end()
+                ->arrayNode('upstream_headers')
+                    ->info('Request headers read, in order, for upstream_id (columns: true), only when the request comes from a trusted proxy (framework.trusted_proxies). The proxy must overwrite them, else they are client-supplied hints. "traceparent" gives its W3C trace-id; any other header must hold a valid correlation id (1 to 64 of A-Z a-z 0-9 . _ : -). Invalid values are dropped silently. A later config file replaces the list.')
+                    ->performNoDeepMerging()
+                    ->scalarPrototype()
+                        ->validate()
+                            ->ifTrue(static fn (mixed $h): bool => !is_string($h) || preg_match(self::HEADER_NAME_PATTERN, $h) !== 1)
+                            ->thenInvalid('Invalid correlation.upstream_headers entry %s: an HTTP header name of letters, digits and "-".')
+                        ->end()
+                    ->end()
+                    ->validate()
+                        ->ifTrue(static fn (array $headers): bool => count($headers) > self::MAX_UPSTREAM_HEADERS)
+                        ->thenInvalid('At most 4 correlation.upstream_headers.')
+                    ->end()
+                    ->defaultValue(self::DEFAULT_UPSTREAM_HEADERS)
                 ->end()
             ->end();
 

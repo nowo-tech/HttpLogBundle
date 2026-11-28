@@ -17,6 +17,8 @@ final readonly class OutboundTarget
         public bool $perCall = true,
         // counted in the daily rollup (rollup.enabled and the provider's `rollup`)
         public bool $rollup = false,
+        // where this provider keeps the machine code of a failed call (`error_code`), null = not read
+        public ?OutboundErrorCodeSpec $errorCode = null,
     ) {
     }
 }

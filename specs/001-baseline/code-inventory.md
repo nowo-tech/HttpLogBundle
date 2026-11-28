@@ -2,9 +2,9 @@
 
 **Baseline spec**: [`spec.md`](spec.md)  
 **Package**: `nowo-tech/http-log-bundle`  
-**Last audited**: 2026-11-25 (re-verified file by file against `git ls-files src`: 140/140; 1.23-1.25 units: purge conflict, DDD host mapping, filter bar; no production file added since 1.25.0)
+**Last audited**: 2026-11-28 (re-verified file by file against `git ls-files src`: 145/145; 1.26 units: outbound `error_code` (listener, extractor, spec); 1.27 units: correlation ids ([spec 005](../005-correlation-ids/spec.md)))
 
-Maps **100%** of production files under `src/` (140 units; audit: `git ls-files src | wc -l` → 140). Test and demo trees are out of Packagist scope unless promoted in the spec.
+Maps **100%** of production files under `src/` (145 units; audit: `git ls-files src | wc -l` → 145). Test and demo trees are out of Packagist scope unless promoted in the spec.
 
 ## Bundle entry
 
@@ -136,6 +136,8 @@ Maps **100%** of production files under `src/` (140 units; audit: `git ls-files 
 | `HttpClient/OutboundCapturePolicy.php` | Provider resolution (per-request, wrapped, client id, exact host, wildcard host, `other`) and keep rule (errors always, successes by `sampling_rate`) | FR-OUT-002 |
 | `HttpClient/OutboundTarget.php` | Provider, scheme, host and path template one row stores | FR-OUT-002 |
 | `HttpClient/OutboundUrlTemplater.php` | Pure URL to template: drops query, fragment and user info, lower-cases host, templates path segments | FR-OUT-002 |
+| `HttpClient/OutboundErrorCodeExtractor.php` | 1.26: reads the allowlisted provider error code of a failed call from its JSON body (configured paths, never the body itself) | FR-OUT-002 |
+| `HttpClient/OutboundErrorCodeSpec.php` | 1.26: per-provider `error_code` paths and integer prefix | FR-OUT-002 |
 | `HttpClient/OutboundErrorClassifier.php` | Error kind from exception class and transport text; the text is never stored | FR-OUT-003 |
 | `Enum/OutboundErrorKind.php` | `error_kind` values (timeout, dns, connect, tls, transport, redirect_limit, cancelled, http_4xx, http_5xx, exception) | FR-OUT-003 |
 
@@ -165,6 +167,12 @@ Maps **100%** of production files under `src/` (140 units; audit: `git ls-files 
 | `Inbound/HttpRequestContextAttributes.php` | WeakMap holding raw allowlisted attribute values outside the object so dumps cannot reach them | FR-CHAN-006 |
 | `Inbound/HttpRequestContextFactory.php` | Builds the `HttpRequestContext` from a request and token; drops secret-looking header and attribute names | FR-CHAN-006 |
 | `DependencyInjection/Compiler/DeprecatedRequestContextResolverPass.php` | Reports once per container build each resolver implementing only the deprecated interface | FR-CHAN-005 |
+
+## Correlation ids (1.27, spec 005)
+
+| Source file | Purpose | Requirement IDs |
+| --- | --- | --- |
+| `Correlation/CorrelationIds.php` | Stateless reader of the host's `CorrelationIdProviderInterface`, the main request's id and the trusted upstream id | FR-CORR-001, FR-CORR-003, FR-CORR-004 |
 
 ## Tenant context & Messenger propagation
 
@@ -242,6 +250,8 @@ Maps **100%** of production files under `src/` (140 units; audit: `git ls-files 
 | `Doctrine/ExactColumnsCollationListener.php` | Applies the exact collation to identifier columns of the entry table on MySQL / MariaDB | FR-DB-001 |
 | `Doctrine/PathPrefixColumnListener.php` | Maps `path_prefix` and its index with `web_ui.filter_match: prefix` | FR-DB-002 |
 | `Doctrine/UsageColumnsListener.php` | Maps the usage columns and indexes only when a usage channel is enabled | FR-DB-003 |
+| `Doctrine/ErrorCodeColumnListener.php` | 1.26: maps `error_code` and its index only while a provider configures `error_code.paths` | FR-DB-003 |
+| `Doctrine/CorrelationColumnsListener.php` | 1.27: maps `correlation_id` / `upstream_id` and their indexes only with `correlation.columns` | FR-CORR-002 |
 | `DependencyInjection/Compiler/EntityManagerMappings.php` | Reads DoctrineBundle's compiled definitions: which entity managers map the bundle entities and their connection (shared by the commit-tracking and entity-manager passes) | FR-DB-004, FR-CONC-003 |
 | `DependencyInjection/Compiler/HttpLogEntityManagerPass.php` | 1.24: with `doctrine.entity_manager` set, the build fails unless that manager exists and is the only one mapping the bundle entities | FR-DB-004 |
 | `Resources/config/doctrine/HttpLogEntry.orm.xml` | 1.24: XML twin of the `HttpLogEntry` attributes (`doctrine.mapping_type: xml` or a host that maps the entity itself) | FR-DB-004 |
@@ -282,15 +292,16 @@ Maps **100%** of production files under `src/` (140 units; audit: `git ls-files 
 | Symfony config (`src/Resources/config/`) | 3 |
 | Translations (`src/Resources/translations/`) | 7 |
 | Twig views (`src/Resources/views/`) | 6 |
-| Outbound capture (HttpClient) | 10 |
+| Outbound capture (HttpClient) | 12 |
 | Mailer capture | 2 |
 | Named inbound channels | 15 |
+| Correlation ids | 1 |
 | Tenant context & Messenger propagation | 5 |
 | Usage capture & buffering | 9 |
 | Usage read API | 8 |
 | Daily rollup | 6 |
 | Privacy (GDPR) | 15 |
-| Database exactness & optional mappings | 7 |
+| Database exactness & optional mappings | 9 |
 | Admin list, export storage & access | 5 |
 | Concurrency | 4 |
-| **Total** | **140** |
+| **Total** | **145** |

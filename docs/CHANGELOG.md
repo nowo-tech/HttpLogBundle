@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.27.0] - 2026-11-28](#1270---2026-11-28)
+- [[1.26.0] - 2026-11-28](#1260---2026-11-28)
 - [[1.25.0] - 2026-11-22](#1250---2026-11-22)
 - [[1.24.0] - 2026-11-21](#1240---2026-11-21)
 - [[1.23.1] - 2026-11-21](#1231---2026-11-21)
@@ -59,15 +61,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-11-28
+
+### Added
+
+- **Correlation ids (Beacon spec 235 FR-002 / FR-005)** with the new light dependency `nowo-tech/correlation-contract` ^0.1. When the host registers a `Nowo\CorrelationContract\CorrelationIdProviderInterface` service (`correlation.use_provider`, default `true`), its current id becomes the **correlation id** of the rows: `HttpLogEntryRecordedEvent::$correlationId` and, with `correlation.columns`, the `correlation_id` column. It is read on the main request at `kernel.request`, `kernel.response` and `kernel.terminate` (the latest id wins), and again when an outbound call or a mail is recorded (a provider that sets its id late is still picked up). `request_id` is **not** affected: it stays HttpLog's own generated unique id for every row, so a provider id that repeats (a retried chain, a header adopted from a client) never collapses rows.
+- `correlation.columns` (opt-in, migration in UPGRADING): nullable `correlation_id` and `upstream_id` columns with the indexes `idx_http_log_corr_id` / `idx_http_log_upstream` (exact-match collation on MySQL / MariaDB). `correlation_id` is filled on every row (web, named inbound channel, outbound, mailer) with the provider's id, else the `request_id` of the web request (a web row: its own), so everything of one id is a single indexed lookup on `(correlation_id, created_at)`. `upstream_id` is the `X-Request-Id` / `X-Correlation-Id` / `traceparent` trace-id of a request whose `REMOTE_ADDR` is a trusted proxy (`Request::isFromTrustedProxy()`), kept only when it parses as a correlation id; it never replaces `request_id`, invalid values are dropped without logging them. A trusted proxy that forwards these headers unchanged makes `upstream_id` a client-supplied (validated) hint: configure the proxy to overwrite them. Exact-match `correlationId` / `upstreamId` filters in the admin list (kept by the export), both ids on the entry page, and `correlationId` / `upstreamId` as the last CSV / JSON export columns (CSV cells formula-neutralised). Hosts that keep the option off need no migration.
+- `correlation.upstream_headers` (default `X-Request-Id`, `X-Correlation-Id`, `traceparent`; at most 4); a later config file replaces the list instead of appending to it.
+- `HttpLogEntryRecordedEvent::$correlationId` and `$upstreamId`, `UsageCapture::$correlationId` / `$upstreamId`, `HttpLogCapture::$upstreamId` / `$correlationId`, `HttpLogFrame::$correlationId` / `$providerCorrelation`, `HttpLogContext::correlationIdAtCapture()`, `HttpLogEntry::getCorrelationId()` / `getUpstreamId()` (optional constructor arguments at the end), request attributes `HttpLogSubscriber::ATTR_CORRELATION_ID` / `ATTR_UPSTREAM_ID`.
+
+### Changed
+
+- `HttpLogSubscriber` also listens to `kernel.response` (priority -1024) to re-read the host provider's id for the correlation id; it never changes the response or `request_id`. HttpLog still sends no response header.
+
+[1.27.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.27.0
+
+## [1.26.0] - 2026-11-28
+
+### Security
+
+- **CSV export neutralises spreadsheet formulas.** Before, a text cell of the CSV export was written as is, so a value starting with `=`, `+`, `-` or `@` (a self-chosen user identifier, a route name, a path) was evaluated by a spreadsheet that opened the file. Every text cell starting with `=`, `+`, `-`, `@`, TAB or CR is now prefixed with `'` (OWASP). It affects the released versions that export CSV (the JSON export is unchanged and keeps the raw values).
+
+### Added
+
+- `outbound.providers.<key>.error_code` (`paths`, `prefix`; opt-in): the machine code a provider returns with a failed call (status >= 400, JSON body of at most 16 KiB, read when the body is consumed) is stored in a nullable `error_code` column of the usage rows. Only values read at the configured JSON paths are kept, each a short token (`A-Z a-z 0-9 _ . : -`, 1..64 characters) that does not look like an identifier or a credential (long digit or hex runs, mixed-case keys, IP addresses, host-like values, UUIDs, well-known secret prefixes), anything else as `unknown`; at most 8 values / 128 bytes, joined by `,`; the body and descriptions are never stored. The column, its index `idx_http_log_errcode_created` and the admin and export fields exist only while a provider configures `error_code`: hosts that do not need no migration (see UPGRADING). Filterable (`errorCode`, exact match), exported (`errorCode`), and available as `CallQuery::withErrorCode()` and `UsageCall::$errorCode`. A provider without `error_code` is unchanged and its body is never read.
+
 ### Changed
 
 - PHP 8.6: `composer.json` allows PHP below 8.7 (was below 8.6). CI adds a forward-compatibility workflow with a
-  PHP 8.6 cell and a Symfony 8.2 cell (release candidates, allowed to fail until 8.2.0 is stable).
+  PHP 8.6 cell and a Symfony 8.2 cell (stable Symfony 8.2.0).
 - Igor 0.11: the `buffer` collaborator of `MailerCaptureListener` is marked `#[WorkerSafe]` with the reason (a documented false positive: the buffer is its own `kernel.reset` service and `reset()` flushes it). No behaviour change.
 
 ### Fixed
 
 - A new strict `TranslationCatalogueTest` fails on a non-en locale missing a key, on a non-en value identical to English (any length, placeholders included; values without letters are skipped) unless allow-listed per locale (brands, units, protocols, loanwords, true cognates), on a non-es value identical to the Spanish one (longer than 12 characters) unless allow-listed as genuinely shared, and on stale allow-list entries. No translation changed.
+
+[1.26.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.26.0
 
 ## [1.25.0] - 2026-11-22
 
