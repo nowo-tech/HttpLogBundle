@@ -81,6 +81,8 @@ final readonly class AdminPages
         private array $webUi = [],
         // HL-1: the usage columns are mapped (outbound or mailer capture enabled)
         private bool $usageColumns = false,
+        // a provider configures outbound error_code (the error_code column is mapped)
+        private bool $errorCodeColumn = false,
     ) {
     }
 
@@ -140,6 +142,10 @@ final readonly class AdminPages
                 'projectKey'     => new FilterField('projectKey', width: 'md'),
                 'credentialKind' => new FilterField('credentialKind', width: 'sm'),
             ];
+            if ($this->errorCodeColumn) {
+                $columns[]                 = new Column('errorCode', $this->label('admin.column.error_code'), priority: 2);
+                $filterFields['errorCode'] = new FilterField('errorCode', width: 'md');
+            }
         }
 
         return new ListPage(
@@ -292,11 +298,14 @@ final readonly class AdminPages
         // HL-1 allowlisted usage fields (outbound / mailer rows have no headers, bodies or query string).
         $credential = $entry->getCredentialKind() === null ? null : $entry->getCredentialKind() . ($entry->getCredentialId() === null ? '' : ':' . $entry->getCredentialId());
 
+        $errorCode = $this->errorCodeColumn ? [new DetailItem($this->label('admin.column.error_code'), $entry->getErrorCode())] : [];
+
         return [
             ...$items,
             new DetailItem($this->label('admin.column.channel'), $entry->getChannel() ?? 'web'),
             new DetailItem($this->label('admin.column.provider'), $entry->getProvider()),
             new DetailItem($this->label('admin.field.error_kind'), $entry->getErrorKind()),
+            ...$errorCode,
             new DetailItem($this->label('admin.field.retry_count'), $entry->getRetryCount()),
             new DetailItem($this->label('admin.field.response_bytes'), $entry->getResponseBytes()),
             new DetailItem($this->label('admin.field.tenant_key'), $entry->getTenantKey()),

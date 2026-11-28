@@ -98,6 +98,13 @@ final class HttpLogFilterType extends AbstractType
             $this->addTextField('projectKey', ['required' => false, 'label' => 'filter.project_key']);
             $this->addTextField('credentialKind', ['required' => false, 'label' => 'filter.credential_kind']);
         });
+
+        if ($options['error_code'] === true) {
+            // a provider configures outbound error_code (the column is mapped)
+            $this->withBuilder($builder, function (): void {
+                $this->addTextField('errorCode', ['required' => false, 'label' => 'filter.error_code']);
+            });
+        }
     }
 
     public function configureOptions(OptionsResolver $resolver): void
@@ -110,5 +117,8 @@ final class HttpLogFilterType extends AbstractType
             'usage_channels' => [],
         ]);
         $resolver->setAllowedTypes('usage_channels', 'string[]');
+        // error_code is mapped (needs usage_channels)
+        $resolver->setDefault('error_code', false);
+        $resolver->setAllowedTypes('error_code', 'bool');
     }
 }

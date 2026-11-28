@@ -19,6 +19,7 @@ How to capture HTTP traffic, use the admin UI, export, purge, and exclude routes
   - [UserKit bridge](#userkit-bridge)
 - [Outbound and mailer usage](#outbound-and-mailer-usage)
   - [Outbound HttpClient calls](#outbound-httpclient-calls)
+  - [Outbound error code](#outbound-error-code)
   - [Mails](#mails)
   - [Tenant and project context](#tenant-and-project-context)
 - [Named inbound channels](#named-inbound-channels)
@@ -478,8 +479,8 @@ final class AppHttpLogAccessChecker implements HttpLogAccessCheckerInterface, Ht
 `outbound.enabled` decorates `http_client` and every scoped client (`outbound.clients`) as the **outermost**
 decorator: a call retried by `RetryableHttpClient` is one row with its `retry_count`; tracing decorators are not
 affected. The decorator returns the inner client's response unchanged (same status, headers, body, chunks, exceptions;
-still lazy) and never reads or buffers the body. The row is recorded once, when the response completes, fails, is
-cancelled or destroyed:
+still lazy) and never reads or buffers the body (see the [error code](#outbound-error-code) for the one bounded exception). The row is recorded once, when the response completes, fails, is
+cancelled or destroyed (the body is read only for the [error code](#outbound-error-code) of a failed call of a provider that configures one):
 
 | Column | Outbound value |
 | --- | --- |
@@ -487,8 +488,51 @@ cancelled or destroyed:
 | `host` | stored as is: when the host name itself is the secret (per-endpoint request-bin style hosts), list it in `outbound.exclude_hosts` |
 | `path` | path template: a provider template, else up to `path_depth` segments, each kept only when it is a version (`v2`) or a known path word (built-in REST words such as `api`, `users`, `files`, plus `outbound.path_words`), else `{uuid}`, `{id}`, `{seg}` (any other word: it may be a webhook key or a topic name) or `{x}`; the rest `/{…}`. Query string and fragment are dropped. Webhook hosts should use `path_depth: 0` |
 | `status_code` / `error_kind` | final status; `timeout`, `dns`, `connect`, `tls`, `transport`, `redirect_limit`, `cancelled`, `http_4xx`, `http_5xx`, `exception` (no status for transport errors). Exception messages are never stored: they contain the full URL |
+| `error_code` | the provider's machine code of a failed call, only for a provider that configures `error_code` (see below); otherwise `NULL` |
 | `retry_count`, `response_bytes`, `content_type`, `duration_ms` | from the response info |
 | `tenant_key`, `project_key`, `messenger_message_id` | from `HttpLogContext` at request time, or the request option below |
+
+### Outbound error code
+
+A status alone ("401") often hides the reason, which the provider puts in a short machine code in the response body.
+A provider with `outbound.providers.<key>.error_code` keeps that code, and nothing else of the body:
+
+```yaml
+nowo_http_log:
+    outbound:
+        providers:
+            login:
+                hosts: [login.example.com]
+                error_code:
+                    paths: [error, error_codes]
+                    prefix: ERR
+```
+
+For a response with status >= 400 and a JSON body of at most 16 KiB the values at `paths` are read in order. A string
+value, or an integer (at most 5 per array, with the `prefix`), is kept when it is 1–64 characters of `A-Z a-z 0-9 _ . : -`
+and does not have the shape of an identifier or a credential: a run of 10 or more digits, a run of 16 or more hex
+digits, a run of 20 or more letters and digits that mixes upper case, lower case and digits, an IP address, a value
+with two or more dots (host names, tokens), a UUID, or a well-known secret prefix (`eyJ`, `sk_`, `rk_`, `pk_live`,
+`ghp_`, `gho_`, `xox`, `AKIA`, `AIza`). Any other value (a sentence, an e-mail address, an object, a boolean) is
+stored as `unknown`. Values are joined by `,` (at most 8 values, 128 bytes), so
+`{"error":"invalid_client","error_codes":[7000215]}` is stored as `invalid_client,ERR7000215`. `error_description`,
+`message` and everything else that is not at a configured path have no way to travel in, and the body itself is never
+stored. The shape filter lowers the risk, it does not prove a value is a code: point `paths` only at fields the
+provider documents as machine codes, never at a field that can echo user input. A non-JSON body, a body over the cap, a status below 400, a transport error and a provider without
+`error_code` give `NULL`. The code has the retention of its row (`outbound.retention_days`).
+
+The code is read from the body the application (or Symfony's HTTP exception) consumes: a response that is cancelled
+or destroyed unread has no code.
+
+Only failed calls of a provider with `error_code` buffer their response body (at most 16 KiB, in the memory of that
+call, cleared when the call is recorded); chunks are forwarded untouched, and the body the caller reads is the
+bare client's.
+
+The column exists only while a provider configures `error_code` (no migration otherwise, see
+[UPGRADING](UPGRADING.md#unreleased)): `error_code`, nullable, 128 characters, indexed with `created_at`, exact
+match. It is a filter and a
+field in the admin list, a detail field, an export column (`errorCode`) and `CallQuery::withErrorCode()` /
+`UsageCall::$errorCode` for the usage API. No change for rows without a code.
 
 Per-request options (removed before the inner client sees the request):
 

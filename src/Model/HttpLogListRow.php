@@ -13,7 +13,7 @@ use function is_string;
 /**
  * One row of the admin list (PERF-1147-02): only the columns the list shows, read by a scalar projection
  * ({@see HttpLogEntryRepository::findListRows()}). Never the query string, headers or bodies: those stay on the entry
- * page. `channel` and `provider` are null while the HL-1 usage columns are not mapped. The short request columns a
+ * page. `channel`, `provider` and `errorCode` are null while the HL-1 usage columns are not mapped. The short request columns a
  * host's `index.html.twig` override may show (route, host, scheme, user identifier, request id) are read too.
  *
  * Twig reads the public properties (`row.id`, `row.path`, ...) like the entity getters it read before 1.17.
@@ -41,6 +41,7 @@ final readonly class HttpLogListRow
         public ?string $scheme = null,
         public ?string $userIdentifier = null,
         public ?string $requestId = null,
+        public ?string $errorCode = null,
     ) {
     }
 
@@ -68,6 +69,7 @@ final readonly class HttpLogListRow
             self::nullableString($row['scheme'] ?? null),
             self::nullableString($row['userIdentifier'] ?? null),
             self::nullableString($row['requestId'] ?? null),
+            self::nullableString($row['errorCode'] ?? null),
         );
     }
 

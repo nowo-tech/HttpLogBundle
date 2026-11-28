@@ -83,6 +83,51 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 
 ## Unreleased
 
+### `error_code` column (opt-in)
+
+Nothing changes until you set `nowo_http_log.outbound.providers.<key>.error_code.paths`: without it the column is not
+mapped, no migration is needed and no response body is read. When you do configure it, the entry table gains a
+nullable `error_code` column and the index `idx_http_log_errcode_created`. Deploy the migration **before** the
+configuration (with the column mapped and not migrated, every write and read of the log fails). Generate it with
+`php bin/console doctrine:migrations:diff`, or apply the SQL (default names; add your `doctrine.table_prefix` /
+`table_name_prefix`; the MySQL / MariaDB variant gives the column the exact-match collation of the identifier
+columns, on MariaDB use `utf8mb4_nopad_bin` instead of `utf8mb4_0900_bin`):
+
+<!-- error-code-ddl:mysql -->
+```sql
+ALTER TABLE nowo_http_log_entry ADD error_code VARCHAR(128) CHARACTER SET utf8mb4 COLLATE `utf8mb4_0900_bin` DEFAULT NULL;
+CREATE INDEX idx_http_log_errcode_created ON nowo_http_log_entry (error_code, created_at);
+```
+
+PostgreSQL (on a large table, run `CREATE INDEX CONCURRENTLY` outside a transaction):
+
+<!-- error-code-ddl:postgresql -->
+```sql
+ALTER TABLE nowo_http_log_entry ADD error_code VARCHAR(128) DEFAULT NULL;
+CREATE INDEX idx_http_log_errcode_created ON nowo_http_log_entry (error_code, created_at);
+```
+
+SQLite:
+
+<!-- error-code-ddl:sqlite -->
+```sql
+ALTER TABLE nowo_http_log_entry ADD COLUMN error_code VARCHAR(128) DEFAULT NULL;
+CREATE INDEX idx_http_log_errcode_created ON nowo_http_log_entry (error_code, created_at);
+```
+
+The index name is 28 characters: with a `table_prefix`, keep the full prefixed name within your database's limit. Once
+mapped, the admin list gains an `error_code` column, filter and detail field, and the exports an `errorCode` column.
+A host that overrides `nowo_ui_list_row` (the row cells of `admin/index.html.twig`) must add the cell after the
+`provider` one, inside the usage-columns branch, or the header and the cells are misaligned:
+
+```twig
+{%- if page.columns|filter(c => c.key == 'errorCode')|length > 0 %}
+    <td class="{{ _cell }} nowo-ui-cell--start" data-label="{{ 'admin.column.error_code'|trans({}, 'NowoHttpLogBundle') }}" data-nowo-ui-priority="2">
+        {{ row.errorCode ?: '—' }}
+    </td>
+{%- endif %}
+```
+
 ## To 1.25.0
 
 From **1.24.0**:

@@ -8,6 +8,7 @@ use LogicException;
 use Nowo\HttpLogBundle\Context\HttpLogContext;
 use Nowo\HttpLogBundle\DependencyInjection\Configuration;
 use Nowo\HttpLogBundle\DependencyInjection\NowoHttpLogExtension;
+use Nowo\HttpLogBundle\Doctrine\ErrorCodeColumnListener;
 use Nowo\HttpLogBundle\Doctrine\UsageColumnsListener;
 use Nowo\HttpLogBundle\HttpClient\HttpLogHttpClientWrapper;
 use Nowo\HttpLogBundle\HttpClient\OutboundCapturePolicy;
@@ -29,7 +30,10 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ParameterBag\EnvPlaceholderParameterBag;
 use Symfony\Component\DependencyInjection\Reference;
 
+use function json_encode;
+
 use const ARRAY_FILTER_USE_KEY;
+use const JSON_THROW_ON_ERROR;
 
 /**
  * HL-1 S1: the feature blocks are off by default and register nothing but the inert context API; enabling one
@@ -237,6 +241,41 @@ final class UsageExtensionTest extends TestCase
         self::assertSame(['resend', 'resend+api'], $config['mailer']['providers']['resend']['schemes']);
     }
 
+    #[Test]
+    public function errorCodeIsOffByDefaultAndReachesThePolicyWhenConfigured(): void
+    {
+        $config = (new Processor())->processConfiguration(new Configuration(), [[
+            'outbound' => ['providers' => [
+                'plain' => ['hosts' => ['a.example']],
+                'login' => ['hosts' => ['b.example'], 'error_code' => ['paths' => ['error', '/error_codes'], 'prefix' => 'ERR']],
+            ]],
+        ]]);
+        self::assertSame(['paths' => [], 'prefix' => ''], $config['outbound']['providers']['plain']['error_code']);
+
+        $container = $this->load(['outbound' => ['enabled' => true, 'providers' => [
+            'plain' => ['hosts' => ['a.example']],
+            'login' => ['hosts' => ['b.example'], 'error_code' => ['paths' => ['error', '/error_codes'], 'prefix' => 'ERR']],
+        ]]]);
+        self::assertSame([['event' => 'loadClassMetadata', 'priority' => 100]], $container->getDefinition(ErrorCodeColumnListener::class)->getTag('doctrine.event_listener'));
+        $providers = $container->getDefinition(OutboundCapturePolicy::class)->getArgument(0);
+        self::assertArrayNotHasKey('error_code', $providers['plain']);
+        self::assertSame(['paths' => ['error', '/error_codes'], 'prefix' => 'ERR'], $providers['login']['error_code']);
+    }
+
+    #[Test]
+    public function theErrorCodeColumnIsMappedOnlyWhileAProviderReadsIt(): void
+    {
+        foreach ([
+            ['outbound' => ['enabled' => true, 'providers' => ['p' => ['hosts' => ['a.example']]]]],
+            ['outbound' => ['enabled' => true, 'providers' => ['p' => ['hosts' => ['a.example'], 'error_code' => ['paths' => [], 'prefix' => 'ERR']]]]],
+            ['mailer' => ['enabled' => true]],
+            ['outbound' => ['enabled' => false, 'providers' => ['p' => ['hosts' => ['a.example'], 'error_code' => ['paths' => ['error']]]]]],
+            [],
+        ] as $config) {
+            self::assertFalse($this->registered($this->load($config), ErrorCodeColumnListener::class), json_encode($config, JSON_THROW_ON_ERROR));
+        }
+    }
+
     /**
      * @return iterable<string, array{0: array<string, mixed>}>
      */
@@ -258,6 +297,12 @@ final class UsageExtensionTest extends TestCase
         yield 'excluded host with scheme' => [['outbound' => ['exclude_hosts' => ['redis://cache']]]];
         yield 'sampling' => [['outbound' => ['sampling_rate' => 1.5]]];
         yield 'retention' => [['outbound' => ['retention_days' => -1]]];
+        yield 'error code path with a space' => [['outbound' => ['providers' => ['p' => ['hosts' => ['a.example'], 'error_code' => ['paths' => ['error description']]]]]]];
+        yield 'error code path with a wildcard' => [['outbound' => ['providers' => ['p' => ['hosts' => ['a.example'], 'error_code' => ['paths' => ['errors.*.code']]]]]]];
+        yield 'error code path not a string' => [['outbound' => ['providers' => ['p' => ['hosts' => ['a.example'], 'error_code' => ['paths' => [['x']]]]]]]];
+        yield 'nine error code paths' => [['outbound' => ['providers' => ['p' => ['hosts' => ['a.example'], 'error_code' => ['paths' => ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']]]]]]];
+        yield 'error code prefix with a space' => [['outbound' => ['providers' => ['p' => ['hosts' => ['a.example'], 'error_code' => ['paths' => ['e'], 'prefix' => 'A B']]]]]];
+        yield 'error code prefix too long' => [['outbound' => ['providers' => ['p' => ['hosts' => ['a.example'], 'error_code' => ['paths' => ['e'], 'prefix' => str_repeat('A', 17)]]]]]];
         yield 'mailer retention' => [['mailer' => ['retention_days' => 'x']]];
         yield 'mailer provider key' => [['mailer' => ['providers' => ['Bad' => ['schemes' => ['smtp']]]]]];
         yield 'mailer scheme' => [['mailer' => ['providers' => ['p' => ['schemes' => ['SMTP://']]]]]];

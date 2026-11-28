@@ -59,6 +59,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **CSV export neutralises spreadsheet formulas.** Before, a text cell of the CSV export was written as is, so a value starting with `=`, `+`, `-` or `@` (a self-chosen user identifier, a route name, a path) was evaluated by a spreadsheet that opened the file. Every text cell starting with `=`, `+`, `-`, `@`, TAB or CR is now prefixed with `'` (OWASP). It affects the released versions that export CSV (the JSON export is unchanged and keeps the raw values).
+
+### Added
+
+- `outbound.providers.<key>.error_code` (`paths`, `prefix`; opt-in): the machine code a provider returns with a failed call (status >= 400, JSON body of at most 16 KiB, read when the body is consumed) is stored in a nullable `error_code` column of the usage rows. Only values read at the configured JSON paths are kept, each a short token (`A-Z a-z 0-9 _ . : -`, 1..64 characters) that does not look like an identifier or a credential (long digit or hex runs, mixed-case keys, IP addresses, host-like values, UUIDs, well-known secret prefixes), anything else as `unknown`; at most 8 values / 128 bytes, joined by `,`; the body and descriptions are never stored. The column, its index `idx_http_log_errcode_created` and the admin and export fields exist only while a provider configures `error_code`: hosts that do not need no migration (see UPGRADING). Filterable (`errorCode`, exact match), exported (`errorCode`), and available as `CallQuery::withErrorCode()` and `UsageCall::$errorCode`. A provider without `error_code` is unchanged and its body is never read.
+
 ### Changed
 
 - Igor 0.11: the `buffer` collaborator of `MailerCaptureListener` is marked `#[WorkerSafe]` with the reason (a documented false positive: the buffer is its own `kernel.reset` service and `reset()` flushes it). No behaviour change.

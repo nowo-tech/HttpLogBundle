@@ -21,6 +21,7 @@ use function array_filter;
 use function array_keys;
 use function array_map;
 use function array_unique;
+use function count;
 use function implode;
 use function in_array;
 use function is_array;
@@ -462,6 +463,11 @@ final class Configuration implements ConfigurationInterface
     /** Segments kept at most by a path template or a path depth. */
     public const MAX_PATH_SEGMENTS = 16;
 
+    /** `outbound.providers.<name>.error_code.paths` entry: a dotted path or a JSON pointer. */
+    public const ERROR_CODE_PATH_PATTERN = '/^(?:[A-Za-z0-9_-]{1,64}(?:\.[A-Za-z0-9_-]{1,64}){0,7}|(?:\/[A-Za-z0-9_-]{1,64}){1,8})\z/';
+
+    public const MAX_ERROR_CODE_PATHS = 8;
+
     /** Named inbound channel (HL-1 §2): the `channel` column is 16 characters. */
     public const CHANNEL_NAME_PATTERN = '/^[a-z][a-z0-9_]{0,15}\z/';
 
@@ -725,6 +731,34 @@ final class Configuration implements ConfigurationInterface
                             ->booleanNode('rollup')
                                 ->info('Counted in the daily rollup while rollup.enabled.')
                                 ->defaultTrue()
+                            ->end()
+                            ->arrayNode('error_code')
+                                ->info('Where the provider keeps the machine code of a failed call (status >= 400, JSON body of at most 16 KiB). Only the allowlisted code is stored, never the body or any description.')
+                                ->addDefaultsIfNotSet()
+                                ->children()
+                                    ->arrayNode('paths')
+                                        ->info('JSON pointers ("/error/code") or dotted paths ("error.code"), read in order; the values are joined by ",".')
+                                        ->scalarPrototype()
+                                            ->validate()
+                                                ->ifTrue(static fn (mixed $p): bool => !is_string($p) || preg_match(self::ERROR_CODE_PATH_PATTERN, $p) !== 1)
+                                                ->thenInvalid('Invalid error_code path %s: a dotted path (error.code) or a JSON pointer (/error/code) of letters, digits, "_" and "-".')
+                                            ->end()
+                                        ->end()
+                                        ->validate()
+                                            ->ifTrue(static fn (array $paths): bool => count($paths) > self::MAX_ERROR_CODE_PATHS)
+                                            ->thenInvalid('At most 8 error_code paths per provider.')
+                                        ->end()
+                                        ->defaultValue([])
+                                    ->end()
+                                    ->scalarNode('prefix')
+                                        ->info('Prepended to integer values only (e.g. "ERR" for 7000215).')
+                                        ->defaultValue('')
+                                        ->validate()
+                                            ->ifTrue(static fn (mixed $p): bool => !is_string($p) || preg_match('/^[A-Za-z0-9_.:-]{0,16}\z/', $p) !== 1)
+                                            ->thenInvalid('Invalid error_code prefix %s: at most 16 characters of letters, digits, "_", ".", ":" or "-".')
+                                        ->end()
+                                    ->end()
+                                ->end()
                             ->end()
                         ->end()
                         ->validate()

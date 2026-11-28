@@ -49,9 +49,39 @@ final class UsageAdminPagesRenderTest extends TestCase
         self::assertStringContainsString('nowo-http-log-channel">web<', $html);
         self::assertStringContainsString('clickup', $html);
         self::assertSame(9, count($page->columns));
+        self::assertStringNotContainsString('admin.column.error_code', $html);
 
         $plain = $harness->createEnvironment()->render('@NowoHttpLogBundle/admin/index.html.twig', ['page' => AdminPageFixtures::listPage(AdminPageFixtures::entries(), 3), 'criteria' => []]);
         self::assertStringNotContainsString('nowo-http-log-channel', $plain);
+    }
+
+    #[Test]
+    public function listAndEntryShowTheErrorCodeOnlyWhenItsColumnIsMapped(): void
+    {
+        $failed  = $this->usage(AdminTwigHarness::entry(61), ['channel' => 'outbound', 'provider' => 'login', 'errorCode' => 'invalid_client']);
+        $harness = new AdminTwigHarness();
+        $forms   = $harness->formFactory();
+        $render  = static function (bool $errorCode) use ($harness, $forms, $failed): array {
+            $pages = new AdminPages($harness->router(), [], true, $errorCode);
+            $page  = $pages->listPage([$failed], 1, 1, 10, $forms->create(HttpLogFilterType::class)->createView(), [], $forms->create(HttpLogPurgeType::class, null, ['action' => '/x'])->createView());
+            $show  = $pages->showPage($failed, $forms->create(HttpLogDeleteType::class, null, ['action' => '/x'])->createView());
+
+            return [
+                $harness->createEnvironment()->render('@NowoHttpLogBundle/admin/index.html.twig', ['page' => $page, 'criteria' => []]),
+                count($page->columns),
+                array_map(static fn (DetailItem $i): mixed => $i->value, $show->sections[0]->items),
+            ];
+        };
+
+        [$html, $columns, $values] = $render(true);
+        self::assertStringContainsString('invalid_client', $html);
+        self::assertSame(10, $columns);
+        self::assertContains('invalid_client', $values);
+
+        [$html, $columns, $values] = $render(false);
+        self::assertStringNotContainsString('invalid_client', $html);
+        self::assertSame(9, $columns);
+        self::assertNotContains('invalid_client', $values);
     }
 
     #[Test]
@@ -65,13 +95,14 @@ final class UsageAdminPagesRenderTest extends TestCase
             'tenantKey'          => 'org-1',
             'projectKey'         => 'project-1',
             'errorKind'          => 'http_5xx',
+            'errorCode'          => 'invalid_client,ERR7000215',
             'retryCount'         => 2,
             'responseBytes'      => '2048',
             'messengerMessageId' => 'msg-1',
             'externalMessageId'  => 'id-1@mail.example',
         ]);
         $harness = new AdminTwigHarness();
-        $pages   = new AdminPages($harness->router(), [], true);
+        $pages   = new AdminPages($harness->router(), [], true, true);
         $show    = $pages->showPage($entry, $harness->formFactory()->create(HttpLogDeleteType::class, null, ['action' => '/x'])->createView());
 
         $items = [];
@@ -83,6 +114,7 @@ final class UsageAdminPagesRenderTest extends TestCase
         self::assertSame('mailer', $items['admin.column.channel']);
         self::assertSame('personal_token:42', $items['admin.field.credential']);
         self::assertSame(2048, $items['admin.field.response_bytes']);
+        self::assertSame('invalid_client,ERR7000215', $items['admin.column.error_code']);
 
         $html = $harness->createEnvironment()->render('@NowoHttpLogBundle/admin/show.html.twig', ['page' => $show, 'entry' => $entry, 'payload' => $pages->payload($entry)]);
         self::assertStringContainsString('id-1@mail.example', $html);

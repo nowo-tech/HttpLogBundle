@@ -16,6 +16,11 @@ use ReflectionProperty;
 use RuntimeException;
 
 use function count;
+use function fclose;
+use function fgetcsv;
+use function fopen;
+use function fwrite;
+use function rewind;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -47,6 +52,38 @@ final class ExportHttpLogServiceTest extends TestCase
         self::assertStringContainsString('req-1', $csv);
         self::assertStringContainsString('req-2', $csv);
         self::assertStringContainsString('GET', $csv);
+    }
+
+    #[Test]
+    public function csvCellsThatStartLikeAFormulaAreNeutralised(): void
+    {
+        $entry = $this->createEntry(1, '=HYPERLINK("http://x")')
+            ->setUserIdentifier('@SUM(1+1)')
+            ->setRouteName("\tcmd")
+            ->setPath('-2+3')
+            ->setHost("\rx")
+            ->setClientIp('+1');
+        $csv = (new ExportHttpLogService($this->createRepositoryMock([$entry, $this->createEntry(2, 'safe')->setUserIdentifier('')])))->exportToString([], ExportFormat::Csv);
+
+        $stream = fopen('php://memory', 'w+');
+        self::assertNotFalse($stream);
+        fwrite($stream, $csv);
+        rewind($stream);
+        $rows = [];
+        while (($row = fgetcsv($stream)) !== false) {
+            $rows[] = $row;
+        }
+        fclose($stream);
+        self::assertSame('\'=HYPERLINK("http://x")', $rows[1][1]);
+        self::assertSame("'\rx", $rows[1][4]);
+        self::assertSame("'-2+3", $rows[1][5]);
+        self::assertSame("'\tcmd", $rows[1][6]);
+        self::assertSame("'+1", $rows[1][8]);
+        self::assertSame("'@SUM(1+1)", $rows[1][12]);
+        self::assertSame('safe', $rows[2][1]);
+        self::assertSame('', $rows[2][12]);
+        // JSON keeps the raw values
+        self::assertStringContainsString('@SUM(1+1)', (new ExportHttpLogService($this->createRepositoryMock([$entry])))->exportToString([], ExportFormat::Json));
     }
 
     #[Test]

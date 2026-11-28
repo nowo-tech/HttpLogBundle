@@ -36,6 +36,7 @@ final readonly class UsageCapture
     public string $path;
     public ?int $statusCode;
     public ?string $errorKind;
+    public ?string $errorCode;
     public ?float $durationMs;
     public ?int $responseBytes;
     public ?int $retryCount;
@@ -85,6 +86,7 @@ final readonly class UsageCapture
         ?string $credentialId = null,
         public bool $row = true,
         public bool $rollup = false,
+        ?string $errorCode = null,
     ) {
         $validChannel = UsageFieldGuard::channel($channel);
         if ($validChannel === null || ($validChannel === HttpLogChannel::WEB && $row)) {
@@ -100,6 +102,7 @@ final readonly class UsageCapture
         $this->host               = UsageFieldGuard::host($host);
         $this->statusCode         = UsageFieldGuard::statusCode($statusCode);
         $this->errorKind          = UsageFieldGuard::errorKind($errorKind);
+        $this->errorCode          = UsageFieldGuard::errorCode($errorCode);
         $this->durationMs         = UsageFieldGuard::duration($durationMs);
         $this->responseBytes      = UsageFieldGuard::nonNegativeInt($responseBytes);
         $this->retryCount         = UsageFieldGuard::nonNegativeInt($retryCount, 32767);
@@ -164,6 +167,7 @@ final readonly class UsageCapture
             'userIdentifier' => $this->userIdentifier,
             'credentialKind' => $this->credentialKind,
             'credentialId'   => $this->credentialId,
+            'errorCode'      => $this->errorCode,
         ];
         foreach ($optional as $key => $value) {
             if ($value !== null) {
@@ -227,6 +231,7 @@ final readonly class UsageCapture
             credentialId: self::string($data['credentialId'] ?? null),
             row: ($data['row'] ?? true) !== false,
             rollup: ($data['rollup'] ?? false) === true,
+            errorCode: self::string($data['errorCode'] ?? null),
         );
     }
 
