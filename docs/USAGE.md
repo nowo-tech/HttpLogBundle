@@ -529,7 +529,7 @@ call, cleared when the call is recorded); chunks are forwarded untouched, and th
 bare client's.
 
 The column exists only while a provider configures `error_code` (no migration otherwise, see
-[UPGRADING](UPGRADING.md#unreleased)): `error_code`, nullable, 128 characters, indexed with `created_at`, exact
+[UPGRADING](UPGRADING.md#to-1260)): `error_code`, nullable, 128 characters, indexed with `created_at`, exact
 match. It is a filter and a
 field in the admin list, a detail field, an export column (`errorCode`) and `CallQuery::withErrorCode()` /
 `UsageCall::$errorCode` for the usage API. No change for rows without a code.

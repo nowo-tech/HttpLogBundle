@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.26.0] - 2026-11-28](#1260---2026-11-28)
 - [[1.25.0] - 2026-11-22](#1250---2026-11-22)
 - [[1.24.0] - 2026-11-21](#1240---2026-11-21)
 - [[1.23.1] - 2026-11-21](#1231---2026-11-21)
@@ -59,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-11-28
+
 ### Security
 
 - **CSV export neutralises spreadsheet formulas.** Before, a text cell of the CSV export was written as is, so a value starting with `=`, `+`, `-` or `@` (a self-chosen user identifier, a route name, a path) was evaluated by a spreadsheet that opened the file. Every text cell starting with `=`, `+`, `-`, `@`, TAB or CR is now prefixed with `'` (OWASP). It affects the released versions that export CSV (the JSON export is unchanged and keeps the raw values).
@@ -74,6 +77,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - A new strict `TranslationCatalogueTest` fails on a non-en locale missing a key, on a non-en value identical to English (any length, placeholders included; values without letters are skipped) unless allow-listed per locale (brands, units, protocols, loanwords, true cognates), on a non-es value identical to the Spanish one (longer than 12 characters) unless allow-listed as genuinely shared, and on stale allow-list entries. No translation changed.
+
+[1.26.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.26.0
 
 ## [1.25.0] - 2026-11-22
 

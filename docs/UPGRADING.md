@@ -5,6 +5,8 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
 ## Table of contents
 
 - [Unreleased](#unreleased)
+- [To 1.26.0](#to-1260)
+  - [`error_code` column (opt-in)](#error_code-column-opt-in)
 - [To 1.25.0](#to-1250)
 - [To 1.24.0](#to-1240)
 - [To 1.23.1](#to-1231)
@@ -82,6 +84,14 @@ This document describes how to upgrade between versions of **Http Log Bundle**.
   - [From this version onward](#from-this-version-onward)
 
 ## Unreleased
+
+## To 1.26.0
+
+From **1.25.0**:
+
+```bash
+composer update nowo-tech/http-log-bundle
+```
 
 ### `error_code` column (opt-in)
 
