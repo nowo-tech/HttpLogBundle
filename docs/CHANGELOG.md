@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.27.0] - 2026-11-28](#1270---2026-11-28)
 - [[1.26.0] - 2026-11-28](#1260---2026-11-28)
 - [[1.25.0] - 2026-11-22](#1250---2026-11-22)
 - [[1.24.0] - 2026-11-21](#1240---2026-11-21)
@@ -60,6 +61,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-11-28
+
 ### Added
 
 - **Correlation ids (Beacon spec 235 FR-002 / FR-005)** with the new light dependency `nowo-tech/correlation-contract` ^0.1. When the host registers a `Nowo\CorrelationContract\CorrelationIdProviderInterface` service (`correlation.use_provider`, default `true`), its current id becomes the **correlation id** of the rows: `HttpLogEntryRecordedEvent::$correlationId` and, with `correlation.columns`, the `correlation_id` column. It is read on the main request at `kernel.request`, `kernel.response` and `kernel.terminate` (the latest id wins), and again when an outbound call or a mail is recorded (a provider that sets its id late is still picked up). `request_id` is **not** affected: it stays HttpLog's own generated unique id for every row, so a provider id that repeats (a retried chain, a header adopted from a client) never collapses rows.
@@ -70,6 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `HttpLogSubscriber` also listens to `kernel.response` (priority -1024) to re-read the host provider's id for the correlation id; it never changes the response or `request_id`. HttpLog still sends no response header.
+
+[1.27.0]: https://github.com/nowo-tech/HttpLogBundle/releases/tag/v1.27.0
 
 ## [1.26.0] - 2026-11-28
 
